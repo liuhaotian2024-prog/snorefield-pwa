@@ -13,7 +13,6 @@
       height:100vh;
       display:flex;
       flex-direction:column;
-      /* 关键改动：允许滚动 */
       overflow:auto;
     }
     .monitor{flex:0 0 45%;background:#080808;border-bottom:1px solid #333;position:relative;}
@@ -64,8 +63,8 @@
 
   <div class="list-header">
     <span>ID</span>
-    <span>Duration / Max Δ</span>
-    <span>Result</span>
+    <span>DURATION / MAX Δ</span>
+    <span>RESULT</span>
   </div>
   <div class="log-area" id="logList">
     <div style="padding:30px; text-align:center; color:#444;">
@@ -144,7 +143,14 @@ function ema(prev, x, a){ return (a*x + (1-a)*prev); }
 function norm255(x){ return clamp(x/255, 0, 1); }
 
 async function bootKernel() {
-  if (isRunning) return;
+  // 调试用：确认按钮被点到了
+  alert("按钮被点到了，准备启动内核。请稍等几秒看看是否弹出麦克风权限。");
+
+  if (isRunning){
+    alert("内核已经在运行，无需重复启动。");
+    return;
+  }
+
   try {
     if ('wakeLock' in navigator) {
       try { wakeLock = await navigator.wakeLock.request('screen'); } catch(e){}
@@ -158,9 +164,15 @@ async function bootKernel() {
 
     buildTokens();
 
+    // 关键：这里如果出错，会弹出详细错误
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      throw new Error("当前浏览器不支持 navigator.mediaDevices.getUserMedia");
+    }
+
     const stream = await navigator.mediaDevices.getUserMedia({
       audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: false }
     });
+
     micSource = audioCtx.createMediaStreamSource(stream);
 
     micHP = audioCtx.createBiquadFilter();
@@ -186,4 +198,187 @@ async function bootKernel() {
 
     initCanvas();
     document.getElementById('btnStart').style.display = 'none';
-    document.getElementById('btnStop').style.display =
+    document.getElementById('btnStop').style.display = 'block';
+    document.getElementById('logList').innerHTML = "";
+    isRunning = true;
+
+    setState("BASELINE CAL", "#ffcc00");
+    await baselineCalibration();
+    setState("STANDBY", "#fff");
+
+    selectToken("NOISE_BREATH", true);
+    masterGain.gain.setTargetAtTime(0.0, audioCtx.currentTime, 0.2);
+
+    logicTimer = setInterval(logicLoop, 1000/LOOP_HZ);
+    drawLoop();
+
+  } catch (e) {
+    alert("启动失败：麦克风权限被拒绝或音频初始化异常。\n\n详细信息："
+          + (e.name || "Error") + " - " + (e.message || e.toString()));
+    console.error(e);
+  }
+}
+
+async function stopKernel(){
+  if(!isRunning) return;
+  isRunning = false;
+  if (logicTimer) { clearInterval(logicTimer); logicTimer = null; }
+
+  try { if (wakeLock) { await wakeLock.release(); wakeLock = null; } } catch(e){}
+  try {
+    if (micSource && micSource.mediaStream) micSource.mediaStream.getTracks().forEach(t => t.stop());
+  } catch(e){}
+
+  try { if (audioCtx) await audioCtx.close(); } catch(e){}
+
+  currentCIEU = null;
+  setState("STOPPED", "#ff3b30");
+  document.getElementById('btnStart').style.display = 'block';
+  document.getElementById('btnStop').style.display = 'none';
+  document.getElementById('valToken').innerText = "--";
+}
+
+async function baselineCalibration(){
+  const ys = [];
+  const t0 = performance.now();
+  while ((performance.now() - t0) < 10000){
+    const y = computeYandSHat().Y;
+    ys.push(y);
+    await sleep(60);
+  }
+  ys.sort((a,b)=>a-b);
+  const p50 = ys[Math.floor(ys.length*0.5)] || 10;
+  const p90 = ys[Math.floor(ys.length*0.9)] || p50;
+  THRESHOLD = clamp(Math.floor(p90 * 1.25), 18, 85);
+}
+
+function bandEnergy(freq, f1, f2){
+  const nyq = audioCtx.sampleRate / 2;
+  const binCount = freq.length;
+  const i1 = Math.floor((f1/nyq)*binCount);
+  const i2 = Math.floor((f2/nyq)*binCount);
+  let sum = 0;
+  const a = clamp(i1,0,binCount-1);
+  const b = clamp(i2,0,binCount-1);
+  const n = Math.max(1, b-a);
+  for(let i=a;i<b;i++) sum += freq[i];
+  return sum / n;
+}
+
+function spectralFeatures(freq, fLow=60, fHigh=450){
+  const nyq = audioCtx.sampleRate / 2;
+  const N = freq.length;
+  const i1 = clamp(Math.floor((fLow/nyq)*N), 0, N-1);
+  const i2 = clamp(Math.floor((fHigh/nyq)*N), 0, N-1);
+
+  let sumMag = 0, sumWeighted = 0;
+  let geoSum = 0, arithSum = 0, count = 0;
+
+  for(let i=i1;i<i2;i++){
+    const mag = Math.max(1e-6, freq[i]/255);
+    const f = (i/N)*nyq;
+    sumMag += mag;
+    sumWeighted += mag * f;
+
+    geoSum += Math.log(mag);
+    arithSum += mag;
+    count++;
+  }
+
+  const centroid = (sumMag > 0) ? (sumWeighted / sumMag) : 0;
+  const flatness = (count > 0) ? (Math.exp(geoSum / count) / (arithSum / count)) : 0;
+  return { centroid, flatness: clamp(flatness, 0, 1) };
+}
+
+function periodicityScore(){
+  const L = yHistory.length;
+  if(L < LOOP_HZ * 4) return 0;
+  const lagMin = Math.floor(0.8 * LOOP_HZ);
+  const lagMax = Math.floor(2.2 * LOOP_HZ);
+
+  const mean = yHistory.reduce((a,b)=>a+b,0)/L;
+  let varSum = 0;
+  for(let i=0;i<L;i++){ const d = yHistory[i]-mean; varSum += d*d; }
+  if(varSum < 1e-6) return 0;
+
+  let best = 0;
+  for(let lag=lagMin; lag<=lagMax; lag++){
+    let c = 0;
+    for(let i=lag;i<L;i++){
+      c += (yHistory[i]-mean)*(yHistory[i-lag]-mean);
+    }
+    c = c / varSum;
+    if(c > best) best = c;
+  }
+  return clamp(best, 0, 1);
+}
+
+function computeYandSHat(){
+  const freq = new Uint8Array(analyserMicFft.frequencyBinCount);
+  analyserMicFft.getByteFrequencyData(freq);
+
+  const eL = bandEnergy(freq, 60, 150);
+  const eM = bandEnergy(freq, 150, 300);
+  const eH = bandEnergy(freq, 300, 450);
+
+  let Y_raw = Math.floor(0.45*eL + 0.35*eM + 0.20*eH);
+  Y_raw = clamp(Y_raw, 0, 255);
+
+  yEMA = ema(yEMA, Y_raw, EMA_ALPHA);
+  const Y = Math.floor(yEMA);
+
+  const { centroid, flatness } = spectralFeatures(freq, 60, 450);
+  const centroidNorm = clamp((centroid - 60) / (450 - 60), 0, 1);
+
+  yHistory.push(Y);
+  const maxHist = LOOP_HZ * 6;
+  if(yHistory.length > maxHist) yHistory.shift();
+  const per = periodicityScore();
+
+  const sHat = {
+    eL: norm255(eL),
+    eM: norm255(eM),
+    eH: norm255(eH),
+    centroid: centroidNorm,
+    flatness: flatness,
+    periodicity: per
+  };
+
+  return { Y, Y_raw, sHat };
+}
+
+function buildTokens(){
+  function makeNoiseSource(){
+    const bufferSize = 2 * audioCtx.sampleRate;
+    const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+    const data = buffer.getChannelData(0);
+    let lastOut = 0;
+    for(let i=0;i<bufferSize;i++){
+      const white = Math.random()*2 - 1;
+      data[i] = (lastOut + (0.02*white))/1.02;
+      lastOut = data[i];
+      data[i] *= 2.0;
+    }
+    const src = audioCtx.createBufferSource();
+    src.buffer = buffer;
+    src.loop = true;
+    src.start();
+    return src;
+  }
+  function makeLFO(freqHz){
+    const osc = audioCtx.createOscillator();
+    osc.type = 'sine';
+    osc.frequency.value = freqHz;
+    osc.start();
+    return osc;
+  }
+
+  (() => {
+    const name = "NOISE_BREATH";
+    const src = makeNoiseSource();
+    const lp = audioCtx.createBiquadFilter();
+    lp.type = "lowpass";
+    lp.frequency.value = 220;
+
+    const g = audioCtx.createGain();
+    g.gain.value = 0
