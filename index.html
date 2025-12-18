@@ -28,15 +28,19 @@
     .res-badge{padding:2px 6px;border-radius:4px;font-size:10px;font-weight:bold;}
     .res-win{background:#003300;color:#32d74b;border:1px solid #005500;}
     .res-loss{background:#330000;color:#ff3b30;border:1px solid #550000;}
-    .controls{padding:12px 15px;background:#111;border-top:1px solid #222;padding-bottom:env(safe-area-inset-bottom,20px);display:flex;gap:12px;align-items:center;}
+    .controls{padding:12px 15px;background:#111;border-top:1px solid #222;padding-bottom:env(safe-area-inset-bottom,20px);display:flex;gap:12px;align-items:flex-start;flex-wrap:wrap;}
     button{flex:1;padding:14px;border:1px solid:#333;background:#000;color:#fff;font-weight:bold;border-radius:8px;font-size:13px;}
     button.start{border-color:#32d74b;color:#32d74b;}
     button.stop{border-color:#ff3b30;color:#ff3b30;}
     button.export{border-color:#007aff;color:#007aff;}
     button:active{background:#222;}
-    .sliderWrap{flex:1.4;display:flex;flex-direction:column;gap:6px;}
+    .sliderWrap{flex:2;display:flex;flex-direction:column;gap:6px;min-width:180px;}
     .sliderWrap label{font-size:10px;color:#777;}
+    .sliderRow{display:flex;align-items:center;gap:6px;}
+    .sliderRow span{font-size:10px;color:#aaa;}
     input[type="range"]{width:100%;}
+    .toggleRow{display:flex;align-items:center;gap:6px;margin-top:4px;}
+    .toggleRow input[type="checkbox"]{width:14px;height:14px;}
   </style>
 </head>
 <body>
@@ -57,7 +61,10 @@
       E(L/M/H)=<span id="fE">--</span>,
       C=<span id="fC">--</span>,
       Flat=<span id="fF">--</span>,
-      Per=<span id="fP">--</span>
+      Per=<span id="fP">--</span><br>
+      <span style="color:#888">SESSION:</span>
+      <span id="sessEvt">0</span> evt,
+      <span id="sessSnore">0.0</span>s Δ&gt;0
     </div>
   </div>
 
@@ -77,8 +84,20 @@
     <button class="stop" id="btnStop" style="display:none;">停止</button>
 
     <div class="sliderWrap">
-      <label>输出强度上限（夜间建议低一些）: <span id="valCap">0.10</span></label>
+      <div class="sliderRow">
+        <label>干预输出上限（夜间建议低一些）: <span id="valCap">0.10</span></label>
+      </div>
       <input id="capSlider" type="range" min="0.02" max="0.20" step="0.01" value="0.10">
+
+      <div class="toggleRow">
+        <input id="sleepNoiseToggle" type="checkbox" checked>
+        <span>入睡噪音（S0）：<span id="sleepNoiseState">ON</span></span>
+      </div>
+      <div class="sliderRow">
+        <span>入睡噪音强度:</span>
+        <span id="sleepNoiseVal">0.25</span>
+      </div>
+      <input id="sleepNoiseSlider" type="range" min="0.05" max="0.6" step="0.05" value="0.25">
     </div>
 
     <button class="export" id="btnExport">导出CSV</button>
@@ -98,6 +117,14 @@ let traceY=[], traceTarget=[], traceU=[];
 let currentCIEU = null;
 let cieuHistory = [];
 let globalID = 1;
+
+// Session summary
+let totalEvents = 0;
+let totalSnoreTime = 0; // seconds
+
+// Sleep noise (S0) control
+let sleepNoiseEnabled = true;
+let sleepNoiseLevel = 0.25; // 0..1-ish
 
 const LOOP_HZ = 50;
 const TARGET_TIME = 5.0;
@@ -127,11 +154,11 @@ let tokenCurrent = null;
 let masterGain = null;
 
 const yHistory = [];
+let lastSHat = null;
 
-// 自动保存用的 key
-const STORAGE_KEY = 'snorefield_cieu_history_v1_cf';
+// autosave key
+const STORAGE_KEY = 'snorefield_cieu_history_v2';
 
-// 小工具
 function setState(text, color) {
   const el = document.getElementById('sysState');
   el.innerText = text;
@@ -139,17 +166,28 @@ function setState(text, color) {
 }
 function onCapChange(v){
   GAIN_CAP = parseFloat(v);
-  document.getElementById('valCap').innerText = GAIN_CAP.toFixed(2);
+  const el = document.getElementById('valCap');
+  if (el) el.innerText = GAIN_CAP.toFixed(2);
+}
+function onSleepNoiseChange(v){
+  sleepNoiseLevel = parseFloat(v);
+  const el = document.getElementById('sleepNoiseVal');
+  if (el) el.innerText = sleepNoiseLevel.toFixed(2);
 }
 function sleep(ms){ return new Promise(r => setTimeout(r, ms)); }
 function clamp(x,a,b){ return Math.max(a, Math.min(b, x)); }
 function ema(prev, x, a){ return (a*x + (1-a)*prev); }
 function norm255(x){ return clamp(x/255, 0, 1); }
 
-// ========== 本地持久化 ==========
+// ========== autosave ==========
 function saveHistoryToStorage(){
   try {
-    const payload = { cieuHistory, globalID };
+    const payload = {
+      cieuHistory,
+      globalID,
+      totalEvents,
+      totalSnoreTime
+    };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
   } catch(e){
     console.error('保存到 localStorage 失败：', e);
@@ -159,11 +197,19 @@ function saveHistoryToStorage(){
 function restoreHistoryFromStorage(){
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if(!raw) return;
+    if(!raw) {
+      updateSessionSummaryHUD();
+      return;
+    }
     const payload = JSON.parse(raw);
-    if(!payload || !Array.isArray(payload.cieuHistory)) return;
+    if(!payload || !Array.isArray(payload.cieuHistory)) {
+      updateSessionSummaryHUD();
+      return;
+    }
 
     cieuHistory = payload.cieuHistory;
+    totalEvents = payload.totalEvents || cieuHistory.length;
+    totalSnoreTime = payload.totalSnoreTime || 0;
     globalID = payload.globalID || (cieuHistory.reduce((m,c)=>Math.max(m,c.id||0),0)+1);
 
     const list = document.getElementById('logList');
@@ -175,14 +221,12 @@ function restoreHistoryFromStorage(){
       c.dataParams.forEach(p => { if(p.D > maxDelta) maxDelta = p.D; });
       const duration = c.dataParams[c.dataParams.length-1].t || "0.00";
       const isWin = (maxDelta < 35);
+
       const div = document.createElement('div');
-      const tag = (c.cf && typeof c.cf.reduction === 'number')
-        ? ` | CF ${(1 - c.cf.reduction)*100 | 0}%↓`
-        : '';
       div.className = 'cieu-item';
       div.innerHTML = `
         <div style="color:#666">#${c.id}</div>
-        <div>${duration}s <span style="color:#444">|</span> Δ${maxDelta}${tag}</div>
+        <div>${duration}s <span style="color:#444">|</span> Δ${maxDelta}</div>
         <div class="res-badge ${isWin ? 'res-win' : 'res-loss'}">
           ${isWin ? 'SUPPRESSED' : 'HIGH ERR'}
         </div>
@@ -190,12 +234,21 @@ function restoreHistoryFromStorage(){
       list.insertBefore(div, list.firstChild);
     });
 
+    updateSessionSummaryHUD();
   } catch(e){
     console.error('从 localStorage 恢复失败：', e);
+    updateSessionSummaryHUD();
   }
 }
 
-// ========== 启动 / 停止 ==========
+function updateSessionSummaryHUD(){
+  const eEl = document.getElementById('sessEvt');
+  const sEl = document.getElementById('sessSnore');
+  if (eEl) eEl.innerText = totalEvents;
+  if (sEl) sEl.innerText = totalSnoreTime.toFixed(1);
+}
+
+// ========== 启停 ==========
 async function bootKernel() {
   if (isRunning){
     alert("内核已经在运行，无需重复启动。");
@@ -208,7 +261,6 @@ async function bootKernel() {
     }
 
     audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-
     masterGain = audioCtx.createGain();
     masterGain.gain.value = 0.0;
     masterGain.connect(audioCtx.destination);
@@ -249,7 +301,10 @@ async function bootKernel() {
     initCanvas();
     document.getElementById('btnStart').style.display = 'none';
     document.getElementById('btnStop').style.display = 'block';
-    document.getElementById('logList').innerHTML = "";
+    const logList = document.getElementById('logList');
+    if (logList && cieuHistory.length === 0) {
+      logList.innerHTML = "";
+    }
     isRunning = true;
 
     setState("BASELINE CAL", "#ffcc00");
@@ -286,6 +341,7 @@ async function stopKernel(){
   document.getElementById('btnStart').style.display = 'block';
   document.getElementById('btnStop').style.display = 'none';
   document.getElementById('valToken').innerText = "--";
+  masterGain = null;
 }
 
 // ========== 校准 & 特征 ==========
@@ -395,6 +451,7 @@ function computeYandSHat(){
     periodicity: per
   };
 
+  lastSHat = sHat;
   return { Y, Y_raw, sHat };
 }
 
@@ -425,6 +482,7 @@ function buildTokens(){
     return osc;
   }
 
+  // 基础入睡 / 干预噪音 token
   (() => {
     const name = "NOISE_BREATH";
     const src = makeNoiseSource();
@@ -435,7 +493,7 @@ function buildTokens(){
     const g = audioCtx.createGain();
     g.gain.value = 0.0;
 
-    const lfo = makeLFO(0.25);
+    const lfo = makeLFO(0.25); // ~4s 节律
     const lfoGain = audioCtx.createGain();
     lfoGain.gain.value = 0.0;
     lfo.connect(lfoGain);
@@ -449,12 +507,12 @@ function buildTokens(){
       name,
       gain: g,
       set: (u, sHat) => {
-        const carrier = 180 + u*(600) + 120*sHat.centroid;
-        lp.frequency.setTargetAtTime(clamp(carrier, 160, 900), audioCtx.currentTime, 0.12);
+        const carrier = 180 + u*(600) + 120*(sHat ? sHat.centroid : 0.5);
+        lp.frequency.setTargetAtTime(clamp(carrier, 160, 900), audioCtx.currentTime, 0.20);
         const level = GAIN_IDLE + u*(GAIN_CAP - GAIN_IDLE);
-        g.gain.setTargetAtTime(level, audioCtx.currentTime, 0.18);
-        const depth = 0.06 * u * (0.5 + 0.5*sHat.periodicity);
-        lfoGain.gain.setTargetAtTime(depth, audioCtx.currentTime, 0.25);
+        g.gain.setTargetAtTime(level, audioCtx.currentTime, 0.30);
+        const depth = 0.05 * u * (0.5 + 0.5*(sHat ? sHat.periodicity : 0.2));
+        lfoGain.gain.setTargetAtTime(depth, audioCtx.currentTime, 0.30);
       }
     };
   })();
@@ -478,12 +536,12 @@ function buildTokens(){
       name,
       gain: g,
       set: (u, sHat) => {
-        const center = 200 + 220*sHat.eM + 180*sHat.eH + 250*u;
-        bp.frequency.setTargetAtTime(clamp(center, 180, 700), audioCtx.currentTime, 0.10);
-        const q = 4.0 + 8.0*(1 - sHat.flatness);
+        const center = 200 + 220*(sHat ? sHat.eM : 0.3) + 180*(sHat ? sHat.eH : 0.3) + 250*u;
+        bp.frequency.setTargetAtTime(clamp(center, 180, 700), audioCtx.currentTime, 0.15);
+        const q = 4.0 + 8.0*(1 - (sHat ? sHat.flatness : 0.6));
         bp.Q.setTargetAtTime(clamp(q, 3, 12), audioCtx.currentTime, 0.2);
         const level = GAIN_IDLE + u*(GAIN_CAP - GAIN_IDLE);
-        g.gain.setTargetAtTime(level, audioCtx.currentTime, 0.14);
+        g.gain.setTargetAtTime(level, audioCtx.currentTime, 0.18);
       }
     };
   })();
@@ -509,7 +567,7 @@ function buildTokens(){
       gain: g,
       set: (u, sHat) => {
         lp.frequency.setTargetAtTime(350 + 450*u, audioCtx.currentTime, 0.12);
-        const interval = 2.0 - 1.0*sHat.periodicity;
+        const interval = 2.0 - 1.0*(sHat ? sHat.periodicity : 0.5);
         const now = audioCtx.currentTime;
 
         if(now >= nextPulseAt){
@@ -554,8 +612,8 @@ function buildTokens(){
       name,
       gain: g,
       set: (u, sHat) => {
-        const base = 170 + 120*sHat.centroid;
-        const beat = 4 + 4*sHat.periodicity;
+        const base = 170 + 120*(sHat ? sHat.centroid : 0.5);
+        const beat = 4 + 4*(sHat ? sHat.periodicity : 0.5);
         oscL.frequency.setTargetAtTime(base, audioCtx.currentTime, 0.20);
         oscR.frequency.setTargetAtTime(base + beat, audioCtx.currentTime, 0.20);
         const level = clamp(0.5*(GAIN_IDLE + u*(GAIN_CAP - GAIN_IDLE)), 0, GAIN_CAP*0.6);
@@ -576,11 +634,10 @@ function selectToken(name, force=false){
   });
 
   tokenCurrent = name;
-  lastTokenSwitchAt = now;
   document.getElementById('valToken').innerText = name;
+  lastTokenSwitchAt = now;
 }
 
-// 简单的策略：根据场型和误差选 token
 function chooseToken(sHat, delta){
   const tonal = (sHat.flatness < 0.35);
   const periodic = (sHat.periodicity > 0.55);
@@ -605,9 +662,22 @@ function logicLoop(){
   let Delta_t = 0;
   let U_disp = 0;
 
+  // 累计“Δ>0”的时间（粗略鼾声时间）
+  if (Y > THRESHOLD){
+    totalSnoreTime += 1/LOOP_HZ;
+  }
+
   if(!currentCIEU){
-    masterGain.gain.setTargetAtTime(0.0, audioCtx.currentTime, 0.25);
     setState("STANDBY", "#fff");
+
+    // S0：入睡噪音
+    if (audioCtx && masterGain && sleepNoiseEnabled && tokens["NOISE_BREATH"]) {
+      const sForBgm = lastSHat || {eL:0.2,eM:0.3,eH:0.3,centroid:0.5,flatness:0.7,periodicity:0.2};
+      tokens["NOISE_BREATH"].set(sleepNoiseLevel, sForBgm);
+      masterGain.gain.setTargetAtTime(1.0, audioCtx.currentTime, 0.4);
+    } else if (audioCtx && masterGain) {
+      masterGain.gain.setTargetAtTime(0.0, audioCtx.currentTime, 0.4);
+    }
 
     if(Y > THRESHOLD){
       currentCIEU = {
@@ -616,8 +686,7 @@ function logicLoop(){
         startState: Y,
         dataParams: [],
         cooldown: null,
-        I: 0,
-        cf: null // 保存因果建模结果
+        I: 0
       };
       setState("ENGAGED", "#ff3b30");
       selectToken(chooseToken(sHat, 0), true);
@@ -642,7 +711,9 @@ function logicLoop(){
     selectToken(token, false);
     tokens[tokenCurrent]?.set(u, sHat);
 
-    masterGain.gain.setTargetAtTime(1.0, audioCtx.currentTime, 0.15);
+    if (masterGain){
+      masterGain.gain.setTargetAtTime(1.0, audioCtx.currentTime, 0.15);
+    }
 
     currentCIEU.dataParams.push({
       t: elapsed.toFixed(2),
@@ -658,8 +729,7 @@ function logicLoop(){
       cent: sHat.centroid.toFixed(3),
       flat: sHat.flatness.toFixed(3),
       per: sHat.periodicity.toFixed(3),
-      thr: THRESHOLD,
-      Ycf: "" // 预留反事实列
+      thr: THRESHOLD
     });
 
     if(Y < THRESHOLD){
@@ -677,22 +747,19 @@ function logicLoop(){
   document.getElementById('valU').innerText = U_disp;
   document.getElementById('valDelta').innerText = Math.floor(Delta_t);
 
-  // 简单展示当前 Ŝ
   document.getElementById('fE').innerText =
-    `${sHat.eL.toFixed(2)}/${sHat.eM.toFixed(2)}/${sHat.eH.toFixed(2)}`;
-  document.getElementById('fC').innerText = sHat.centroid.toFixed(2);
-  document.getElementById('fF').innerText = sHat.flatness.toFixed(2);
-  document.getElementById('fP').innerText = sHat.periodicity.toFixed(2);
+    `${(lastSHat ? lastSHat.eL.toFixed(2) : '--')}/${(lastSHat ? lastSHat.eM.toFixed(2) : '--')}/${(lastSHat ? lastSHat.eH.toFixed(2) : '--')}`;
+  document.getElementById('fC').innerText = lastSHat ? lastSHat.centroid.toFixed(2) : '--';
+  document.getElementById('fF').innerText = lastSHat ? lastSHat.flatness.toFixed(2) : '--';
+  document.getElementById('fP').innerText = lastSHat ? lastSHat.periodicity.toFixed(2) : '--';
 
+  updateSessionSummaryHUD();
   pushTrace(Y, currentCIEU ? Y_star_t : null, U_disp);
 }
 
-// ========== CIEU 结算 + 因果建模 ==========
 function finishCIEU(){
-  // 对当前 CIEU 做一次简单 AR(1) 反事实建模
-  computeCounterfactual(currentCIEU);
-
   cieuHistory.push(currentCIEU);
+  totalEvents += 1;
 
   let maxDelta = -999;
   currentCIEU.dataParams.forEach(p => { if(p.D > maxDelta) maxDelta = p.D; });
@@ -700,13 +767,10 @@ function finishCIEU(){
   const isWin = (maxDelta < 35);
 
   const div = document.createElement('div');
-  const cfTag = (currentCIEU.cf && typeof currentCIEU.cf.reduction === 'number')
-    ? ` | CF ${(1 - currentCIEU.cf.reduction)*100 | 0}%↓`
-    : '';
   div.className = 'cieu-item';
   div.innerHTML = `
     <div style="color:#666">#${currentCIEU.id}</div>
-    <div>${duration}s <span style="color:#444">|</span> Δ${maxDelta}${cfTag}</div>
+    <div>${duration}s <span style="color:#444">|</span> Δ${maxDelta}</div>
     <div class="res-badge ${isWin ? 'res-win' : 'res-loss'}">
       ${isWin ? 'SUPPRESSED' : 'HIGH ERR'}
     </div>
@@ -714,110 +778,9 @@ function finishCIEU(){
   const list = document.getElementById('logList');
   list.insertBefore(div, list.firstChild);
 
-  // 自动保存整条历史（包括反事实）
-  saveHistoryToStorage();
-
   currentCIEU = null;
   setState("STANDBY", "#fff");
-  masterGain.gain.setTargetAtTime(0.0, audioCtx.currentTime, 0.3);
-}
-
-// 在一个 CIEU 内，基于前 1s Y 轨迹拟合 AR(1) 模型，并生成后半段 Ycf
-function computeCounterfactual(cieu){
-  try{
-    const dp = cieu.dataParams;
-    if(!dp || dp.length < 5) return;
-
-    // 取时间数组和 Y 数组
-    const T = dp.map(p => parseFloat(p.t));
-    const Y = dp.map(p => parseFloat(p.Y));
-    const thr = parseFloat(dp[0].thr);
-    if(isNaN(thr)) return;
-
-    // 估计 dt（假设等间隔）
-    let dt = 0.02;
-    if(T.length >= 2){
-      dt = Math.max(0.005, Math.abs(T[1] - T[0]));
-    }
-
-    // 建模窗口：前 1s 或者事件一半，以较小者为准
-    const trainWindow = Math.min(1.0, (T[T.length-1] - T[0]) / 2);
-    const t0 = T[0];
-    let trainEndIndex = 0;
-    for(let i=0;i<T.length;i++){
-      if(T[i] - t0 <= trainWindow) trainEndIndex = i;
-    }
-    if(trainEndIndex < 2) return; // 样本太少
-
-    // 构造 (Yk, Yk+1) 对
-    const yk = [];
-    const yk1 = [];
-    for(let i=0;i<trainEndIndex;i++){
-      yk.push(Y[i]);
-      yk1.push(Y[i+1]);
-    }
-    const n = yk.length;
-    if(n < 2) return;
-
-    // 最小二乘求解 yk1 = a*yk + c
-    let sumYk = 0, sumYk1 = 0, sumYk2 = 0, sumYkYk1 = 0;
-    for(let i=0;i<n;i++){
-      const x = yk[i];
-      const y = yk1[i];
-      sumYk += x;
-      sumYk1 += y;
-      sumYk2 += x*x;
-      sumYkYk1 += x*y;
-    }
-    const A11 = sumYk2;
-    const A12 = sumYk;
-    const A21 = sumYk;
-    const A22 = n;
-    const B1 = sumYkYk1;
-    const B2 = sumYk1;
-    const det = A11*A22 - A12*A21;
-    if(Math.abs(det) < 1e-6) return;
-    const a = ( B1*A22 - B2*A12 ) / det;
-    const c = ( A11*B2 - A21*B1 ) / det;
-
-    // 从 trainEndIndex 开始递推反事实 Ycf
-    const Ycf = new Array(Y.length).fill(null);
-    // 训练段保持与实际一致（或者留空）
-    for(let i=0;i<=trainEndIndex;i++){
-      Ycf[i] = Y[i];
-    }
-    for(let k=trainEndIndex+1;k<Y.length;k++){
-      Ycf[k] = a*Ycf[k-1] + c;
-    }
-
-    // 计算干预段（trainEndIndex+1 以后）的实际/预测超阈面积
-    let A1 = 0, A0 = 0;
-    for(let k=trainEndIndex+1;k<Y.length;k++){
-      const y1 = Y[k] - thr;
-      const y0 = (Ycf[k] ?? Y[k]) - thr;
-      if(y1 > 0) A1 += y1 * dt;
-      if(y0 > 0) A0 += y0 * dt;
-    }
-    const reduction = (A0 > 1e-6) ? (A1 / A0) : null;
-
-    // 写回 dataParams
-    for(let k=0;k<dp.length;k++){
-      dp[k].Ycf = (Ycf[k] != null ? Math.round(Ycf[k]) : "");
-    }
-
-    cieu.cf = {
-      a:a,
-      c:c,
-      dt:dt,
-      trainWindow:trainWindow,
-      A1:A1,
-      A0:A0,
-      reduction:reduction
-    };
-
-  } catch(e){
-    console.error('computeCounterfactual 出错：', e);
-  }
+  saveHistoryToStorage();
 }
 
 // ========== 画布 ==========
@@ -884,27 +847,10 @@ function drawLoop(){
 // ========== 导出 CSV ==========
 function exportCSV(){
   if(cieuHistory.length === 0){ alert("暂无数据"); return; }
-  let csv = "ID,Time,Y,Y_raw,Y_target,Y_cf,U,Delta,Token,eL,eM,eH,Centroid,Flatness,Periodicity,Threshold\n";
+  let csv = "ID,Time,Y,Y_raw,Y_target,U,Delta,Token,eL,eM,eH,Centroid,Flatness,Periodicity,Threshold\n";
   cieuHistory.forEach(c => {
     c.dataParams.forEach(r => {
-      csv += [
-        c.id,
-        r.t,
-        r.Y,
-        r.Yraw,
-        r.Ys,
-        (r.Ycf !== undefined ? r.Ycf : ""),
-        r.U,
-        r.D,
-        r.token,
-        r.eL,
-        r.eM,
-        r.eH,
-        r.cent,
-        r.flat,
-        r.per,
-        r.thr
-      ].join(",") + "\n";
+      csv += `${c.id},${r.t},${r.Y},${r.Yraw},${r.Ys},${r.U},${r.D},${r.token},${r.eL},${r.eM},${r.eH},${r.cent},${r.flat},${r.per},${r.thr}\n`;
     });
   });
   const blob = new Blob([csv], { type:'text/csv' });
@@ -917,7 +863,7 @@ function exportCSV(){
   document.body.removeChild(a);
 }
 
-// ========== 事件绑定 & 恢复历史 ==========
+// ========== 事件绑定 & 恢复 ==========
 document.addEventListener('DOMContentLoaded', () => {
   restoreHistoryFromStorage();
 
@@ -925,11 +871,31 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnStop  = document.getElementById('btnStop');
   const btnExport = document.getElementById('btnExport');
   const capSlider = document.getElementById('capSlider');
+  const sleepToggle = document.getElementById('sleepNoiseToggle');
+  const sleepState = document.getElementById('sleepNoiseState');
+  const sleepSlider = document.getElementById('sleepNoiseSlider');
+  const sleepVal = document.getElementById('sleepNoiseVal');
 
   if (btnStart) btnStart.addEventListener('click', () => { bootKernel(); });
   if (btnStop)  btnStop.addEventListener('click',  () => { stopKernel(); });
   if (btnExport) btnExport.addEventListener('click', () => { exportCSV(); });
   if (capSlider) capSlider.addEventListener('input', (e) => onCapChange(e.target.value));
+
+  if (sleepToggle){
+    sleepToggle.checked = sleepNoiseEnabled;
+    sleepToggle.addEventListener('change', () => {
+      sleepNoiseEnabled = sleepToggle.checked;
+      if (sleepState) sleepState.innerText = sleepNoiseEnabled ? 'ON' : 'OFF';
+    });
+    if (sleepState) sleepState.innerText = sleepNoiseEnabled ? 'ON' : 'OFF';
+  }
+  if (sleepSlider){
+    sleepSlider.value = sleepNoiseLevel.toString();
+    sleepSlider.addEventListener('input', (e) => onSleepNoiseChange(e.target.value));
+  }
+  if (sleepVal){ sleepVal.innerText = sleepNoiseLevel.toFixed(2); }
+
+  updateSessionSummaryHUD();
 });
 </script>
 </body>
