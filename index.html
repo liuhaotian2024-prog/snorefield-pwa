@@ -64,7 +64,7 @@
   <div class="list-header">
     <span>ID</span>
     <span>DURATION / MAX Δ</span>
-    <span>REWARD</span>
+    <span>RESULT</span>
   </div>
   <div class="log-area" id="logList">
     <div style="padding:30px; text-align:center; color:#444;">
@@ -85,17 +85,6 @@
   </div>
 
 <script>
-/* ========= 全局与参数 ========= */
-
-// 控制频率：20Hz，记录频率：10Hz
-const LOOP_HZ = 20;
-const LOG_EVERY = 2; // 每2帧记录一次 → 10Hz
-const STATE_WINDOW_SEC = 2;
-const STATE_WINDOW_FRAMES = STATE_WINDOW_SEC * LOOP_HZ;
-
-// 检查点：3s, 6s （反事实目标 & 结果）
-const CHECKPOINTS = [3.0, 6.0];
-
 let audioCtx;
 let analyserMicFft, analyserMicTime;
 let micSource, micHP, micLP;
@@ -104,30 +93,31 @@ let isRunning = false;
 let logicTimer = null;
 
 let scopeCtx, scopeW, scopeH;
-let traceY = [], traceTarget = [], traceU = [];
+let traceY=[], traceTarget=[], traceU=[];
 
 let currentCIEU = null;
-let cieuHistory = [];          // 当前会话内完整 CIEU（含 trace）
-let storedSummaries = [];      // 从 localStorage 恢复的摘要 CIEU
+let cieuHistory = [];
 let globalID = 1;
+
+const LOOP_HZ = 50;
+const TARGET_TIME = 5.0;
+const END_HOLD_MS = 2000;
 
 const MIC_HIGHPASS = 60;
 const MIC_LOWPASS  = 450;
-const FFT_SIZE = 2048;         // 较小 FFT 窗口
+const FFT_SIZE = 4096;
+
 let THRESHOLD = 25;
 
 let yEMA = 0;
-const EMA_ALPHA = 0.35;        // 响应更快
-
-let frameIndex = 0;
-let historyForState = [];      // 存前2秒 Y & Ŝ
-
-let GAIN_CAP = 0.10;
-const GAIN_IDLE = 0.015;
+const EMA_ALPHA = 0.22;
 
 const KP = 0.016;
 const KI = 0.010;
 const I_CLAMP = 50;
+
+let GAIN_CAP = 0.10;
+const GAIN_IDLE = 0.015;
 
 const TOKEN_MIN_HOLD_MS = 3000;
 let lastTokenSwitchAt = 0;
@@ -138,83 +128,74 @@ let masterGain = null;
 
 const yHistory = [];
 
-const STORAGE_KEY = 'snorefield_cieu_summary_v1';
+// 自动保存用的 key
+const STORAGE_KEY = 'snorefield_cieu_history_v1_cf';
 
-/* ========= 工具函数 ========= */
-
+// 小工具
 function setState(text, color) {
   const el = document.getElementById('sysState');
-  if(!el) return;
   el.innerText = text;
   el.style.color = color || "#fff";
 }
 function onCapChange(v){
   GAIN_CAP = parseFloat(v);
-  const el = document.getElementById('valCap');
-  if(el) el.innerText = GAIN_CAP.toFixed(2);
+  document.getElementById('valCap').innerText = GAIN_CAP.toFixed(2);
 }
 function sleep(ms){ return new Promise(r => setTimeout(r, ms)); }
 function clamp(x,a,b){ return Math.max(a, Math.min(b, x)); }
 function ema(prev, x, a){ return (a*x + (1-a)*prev); }
 function norm255(x){ return clamp(x/255, 0, 1); }
 
-/* ========= localStorage 摘要存取 ========= */
-
-function saveSummariesToStorage(){
+// ========== 本地持久化 ==========
+function saveHistoryToStorage(){
   try {
-    const payload = {
-      summaries: storedSummaries,
-      nextId: globalID
-    };
+    const payload = { cieuHistory, globalID };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
   } catch(e){
-    console.error('保存 CIEU 摘要失败：', e);
+    console.error('保存到 localStorage 失败：', e);
   }
 }
 
-function renderSummaryItem(summary){
-  const list = document.getElementById('logList');
-  if(!list) return;
-
-  // 移除默认提示
-  if (list.firstElementChild && list.firstElementChild.style && list.firstElementChild.style.textAlign === 'center') {
-    list.innerHTML = '';
-  }
-
-  const dur = (summary.durationSec || 0).toFixed(2);
-  const maxDelta = summary.maxDelta != null ? summary.maxDelta : '--';
-  const r = summary.reward != null ? summary.reward : 0;
-  const isWin = summary.reward != null ? (summary.reward >= 0) : (maxDelta < 35);
-
-  const div = document.createElement('div');
-  div.className = 'cieu-item';
-  div.innerHTML = `
-    <div style="color:#666">#${summary.id}</div>
-    <div>${dur}s <span style="color:#444">|</span> Δ${maxDelta}</div>
-    <div class="res-badge ${isWin ? 'res-win' : 'res-loss'}">
-      ${isWin ? ('R=' + r.toFixed(1)) : ('R=' + r.toFixed(1))}
-    </div>
-  `;
-  list.insertBefore(div, list.firstChild);
-}
-
-function restoreSummariesFromStorage(){
+function restoreHistoryFromStorage(){
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if(!raw) return;
     const payload = JSON.parse(raw);
-    if(!payload || !Array.isArray(payload.summaries)) return;
-    storedSummaries = payload.summaries;
-    globalID = payload.nextId || (storedSummaries.reduce((m,c)=>Math.max(m,c.id||0),0)+1);
+    if(!payload || !Array.isArray(payload.cieuHistory)) return;
 
-    storedSummaries.forEach(s => renderSummaryItem(s));
+    cieuHistory = payload.cieuHistory;
+    globalID = payload.globalID || (cieuHistory.reduce((m,c)=>Math.max(m,c.id||0),0)+1);
+
+    const list = document.getElementById('logList');
+    list.innerHTML = '';
+
+    cieuHistory.forEach(c => {
+      if(!c || !Array.isArray(c.dataParams) || c.dataParams.length === 0) return;
+      let maxDelta = -999;
+      c.dataParams.forEach(p => { if(p.D > maxDelta) maxDelta = p.D; });
+      const duration = c.dataParams[c.dataParams.length-1].t || "0.00";
+      const isWin = (maxDelta < 35);
+      const div = document.createElement('div');
+      const tag = (c.cf && typeof c.cf.reduction === 'number')
+        ? ` | CF ${(1 - c.cf.reduction)*100 | 0}%↓`
+        : '';
+      div.className = 'cieu-item';
+      div.innerHTML = `
+        <div style="color:#666">#${c.id}</div>
+        <div>${duration}s <span style="color:#444">|</span> Δ${maxDelta}${tag}</div>
+        <div class="res-badge ${isWin ? 'res-win' : 'res-loss'}">
+          ${isWin ? 'SUPPRESSED' : 'HIGH ERR'}
+        </div>
+      `;
+      list.insertBefore(div, list.firstChild);
+    });
+
   } catch(e){
-    console.error('恢复 CIEU 摘要失败：', e);
+    console.error('从 localStorage 恢复失败：', e);
   }
 }
 
-/* ========= 启动 / 停止 ========= */
-
+// ========== 启动 / 停止 ==========
 async function bootKernel() {
   if (isRunning){
     alert("内核已经在运行，无需重复启动。");
@@ -254,11 +235,11 @@ async function bootKernel() {
 
     analyserMicFft = audioCtx.createAnalyser();
     analyserMicFft.fftSize = FFT_SIZE;
-    analyserMicFft.smoothingTimeConstant = 0.08;
+    analyserMicFft.smoothingTimeConstant = 0.15;
 
     analyserMicTime = audioCtx.createAnalyser();
     analyserMicTime.fftSize = 2048;
-    analyserMicTime.smoothingTimeConstant = 0.05;
+    analyserMicTime.smoothingTimeConstant = 0.10;
 
     micSource.connect(micHP);
     micHP.connect(micLP);
@@ -278,9 +259,6 @@ async function bootKernel() {
     selectToken("NOISE_BREATH", true);
     masterGain.gain.setTargetAtTime(0.0, audioCtx.currentTime, 0.2);
 
-    frameIndex = 0;
-    historyForState = [];
-    if (logicTimer) clearInterval(logicTimer);
     logicTimer = setInterval(logicLoop, 1000/LOOP_HZ);
     drawLoop();
 
@@ -310,14 +288,13 @@ async function stopKernel(){
   document.getElementById('valToken').innerText = "--";
 }
 
-/* ========= 校准 & 特征 ========= */
-
+// ========== 校准 & 特征 ==========
 async function baselineCalibration(){
   const ys = [];
   const t0 = performance.now();
   while ((performance.now() - t0) < 10000){
-    const {Y} = computeYandSHat();
-    ys.push(Y);
+    const y = computeYandSHat().Y;
+    ys.push(y);
     await sleep(60);
   }
   ys.sort((a,b)=>a-b);
@@ -421,8 +398,7 @@ function computeYandSHat(){
   return { Y, Y_raw, sHat };
 }
 
-/* ========= token 字典 ========= */
-
+// ========== token 字典 ==========
 function buildTokens(){
   function makeNoiseSource(){
     const bufferSize = 2 * audioCtx.sampleRate;
@@ -449,7 +425,6 @@ function buildTokens(){
     return osc;
   }
 
-  // NOISE_BREATH
   (() => {
     const name = "NOISE_BREATH";
     const src = makeNoiseSource();
@@ -484,7 +459,6 @@ function buildTokens(){
     };
   })();
 
-  // NARROW_DISRUPT
   (() => {
     const name = "NARROW_DISRUPT";
     const src = makeNoiseSource();
@@ -514,7 +488,6 @@ function buildTokens(){
     };
   })();
 
-  // PULSE_NUDGE
   (() => {
     const name = "PULSE_NUDGE";
     const src = makeNoiseSource();
@@ -554,7 +527,6 @@ function buildTokens(){
     };
   })();
 
-  // BINAURAL_TONE
   (() => {
     const name = "BINAURAL_TONE";
     const oscL = audioCtx.createOscillator();
@@ -605,10 +577,10 @@ function selectToken(name, force=false){
 
   tokenCurrent = name;
   lastTokenSwitchAt = now;
-  const el = document.getElementById('valToken');
-  if(el) el.innerText = name;
+  document.getElementById('valToken').innerText = name;
 }
 
+// 简单的策略：根据场型和误差选 token
 function chooseToken(sHat, delta){
   const tonal = (sHat.flatness < 0.35);
   const periodic = (sHat.periodicity > 0.55);
@@ -623,118 +595,41 @@ function chooseToken(sHat, delta){
   return "BINAURAL_TONE";
 }
 
-/* ========= 主循环 ========= */
-
+// ========== 主循环 ==========
 function logicLoop(){
   if(!isRunning) return;
-
-  frameIndex++;
-
   const now = Date.now();
   const { Y, Y_raw, sHat } = computeYandSHat();
 
-  // 更新状态窗口
-  historyForState.push({Y, sHat});
-  if(historyForState.length > STATE_WINDOW_FRAMES) historyForState.shift();
-
-  // Y 历史用于周期性
-  yHistory.push(Y);
-  if(yHistory.length > LOOP_HZ * 6) yHistory.shift();
-
-  // UI HUD 预设变量
   let Y_star_t = 0;
   let Delta_t = 0;
   let U_disp = 0;
 
-  // 状态机：未交战 → 交战
   if(!currentCIEU){
     masterGain.gain.setTargetAtTime(0.0, audioCtx.currentTime, 0.25);
     setState("STANDBY", "#fff");
 
-    if (Y > THRESHOLD){
-      // 构造 x_t：触发前窗口的统计
-      let sumY = 0, maxY = 0;
-      let sumEL=0,sumEM=0,sumEH=0,sumF=0,sumP=0;
-      let count = historyForState.length;
-      if(count === 0){
-        sumY = Y; maxY = Y;
-        sumEL = sHat.eL; sumEM = sHat.eM; sumEH = sHat.eH;
-        sumF = sHat.flatness; sumP = sHat.periodicity;
-        count = 1;
-      } else {
-        historyForState.forEach(h => {
-          sumY += h.Y;
-          if(h.Y > maxY) maxY = h.Y;
-          sumEL += h.sHat.eL;
-          sumEM += h.sHat.eM;
-          sumEH += h.sHat.eH;
-          sumF  += h.sHat.flatness;
-          sumP  += h.sHat.periodicity;
-        });
-      }
-      const Y_prev_mean = sumY / count;
-      const Y_prev_max  = maxY;
-      let dY_prev = 0;
-      if(count > 1){
-        const firstY = historyForState[0].Y;
-        const lastY  = historyForState[historyForState.length-1].Y;
-        dY_prev = (lastY - firstY) / STATE_WINDOW_SEC;
-      }
-      const x_t = {
-        Y_mean: Y_prev_mean,
-        Y_max: Y_prev_max,
-        dY: dY_prev,
-        eL_mean: sumEL / count,
-        eM_mean: sumEM / count,
-        eH_mean: sumEH / count,
-        flat_mean: sumF / count,
-        per_mean: sumP / count,
-        cap: GAIN_CAP,
-        clock: now
-      };
-
-      // 定义反事实目标：在检查点希望场强 ≤ THRESHOLD
-      const y_star_t = {
-        checkpoints: CHECKPOINTS.slice(),
-        targetAmp: CHECKPOINTS.map(()=>THRESHOLD),
-        targetFlat: [0.9, 0.95],
-        targetPer:  [0.5, 0.3]
-      };
-
+    if(Y > THRESHOLD){
       currentCIEU = {
         id: globalID++,
-        t0: now,
-        x_t,
-        u_t: null,
-        y_star_t,
-        outcome: null,
-        reward: null,
-        // 检查点捕捉
-        cpAmp: new Array(CHECKPOINTS.length).fill(null),
-        cpFlat: new Array(CHECKPOINTS.length).fill(null),
-        cpPer: new Array(CHECKPOINTS.length).fill(null),
-        // trace 用于离线分析（10Hz）
-        trace: [],
-        cooldown: null
+        startTime: now,
+        startState: Y,
+        dataParams: [],
+        cooldown: null,
+        I: 0,
+        cf: null // 保存因果建模结果
       };
-
       setState("ENGAGED", "#ff3b30");
+      selectToken(chooseToken(sHat, 0), true);
     }
-  }
-
-  if(currentCIEU){
-    const elapsed = (now - currentCIEU.t0)/1000;
-
-    // Y*：仍用指数形式做控制基线（工程版目标轨迹）
+  } else {
+    const elapsed = (now - currentCIEU.startTime)/1000;
     const tau = Math.max(0.8, TARGET_TIME/2.2);
-    const startY = currentCIEU.x_t ? currentCIEU.x_t.Y_max : Y;
-    Y_star_t = THRESHOLD + (startY - THRESHOLD) * Math.exp(-elapsed / tau);
+    Y_star_t = THRESHOLD + (currentCIEU.startState - THRESHOLD) * Math.exp(-elapsed / tau);
     Y_star_t = Math.max(THRESHOLD, Y_star_t);
 
     Delta_t = Y - Y_star_t;
 
-    // 简单 PI 控制
-    if(!currentCIEU.I) currentCIEU.I = 0;
     const e = Math.max(0, Delta_t);
     currentCIEU.I += e * (1/LOOP_HZ);
     currentCIEU.I = clamp(currentCIEU.I, -I_CLAMP, I_CLAMP);
@@ -749,35 +644,25 @@ function logicLoop(){
 
     masterGain.gain.setTargetAtTime(1.0, audioCtx.currentTime, 0.15);
 
-    // 检查点 outcome 记录
-    currentCIEU.y_star_t.checkpoints.forEach((cp, idx) => {
-      if(currentCIEU.cpAmp[idx] === null && elapsed >= cp){
-        currentCIEU.cpAmp[idx]  = Y;
-        currentCIEU.cpFlat[idx] = sHat.flatness;
-        currentCIEU.cpPer[idx]  = sHat.periodicity;
-      }
+    currentCIEU.dataParams.push({
+      t: elapsed.toFixed(2),
+      Y: Y,
+      Yraw: Y_raw,
+      Ys: Math.floor(Y_star_t),
+      U: U_disp,
+      D: Math.floor(Delta_t),
+      token: tokenCurrent,
+      eL: sHat.eL.toFixed(3),
+      eM: sHat.eM.toFixed(3),
+      eH: sHat.eH.toFixed(3),
+      cent: sHat.centroid.toFixed(3),
+      flat: sHat.flatness.toFixed(3),
+      per: sHat.periodicity.toFixed(3),
+      thr: THRESHOLD,
+      Ycf: "" // 预留反事实列
     });
 
-    // 降采样记录 trace：10Hz
-    if(frameIndex % LOG_EVERY === 0){
-      currentCIEU.trace.push({
-        t: elapsed.toFixed(2),
-        Y,
-        Ys: Math.floor(Y_star_t),
-        U: U_disp,
-        token: tokenCurrent || "--",
-        eL: sHat.eL,
-        eM: sHat.eM,
-        eH: sHat.eH,
-        cent: sHat.centroid,
-        flat: sHat.flatness,
-        per: sHat.periodicity,
-        thr: THRESHOLD
-      });
-    }
-
-    // 结束判定：Y 连续 2s < THRESHOLD
-    if (Y < THRESHOLD){
+    if(Y < THRESHOLD){
       if(!currentCIEU.cooldown) currentCIEU.cooldown = now;
       if(now - currentCIEU.cooldown > END_HOLD_MS){
         finishCIEU();
@@ -787,130 +672,155 @@ function logicLoop(){
     }
   }
 
-  // HUD 更新
-  const valY = document.getElementById('valY');
-  if(valY) valY.innerText = Y;
-  const valTarget = document.getElementById('valTarget');
-  if(valTarget) valTarget.innerText = currentCIEU ? Math.floor(Y_star_t) : "--";
-  const valU = document.getElementById('valU');
-  if(valU) valU.innerText = U_disp;
-  const valDelta = document.getElementById('valDelta');
-  if(valDelta) valDelta.innerText = Math.floor(Delta_t);
+  document.getElementById('valY').innerText = Y;
+  document.getElementById('valTarget').innerText = currentCIEU ? Math.floor(Y_star_t) : "--";
+  document.getElementById('valU').innerText = U_disp;
+  document.getElementById('valDelta').innerText = Math.floor(Delta_t);
 
-  const fE = document.getElementById('fE');
-  if(fE) fE.innerText = `${sHat.eL.toFixed(2)}/${sHat.eM.toFixed(2)}/${sHat.eH.toFixed(2)}`;
-  const fC = document.getElementById('fC');
-  if(fC) fC.innerText = sHat.centroid.toFixed(2);
-  const fF = document.getElementById('fF');
-  if(fF) fF.innerText = sHat.flatness.toFixed(2);
-  const fP = document.getElementById('fP');
-  if(fP) fP.innerText = sHat.periodicity.toFixed(2);
+  // 简单展示当前 Ŝ
+  document.getElementById('fE').innerText =
+    `${sHat.eL.toFixed(2)}/${sHat.eM.toFixed(2)}/${sHat.eH.toFixed(2)}`;
+  document.getElementById('fC').innerText = sHat.centroid.toFixed(2);
+  document.getElementById('fF').innerText = sHat.flatness.toFixed(2);
+  document.getElementById('fP').innerText = sHat.periodicity.toFixed(2);
 
-  // 推送绘图数据
   pushTrace(Y, currentCIEU ? Y_star_t : null, U_disp);
 }
 
-/* ========= CIEU 结束 & 五元组摘要 ========= */
-
+// ========== CIEU 结算 + 因果建模 ==========
 function finishCIEU(){
-  if(!currentCIEU) return;
+  // 对当前 CIEU 做一次简单 AR(1) 反事实建模
+  computeCounterfactual(currentCIEU);
 
-  // 保证检查点都有值，没有就用最后一个采样代填
-  if(currentCIEU.trace.length > 0){
-    const last = currentCIEU.trace[currentCIEU.trace.length-1];
-    for(let i=0;i<CHECKPOINTS.length;i++){
-      if(currentCIEU.cpAmp[i] === null){
-        currentCIEU.cpAmp[i]  = last.Y;
-        currentCIEU.cpFlat[i] = last.flat;
-        currentCIEU.cpPer[i]  = last.per;
-      }
-    }
-  }
-
-  // 计算 maxDelta, duration, U_max, U_mean, token 直方图
-  let maxDelta = -999;
-  let U_sum = 0, U_max = 0;
-  let count = currentCIEU.trace.length;
-  const tokenCounts = {};
-  currentCIEU.trace.forEach(p => {
-    const d = p.Y - p.Ys;
-    if(d > maxDelta) maxDelta = d;
-    U_sum += p.U;
-    if(p.U > U_max) U_max = p.U;
-    const tk = p.token || "--";
-    tokenCounts[tk] = (tokenCounts[tk] || 0) + 1;
-  });
-  const durationSec = count > 0 ? parseFloat(currentCIEU.trace[count-1].t) : 0;
-  const U_mean = count > 0 ? U_sum / count : 0;
-
-  // token histogram & main token
-  let mainToken = "--";
-  let maxCount = -1;
-  Object.keys(tokenCounts).forEach(k => {
-    if(tokenCounts[k] > maxCount){
-      maxCount = tokenCounts[k];
-      mainToken = k;
-    }
-  });
-  const tokenHistogram = {};
-  Object.keys(tokenCounts).forEach(k => {
-    tokenHistogram[k] = tokenCounts[k] / (count || 1);
-  });
-
-  // 填充 u_t
-  currentCIEU.u_t = {
-    mainToken,
-    tokenHistogram,
-    U_max,
-    U_mean
-  };
-
-  // 填充 outcome
-  currentCIEU.outcome = {
-    checkpoints: currentCIEU.y_star_t.checkpoints.slice(),
-    amp:  currentCIEU.cpAmp.slice(),
-    flat: currentCIEU.cpFlat.slice(),
-    per:  currentCIEU.cpPer.slice()
-  };
-
-  // reward：基于场强偏离目标的负损失
-  let errSum = 0;
-  currentCIEU.y_star_t.checkpoints.forEach((_, idx) => {
-    const targetA = currentCIEU.y_star_t.targetAmp[idx];
-    const actualA = currentCIEU.outcome.amp[idx];
-    const e = Math.max(0, actualA - targetA);
-    errSum += e;
-  });
-  currentCIEU.reward = -errSum;
-
-  // 把完整 CIEU 放进当前会话 history
-  currentCIEU.durationSec = durationSec;
-  currentCIEU.maxDelta = maxDelta;
   cieuHistory.push(currentCIEU);
 
-  // 构造摘要五元组并存储
-  const summary = {
-    id: currentCIEU.id,
-    t0: currentCIEU.t0,
-    x_t: currentCIEU.x_t,
-    u_t: currentCIEU.u_t,
-    y_star_t: currentCIEU.y_star_t,
-    outcome: currentCIEU.outcome,
-    reward: currentCIEU.reward,
-    durationSec,
-    maxDelta
-  };
-  storedSummaries.push(summary);
-  saveSummariesToStorage();
-  renderSummaryItem(summary);
+  let maxDelta = -999;
+  currentCIEU.dataParams.forEach(p => { if(p.D > maxDelta) maxDelta = p.D; });
+  const duration = currentCIEU.dataParams[currentCIEU.dataParams.length-1]?.t || "0.00";
+  const isWin = (maxDelta < 35);
+
+  const div = document.createElement('div');
+  const cfTag = (currentCIEU.cf && typeof currentCIEU.cf.reduction === 'number')
+    ? ` | CF ${(1 - currentCIEU.cf.reduction)*100 | 0}%↓`
+    : '';
+  div.className = 'cieu-item';
+  div.innerHTML = `
+    <div style="color:#666">#${currentCIEU.id}</div>
+    <div>${duration}s <span style="color:#444">|</span> Δ${maxDelta}${cfTag}</div>
+    <div class="res-badge ${isWin ? 'res-win' : 'res-loss'}">
+      ${isWin ? 'SUPPRESSED' : 'HIGH ERR'}
+    </div>
+  `;
+  const list = document.getElementById('logList');
+  list.insertBefore(div, list.firstChild);
+
+  // 自动保存整条历史（包括反事实）
+  saveHistoryToStorage();
 
   currentCIEU = null;
   setState("STANDBY", "#fff");
   masterGain.gain.setTargetAtTime(0.0, audioCtx.currentTime, 0.3);
 }
 
-/* ========= Canvas ========= */
+// 在一个 CIEU 内，基于前 1s Y 轨迹拟合 AR(1) 模型，并生成后半段 Ycf
+function computeCounterfactual(cieu){
+  try{
+    const dp = cieu.dataParams;
+    if(!dp || dp.length < 5) return;
 
+    // 取时间数组和 Y 数组
+    const T = dp.map(p => parseFloat(p.t));
+    const Y = dp.map(p => parseFloat(p.Y));
+    const thr = parseFloat(dp[0].thr);
+    if(isNaN(thr)) return;
+
+    // 估计 dt（假设等间隔）
+    let dt = 0.02;
+    if(T.length >= 2){
+      dt = Math.max(0.005, Math.abs(T[1] - T[0]));
+    }
+
+    // 建模窗口：前 1s 或者事件一半，以较小者为准
+    const trainWindow = Math.min(1.0, (T[T.length-1] - T[0]) / 2);
+    const t0 = T[0];
+    let trainEndIndex = 0;
+    for(let i=0;i<T.length;i++){
+      if(T[i] - t0 <= trainWindow) trainEndIndex = i;
+    }
+    if(trainEndIndex < 2) return; // 样本太少
+
+    // 构造 (Yk, Yk+1) 对
+    const yk = [];
+    const yk1 = [];
+    for(let i=0;i<trainEndIndex;i++){
+      yk.push(Y[i]);
+      yk1.push(Y[i+1]);
+    }
+    const n = yk.length;
+    if(n < 2) return;
+
+    // 最小二乘求解 yk1 = a*yk + c
+    let sumYk = 0, sumYk1 = 0, sumYk2 = 0, sumYkYk1 = 0;
+    for(let i=0;i<n;i++){
+      const x = yk[i];
+      const y = yk1[i];
+      sumYk += x;
+      sumYk1 += y;
+      sumYk2 += x*x;
+      sumYkYk1 += x*y;
+    }
+    const A11 = sumYk2;
+    const A12 = sumYk;
+    const A21 = sumYk;
+    const A22 = n;
+    const B1 = sumYkYk1;
+    const B2 = sumYk1;
+    const det = A11*A22 - A12*A21;
+    if(Math.abs(det) < 1e-6) return;
+    const a = ( B1*A22 - B2*A12 ) / det;
+    const c = ( A11*B2 - A21*B1 ) / det;
+
+    // 从 trainEndIndex 开始递推反事实 Ycf
+    const Ycf = new Array(Y.length).fill(null);
+    // 训练段保持与实际一致（或者留空）
+    for(let i=0;i<=trainEndIndex;i++){
+      Ycf[i] = Y[i];
+    }
+    for(let k=trainEndIndex+1;k<Y.length;k++){
+      Ycf[k] = a*Ycf[k-1] + c;
+    }
+
+    // 计算干预段（trainEndIndex+1 以后）的实际/预测超阈面积
+    let A1 = 0, A0 = 0;
+    for(let k=trainEndIndex+1;k<Y.length;k++){
+      const y1 = Y[k] - thr;
+      const y0 = (Ycf[k] ?? Y[k]) - thr;
+      if(y1 > 0) A1 += y1 * dt;
+      if(y0 > 0) A0 += y0 * dt;
+    }
+    const reduction = (A0 > 1e-6) ? (A1 / A0) : null;
+
+    // 写回 dataParams
+    for(let k=0;k<dp.length;k++){
+      dp[k].Ycf = (Ycf[k] != null ? Math.round(Ycf[k]) : "");
+    }
+
+    cieu.cf = {
+      a:a,
+      c:c,
+      dt:dt,
+      trainWindow:trainWindow,
+      A1:A1,
+      A0:A0,
+      reduction:reduction
+    };
+
+  } catch(e){
+    console.error('computeCounterfactual 出错：', e);
+  }
+}
+
+// ========== 画布 ==========
 function initCanvas(){
   const c = document.getElementById('scope');
   const dpr = window.devicePixelRatio || 1;
@@ -971,17 +881,30 @@ function drawLoop(){
   draw(traceY, '#ff3b30', 2, []);
 }
 
-/* ========= 导出 CSV ========= */
-
+// ========== 导出 CSV ==========
 function exportCSV(){
-  if(cieuHistory.length === 0){
-    alert("暂无本会话轨迹数据（历史事件摘要仍在 localStorage 中）。");
-    return;
-  }
-  let csv = "ID,Time,Y,Y_target,U,Token,eL,eM,eH,Centroid,Flatness,Periodicity,Threshold\n";
+  if(cieuHistory.length === 0){ alert("暂无数据"); return; }
+  let csv = "ID,Time,Y,Y_raw,Y_target,Y_cf,U,Delta,Token,eL,eM,eH,Centroid,Flatness,Periodicity,Threshold\n";
   cieuHistory.forEach(c => {
-    c.trace.forEach(r => {
-      csv += `${c.id},${r.t},${r.Y},${r.Ys},${r.U},${r.token},${r.eL},${r.eM},${r.eH},${r.cent},${r.flat},${r.per},${r.thr}\n`;
+    c.dataParams.forEach(r => {
+      csv += [
+        c.id,
+        r.t,
+        r.Y,
+        r.Yraw,
+        r.Ys,
+        (r.Ycf !== undefined ? r.Ycf : ""),
+        r.U,
+        r.D,
+        r.token,
+        r.eL,
+        r.eM,
+        r.eH,
+        r.cent,
+        r.flat,
+        r.per,
+        r.thr
+      ].join(",") + "\n";
     });
   });
   const blob = new Blob([csv], { type:'text/csv' });
@@ -994,19 +917,17 @@ function exportCSV(){
   document.body.removeChild(a);
 }
 
-/* ========= 事件绑定 & 初始化 ========= */
-
+// ========== 事件绑定 & 恢复历史 ==========
 document.addEventListener('DOMContentLoaded', () => {
-  // 先恢复摘要历史
-  restoreSummariesFromStorage();
+  restoreHistoryFromStorage();
 
-  const btnStart  = document.getElementById('btnStart');
-  const btnStop   = document.getElementById('btnStop');
+  const btnStart = document.getElementById('btnStart');
+  const btnStop  = document.getElementById('btnStop');
   const btnExport = document.getElementById('btnExport');
   const capSlider = document.getElementById('capSlider');
 
-  if (btnStart)  btnStart.addEventListener('click', () => { bootKernel(); });
-  if (btnStop)   btnStop.addEventListener('click',  () => { stopKernel(); });
+  if (btnStart) btnStart.addEventListener('click', () => { bootKernel(); });
+  if (btnStop)  btnStop.addEventListener('click',  () => { stopKernel(); });
   if (btnExport) btnExport.addEventListener('click', () => { exportCSV(); });
   if (capSlider) capSlider.addEventListener('input', (e) => onCapChange(e.target.value));
 });
