@@ -29,7 +29,7 @@
     .res-win{background:#003300;color:#32d74b;border:1px solid #005500;}
     .res-loss{background:#330000;color:#ff3b30;border:1px solid #550000;}
     .controls{padding:12px 15px;background:#111;border-top:1px solid #222;padding-bottom:env(safe-area-inset-bottom,20px);display:flex;gap:12px;align-items:center;}
-    button{flex:1;padding:14px;border:1px solid #333;background:#000;color:#fff;font-weight:bold;border-radius:8px;font-size:13px;}
+    button{flex:1;padding:14px;border:1px solid:#333;background:#000;color:#fff;font-weight:bold;border-radius:8px;font-size:13px;}
     button.start{border-color:#32d74b;color:#32d74b;}
     button.stop{border-color:#ff3b30;color:#ff3b30;}
     button.export{border-color:#007aff;color:#007aff;}
@@ -73,15 +73,16 @@
   </div>
 
   <div class="controls">
-    <button onclick="bootKernel()" class="start" id="btnStart">启动内核</button>
-    <button onclick="stopKernel()" class="stop" id="btnStop" style="display:none;">停止</button>
+    <!-- 注意：这里不再用 onclick，只给 id/class -->
+    <button class="start" id="btnStart">启动内核</button>
+    <button class="stop" id="btnStop" style="display:none;">停止</button>
 
     <div class="sliderWrap">
       <label>输出强度上限（夜间建议低一些）: <span id="valCap">0.10</span></label>
-      <input id="capSlider" type="range" min="0.02" max="0.20" step="0.01" value="0.10" oninput="onCapChange(this.value)">
+      <input id="capSlider" type="range" min="0.02" max="0.20" step="0.01" value="0.10">
     </div>
 
-    <button onclick="exportCSV()" class="export">导出CSV</button>
+    <button class="export" id="btnExport">导出CSV</button>
   </div>
 
 <script>
@@ -143,8 +144,8 @@ function ema(prev, x, a){ return (a*x + (1-a)*prev); }
 function norm255(x){ return clamp(x/255, 0, 1); }
 
 async function bootKernel() {
-  // 调试用：确认按钮被点到了
-  alert("按钮被点到了，准备启动内核。请稍等几秒看看是否弹出麦克风权限。");
+  // 调试：按钮被点到了
+  alert("按钮被点到了，准备启动内核。");
 
   if (isRunning){
     alert("内核已经在运行，无需重复启动。");
@@ -164,7 +165,6 @@ async function bootKernel() {
 
     buildTokens();
 
-    // 关键：这里如果出错，会弹出详细错误
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
       throw new Error("当前浏览器不支持 navigator.mediaDevices.getUserMedia");
     }
@@ -381,4 +381,370 @@ function buildTokens(){
     lp.frequency.value = 220;
 
     const g = audioCtx.createGain();
-    g.gain.value = 0
+    g.gain.value = 0.0;
+
+    const lfo = makeLFO(0.25);
+    const lfoGain = audioCtx.createGain();
+    lfoGain.gain.value = 0.0;
+    lfo.connect(lfoGain);
+    lfoGain.connect(g.gain);
+
+    src.connect(lp);
+    lp.connect(g);
+    g.connect(masterGain);
+
+    tokens[name] = {
+      name,
+      gain: g,
+      set: (u, sHat) => {
+        const carrier = 180 + u*(600) + 120*sHat.centroid;
+        lp.frequency.setTargetAtTime(clamp(carrier, 160, 900), audioCtx.currentTime, 0.12);
+        const level = GAIN_IDLE + u*(GAIN_CAP - GAIN_IDLE);
+        g.gain.setTargetAtTime(level, audioCtx.currentTime, 0.18);
+        const depth = 0.06 * u * (0.5 + 0.5*sHat.periodicity);
+        lfoGain.gain.setTargetAtTime(depth, audioCtx.currentTime, 0.25);
+      }
+    };
+  })();
+
+  (() => {
+    const name = "NARROW_DISRUPT";
+    const src = makeNoiseSource();
+    const bp = audioCtx.createBiquadFilter();
+    bp.type = "bandpass";
+    bp.frequency.value = 260;
+    bp.Q.value = 6.0;
+
+    const g = audioCtx.createGain();
+    g.gain.value = 0.0;
+
+    src.connect(bp);
+    bp.connect(g);
+    g.connect(masterGain);
+
+    tokens[name] = {
+      name,
+      gain: g,
+      set: (u, sHat) => {
+        const center = 200 + 220*sHat.eM + 180*sHat.eH + 250*u;
+        bp.frequency.setTargetAtTime(clamp(center, 180, 700), audioCtx.currentTime, 0.10);
+        const q = 4.0 + 8.0*(1 - sHat.flatness);
+        bp.Q.setTargetAtTime(clamp(q, 3, 12), audioCtx.currentTime, 0.2);
+        const level = GAIN_IDLE + u*(GAIN_CAP - GAIN_IDLE);
+        g.gain.setTargetAtTime(level, audioCtx.currentTime, 0.14);
+      }
+    };
+  })();
+
+  (() => {
+    const name = "PULSE_NUDGE";
+    const src = makeNoiseSource();
+    const lp = audioCtx.createBiquadFilter();
+    lp.type = "lowpass";
+    lp.frequency.value = 500;
+
+    const g = audioCtx.createGain();
+    g.gain.value = 0.0;
+
+    src.connect(lp);
+    lp.connect(g);
+    g.connect(masterGain);
+
+    let nextPulseAt = audioCtx.currentTime + 0.5;
+
+    tokens[name] = {
+      name,
+      gain: g,
+      set: (u, sHat) => {
+        lp.frequency.setTargetAtTime(350 + 450*u, audioCtx.currentTime, 0.12);
+        const interval = 2.0 - 1.0*sHat.periodicity;
+        const now = audioCtx.currentTime;
+
+        if(now >= nextPulseAt){
+          const base = GAIN_IDLE;
+          const peak = clamp(base + 0.55*u*(GAIN_CAP), 0, GAIN_CAP);
+          g.gain.cancelScheduledValues(now);
+          g.gain.setValueAtTime(base, now);
+          g.gain.linearRampToValueAtTime(peak, now + 0.03);
+          g.gain.exponentialRampToValueAtTime(Math.max(0.0001, base), now + 0.16);
+          nextPulseAt = now + interval;
+        } else {
+          g.gain.setTargetAtTime(GAIN_IDLE, now, 0.25);
+        }
+      }
+    };
+  })();
+
+  (() => {
+    const name = "BINAURAL_TONE";
+    const oscL = audioCtx.createOscillator();
+    const oscR = audioCtx.createOscillator();
+    oscL.type = "sine";
+    oscR.type = "sine";
+    oscL.frequency.value = 190;
+    oscR.frequency.value = 196;
+
+    const pL = audioCtx.createStereoPanner();
+    const pR = audioCtx.createStereoPanner();
+    pL.pan.value = -0.8;
+    pR.pan.value = 0.8;
+
+    const g = audioCtx.createGain();
+    g.gain.value = 0.0;
+
+    oscL.connect(pL); pL.connect(g);
+    oscR.connect(pR); pR.connect(g);
+    g.connect(masterGain);
+
+    oscL.start(); oscR.start();
+
+    tokens[name] = {
+      name,
+      gain: g,
+      set: (u, sHat) => {
+        const base = 170 + 120*sHat.centroid;
+        const beat = 4 + 4*sHat.periodicity;
+        oscL.frequency.setTargetAtTime(base, audioCtx.currentTime, 0.20);
+        oscR.frequency.setTargetAtTime(base + beat, audioCtx.currentTime, 0.20);
+        const level = clamp(0.5*(GAIN_IDLE + u*(GAIN_CAP - GAIN_IDLE)), 0, GAIN_CAP*0.6);
+        g.gain.setTargetAtTime(level, audioCtx.currentTime, 0.25);
+      }
+    };
+  })();
+}
+
+function selectToken(name, force=false){
+  if(!tokens[name]) return;
+  const now = Date.now();
+  if(!force && tokenCurrent === name) return;
+  if(!force && (now - lastTokenSwitchAt) < TOKEN_MIN_HOLD_MS) return;
+
+  Object.keys(tokens).forEach(k => {
+    tokens[k].gain.gain.setTargetAtTime(0.0, audioCtx.currentTime, 0.12);
+  });
+
+  tokenCurrent = name;
+  lastTokenSwitchAt = now;
+  document.getElementById('valToken').innerText = name;
+}
+
+function chooseToken(sHat, delta){
+  const tonal = (sHat.flatness < 0.35);
+  const periodic = (sHat.periodicity > 0.55);
+  const broadband = (sHat.flatness > 0.60);
+  const urgent = (delta > 12);
+
+  if(tonal && urgent) return "NARROW_DISRUPT";
+  if(periodic && urgent) return "PULSE_NUDGE";
+  if(broadband) return "NOISE_BREATH";
+  if(tonal) return "NARROW_DISRUPT";
+  if(periodic) return "NOISE_BREATH";
+  return "BINAURAL_TONE";
+}
+
+function logicLoop(){
+  if(!isRunning) return;
+  const now = Date.now();
+  const { Y, Y_raw, sHat } = computeYandSHat();
+
+  let Y_star_t = 0;
+  let Delta_t = 0;
+  let U_disp = 0;
+
+  if(!currentCIEU){
+    masterGain.gain.setTargetAtTime(0.0, audioCtx.currentTime, 0.25);
+    setState("STANDBY", "#fff");
+
+    if(Y > THRESHOLD){
+      currentCIEU = {
+        id: globalID++,
+        startTime: now,
+        startState: Y,
+        dataParams: [],
+        cooldown: null,
+        I: 0
+      };
+      setState("ENGAGED", "#ff3b30");
+      selectToken(chooseToken(sHat, 0), true);
+    }
+  } else {
+    const elapsed = (now - currentCIEU.startTime)/1000;
+    const tau = Math.max(0.8, TARGET_TIME/2.2);
+    Y_star_t = THRESHOLD + (currentCIEU.startState - THRESHOLD) * Math.exp(-elapsed / tau);
+    Y_star_t = Math.max(THRESHOLD, Y_star_t);
+
+    Delta_t = Y - Y_star_t;
+
+    const e = Math.max(0, Delta_t);
+    currentCIEU.I += e * (1/LOOP_HZ);
+    currentCIEU.I = clamp(currentCIEU.I, -I_CLAMP, I_CLAMP);
+
+    let u = KP*e + KI*currentCIEU.I;
+    u = clamp(u, 0, 1.0);
+    U_disp = Math.floor(u * 255);
+
+    const token = chooseToken(sHat, e);
+    selectToken(token, false);
+    tokens[tokenCurrent]?.set(u, sHat);
+
+    masterGain.gain.setTargetAtTime(1.0, audioCtx.currentTime, 0.15);
+
+    currentCIEU.dataParams.push({
+      t: elapsed.toFixed(2),
+      Y: Y,
+      Yraw: Y_raw,
+      Ys: Math.floor(Y_star_t),
+      U: U_disp,
+      D: Math.floor(Delta_t),
+      token: tokenCurrent,
+      eL: sHat.eL.toFixed(3),
+      eM: sHat.eM.toFixed(3),
+      eH: sHat.eH.toFixed(3),
+      cent: sHat.centroid.toFixed(3),
+      flat: sHat.flatness.toFixed(3),
+      per: sHat.periodicity.toFixed(3),
+      thr: THRESHOLD
+    });
+
+    if(Y < THRESHOLD){
+      if(!currentCIEU.cooldown) currentCIEU.cooldown = now;
+      if(now - currentCIEU.cooldown > END_HOLD_MS){
+        finishCIEU();
+      }
+    } else {
+      currentCIEU.cooldown = null;
+    }
+  }
+
+  document.getElementById('valY').innerText = Y;
+  document.getElementById('valTarget').innerText = currentCIEU ? Math.floor(Y_star_t) : "--";
+  document.getElementById('valU').innerText = U_disp;
+  document.getElementById('valDelta').innerText = Math.floor(Delta_t);
+
+  document.getElementById('fE').innerText =
+    `${sHat.eL.toFixed(2)}/${sHat.eM.toFixed(2)}/${sHat.eH.toFixed(2)}`;
+  document.getElementById('fC').innerText = sHat.centroid.toFixed(2);
+  document.getElementById('fF').innerText = sHat.flatness.toFixed(2);
+  document.getElementById('fP').innerText = sHat.periodicity.toFixed(2);
+
+  pushTrace(Y, currentCIEU ? Y_star_t : null, U_disp);
+}
+
+function finishCIEU(){
+  cieuHistory.push(currentCIEU);
+
+  let maxDelta = -999;
+  currentCIEU.dataParams.forEach(p => { if(p.D > maxDelta) maxDelta = p.D; });
+  const duration = currentCIEU.dataParams[currentCIEU.dataParams.length-1]?.t || "0.00";
+  const isWin = (maxDelta < 35);
+
+  const div = document.createElement('div');
+  div.className = 'cieu-item';
+  div.innerHTML = `
+    <div style="color:#666">#${currentCIEU.id}</div>
+    <div>${duration}s <span style="color:#444">|</span> Δ${maxDelta}</div>
+    <div class="res-badge ${isWin ? 'res-win' : 'res-loss'}">
+      ${isWin ? 'SUPPRESSED' : 'HIGH ERR'}
+    </div>
+  `;
+  const list = document.getElementById('logList');
+  list.insertBefore(div, list.firstChild);
+
+  currentCIEU = null;
+  setState("STANDBY", "#fff");
+  masterGain.gain.setTargetAtTime(0.0, audioCtx.currentTime, 0.3);
+}
+
+function initCanvas(){
+  const c = document.getElementById('scope');
+  const dpr = window.devicePixelRatio || 1;
+  const r = c.getBoundingClientRect();
+  c.width = r.width * dpr;
+  c.height = r.height * dpr;
+  scopeCtx = c.getContext('2d');
+  scopeCtx.scale(dpr, dpr);
+  scopeW = r.width;
+  scopeH = r.height;
+}
+
+function pushTrace(y, target, u){
+  traceY.push(y);
+  traceTarget.push(target==null ? NaN : target);
+  traceU.push(u);
+  if(traceY.length > scopeW){
+    traceY.shift(); traceTarget.shift(); traceU.shift();
+  }
+}
+
+function drawLoop(){
+  requestAnimationFrame(drawLoop);
+  if(!scopeCtx) return;
+
+  scopeCtx.fillStyle = '#080808';
+  scopeCtx.fillRect(0,0,scopeW,scopeH);
+
+  const thY = scopeH - (THRESHOLD/255 * scopeH);
+  scopeCtx.strokeStyle = '#333';
+  scopeCtx.beginPath();
+  scopeCtx.setLineDash([2,4]);
+  scopeCtx.moveTo(0, thY);
+  scopeCtx.lineTo(scopeW, thY);
+  scopeCtx.stroke();
+  scopeCtx.setLineDash([]);
+
+  const draw = (data, color, width, dash, skipNaN=false) => {
+    scopeCtx.beginPath();
+    scopeCtx.strokeStyle = color;
+    scopeCtx.lineWidth = width;
+    if(dash) scopeCtx.setLineDash(dash);
+
+    let started = false;
+    for(let i=0;i<data.length;i++){
+      const v = data[i];
+      if(skipNaN && !Number.isFinite(v)) { started=false; continue; }
+      const h = scopeH - (clamp(v,0,255)/255 * scopeH);
+      if(!started){ scopeCtx.moveTo(i,h); started=true; }
+      else scopeCtx.lineTo(i,h);
+    }
+    scopeCtx.stroke();
+    scopeCtx.setLineDash([]);
+  };
+
+  draw(traceU, '#32d74b', 2, []);
+  draw(traceTarget, '#ffcc00', 1.5, [6,4], true);
+  draw(traceY, '#ff3b30', 2, []);
+}
+
+function exportCSV(){
+  if(cieuHistory.length === 0){ alert("暂无数据"); return; }
+  let csv = "ID,Time,Y,Y_raw,Y_target,U,Delta,Token,eL,eM,eH,Centroid,Flatness,Periodicity,Threshold\n";
+  cieuHistory.forEach(c => {
+    c.dataParams.forEach(r => {
+      csv += `${c.id},${r.t},${r.Y},${r.Yraw},${r.Ys},${r.U},${r.D},${r.token},${r.eL},${r.eM},${r.eH},${r.cent},${r.flat},${r.per},${r.thr}\n`;
+    });
+  });
+  const blob = new Blob([csv], { type:'text/csv' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `BAT_SNOREFIELD_${Date.now()}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+}
+
+/* ========= 事件绑定 ========= */
+document.addEventListener('DOMContentLoaded', () => {
+  const btnStart = document.getElementById('btnStart');
+  const btnStop  = document.getElementById('btnStop');
+  const btnExport = document.getElementById('btnExport');
+  const capSlider = document.getElementById('capSlider');
+
+  if (btnStart) btnStart.addEventListener('click', () => { bootKernel(); });
+  if (btnStop)  btnStop.addEventListener('click',  () => { stopKernel(); });
+  if (btnExport) btnExport.addEventListener('click', () => { exportCSV(); });
+  if (capSlider) capSlider.addEventListener('input', (e) => onCapChange(e.target.value));
+});
+</script>
+</body>
+</html>
