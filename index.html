@@ -73,7 +73,6 @@
   </div>
 
   <div class="controls">
-    <!-- 注意：这里不再用 onclick，只给 id/class -->
     <button class="start" id="btnStart">启动内核</button>
     <button class="stop" id="btnStop" style="display:none;">停止</button>
 
@@ -129,6 +128,10 @@ let masterGain = null;
 
 const yHistory = [];
 
+// 自动保存用的 key
+const STORAGE_KEY = 'snorefield_cieu_history_v1';
+
+// ========== 工具 & 状态 ==========
 function setState(text, color) {
   const el = document.getElementById('sysState');
   el.innerText = text;
@@ -143,10 +146,58 @@ function clamp(x,a,b){ return Math.max(a, Math.min(b, x)); }
 function ema(prev, x, a){ return (a*x + (1-a)*prev); }
 function norm255(x){ return clamp(x/255, 0, 1); }
 
-async function bootKernel() {
-  // 调试：按钮被点到了
-  alert("按钮被点到了，准备启动内核。");
+// ========== 本地持久化（自动保存） ==========
+function saveHistoryToStorage(){
+  try {
+    const payload = {
+      cieuHistory,
+      globalID
+    };
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
+  } catch(e){
+    console.error('保存到 localStorage 失败：', e);
+  }
+}
 
+function restoreHistoryFromStorage(){
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if(!raw) return;
+    const payload = JSON.parse(raw);
+    if(!payload || !Array.isArray(payload.cieuHistory)) return;
+
+    cieuHistory = payload.cieuHistory;
+    globalID = payload.globalID || (cieuHistory.reduce((m,c)=>Math.max(m,c.id||0),0)+1);
+
+    const list = document.getElementById('logList');
+    list.innerHTML = ''; // 清空默认提示
+
+    cieuHistory.forEach(c => {
+      if(!c || !Array.isArray(c.dataParams) || c.dataParams.length === 0) return;
+      let maxDelta = -999;
+      c.dataParams.forEach(p => { if(p.D > maxDelta) maxDelta = p.D; });
+      const duration = c.dataParams[c.dataParams.length-1].t || "0.00";
+      const isWin = (maxDelta < 35);
+
+      const div = document.createElement('div');
+      div.className = 'cieu-item';
+      div.innerHTML = `
+        <div style="color:#666">#${c.id}</div>
+        <div>${duration}s <span style="color:#444">|</span> Δ${maxDelta}</div>
+        <div class="res-badge ${isWin ? 'res-win' : 'res-loss'}">
+          ${isWin ? 'SUPPRESSED' : 'HIGH ERR'}
+        </div>
+      `;
+      list.insertBefore(div, list.firstChild);
+    });
+
+  } catch(e){
+    console.error('从 localStorage 恢复失败：', e);
+  }
+}
+
+// ========== 启动 / 停止 ==========
+async function bootKernel() {
   if (isRunning){
     alert("内核已经在运行，无需重复启动。");
     return;
@@ -238,6 +289,7 @@ async function stopKernel(){
   document.getElementById('valToken').innerText = "--";
 }
 
+// ========== 校准 & 特征 ==========
 async function baselineCalibration(){
   const ys = [];
   const t0 = performance.now();
@@ -347,6 +399,7 @@ function computeYandSHat(){
   return { Y, Y_raw, sHat };
 }
 
+// ========== token 字典 & 波流 ==========
 function buildTokens(){
   function makeNoiseSource(){
     const bufferSize = 2 * audioCtx.sampleRate;
@@ -542,6 +595,7 @@ function chooseToken(sHat, delta){
   return "BINAURAL_TONE";
 }
 
+// ========== 主循环 & 结算 ==========
 function logicLoop(){
   if(!isRunning) return;
   const now = Date.now();
@@ -650,11 +704,15 @@ function finishCIEU(){
   const list = document.getElementById('logList');
   list.insertBefore(div, list.firstChild);
 
+  // 关键：每结束一个事件就自动保存一次
+  saveHistoryToStorage();
+
   currentCIEU = null;
   setState("STANDBY", "#fff");
   masterGain.gain.setTargetAtTime(0.0, audioCtx.currentTime, 0.3);
 }
 
+// ========== 画布 ==========
 function initCanvas(){
   const c = document.getElementById('scope');
   const dpr = window.devicePixelRatio || 1;
@@ -715,6 +773,7 @@ function drawLoop(){
   draw(traceY, '#ff3b30', 2, []);
 }
 
+// ========== 导出 CSV ==========
 function exportCSV(){
   if(cieuHistory.length === 0){ alert("暂无数据"); return; }
   let csv = "ID,Time,Y,Y_raw,Y_target,U,Delta,Token,eL,eM,eH,Centroid,Flatness,Periodicity,Threshold\n";
@@ -733,8 +792,11 @@ function exportCSV(){
   document.body.removeChild(a);
 }
 
-/* ========= 事件绑定 ========= */
+// ========== 事件绑定 & 恢复历史 ==========
 document.addEventListener('DOMContentLoaded', () => {
+  // 先恢复历史
+  restoreHistoryFromStorage();
+
   const btnStart = document.getElementById('btnStart');
   const btnStop  = document.getElementById('btnStop');
   const btnExport = document.getElementById('btnExport');
