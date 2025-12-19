@@ -167,9 +167,9 @@ let lullabyStartMs = null;
 let lullabyFadeStartMs = null;
 let lullabyStableTicks = 0;
 
-// 参数：可以以后调
+// 参数
 const LULLABY_MAX_SEC      = 20 * 60;  // 最长播放 20 分钟
-const LULLABY_STABLE_SEC   = 10 * 60;  // 检测到“稳定呼吸/鼾声”10分钟即可开始淡出
+const LULLABY_STABLE_SEC   = 10 * 60;  // 稳定呼吸/鼾声 10 分钟即可淡出
 const LULLABY_FADE_SEC     = 3  * 60;  // 淡出时长 3 分钟
 
 // 控制限幅
@@ -203,9 +203,15 @@ let masterGain = null;
 const yHistory = [];
 let lastSHat = null;
 
+// 睡眠阶段窗口统计
+let windowBuffer = [];  // {Y, per, flat, dt}
+const WINDOW_SEC = 30;
+let lastStageCheckMs = 0;
+let sleepStageHistory = []; // {startIso, duration, stage}
+
 // autosave
 const STORAGE_KEY_HISTORY       = 'snorefield_cieu_history_v3';
-const STORAGE_KEY_SUMMARY       = 'snorefield_session_summary_v1';
+const STORAGE_KEY_SUMMARY       = 'snorefield_session_summary_v2';
 const STORAGE_KEY_ENERGY_EVENTS = 'snorefield_energy_events_v1';
 
 /* ========== 工具函数 ========== */
@@ -241,6 +247,7 @@ function startSessionIfNeeded(){
     totalE_cf   = 0;
     totalDeltaE = 0;
     energyEvents = [];
+    sleepStageHistory = [];
     // 初始化 LULLABY
     lullabyPhase = "ON";
     lullabyStartMs = Date.now();
@@ -257,7 +264,18 @@ function endSession(){
   saveSessionSummaryToStorage();
 }
 
+function summarizeStages(){
+  let tCalm = 0, tDist = 0, tMixed = 0;
+  for (const s of sleepStageHistory){
+    if (s.stage === "CALM") tCalm += s.duration;
+    else if (s.stage === "DISTURBED") tDist += s.duration;
+    else if (s.stage === "MIXED") tMixed += s.duration;
+  }
+  return {tCalm, tDist, tMixed};
+}
+
 function getSessionSummary(){
+  const stages = summarizeStages();
   return {
     sessionId,
     startTime: sessionStartTime,
@@ -267,7 +285,10 @@ function getSessionSummary(){
     alphaSession,
     totalE_ctrl,
     totalE_cf: (alphaSession ? totalE_cf : null),
-    totalDeltaE: (alphaSession ? totalDeltaE : null)
+    totalDeltaE: (alphaSession ? totalDeltaE : null),
+    stageCalmSec: stages.tCalm,
+    stageDistSec: stages.tDist,
+    stageMixedSec: stages.tMixed
   };
 }
 
@@ -307,11 +328,15 @@ function renderSummaryHUD(summary){
   const redPct = summary.totalDeltaE / summary.totalE_cf * 100;
   const start = summary.startTime ? summary.startTime : '';
   const end   = summary.endTime   ? summary.endTime   : '';
+  const hCalm = (summary.stageCalmSec || 0)/3600;
+  const hDist = (summary.stageDistSec || 0)/3600;
+
   elLine.innerText =
     `Last: ${start} → ${end} | evt ${summary.totalEvents} | `
     + `E_cf≈${summary.totalE_cf.toFixed(0)}, `
     + `E_ctrl=${summary.totalE_ctrl.toFixed(0)}, `
-    + `削减≈${summary.totalDeltaE.toFixed(0)} (${redPct.toFixed(1)}%)`;
+    + `削减≈${summary.totalDeltaE.toFixed(0)} (${redPct.toFixed(1)}%)`
+    + ` | CALM≈${hCalm.toFixed(1)}h, DIST≈${hDist.toFixed(1)}h`;
 }
 
 /* ========== autosave 历史事件 ========== */
@@ -393,17 +418,14 @@ function updateLullabyPhase(nowMs, Y, sHat){
     lullabyStartMs = nowMs;
   }
 
-  // 1）基于呼吸 / 呼噜稳定性累积分数
+  // 基于呼吸/呼噜稳定性累计稳定时间
   if (sHat && sHat.periodicity > 0.3 && sHat.periodicity < 0.9 && Y < THRESHOLD){
-    // 认为是一段稳定呼吸
     lullabyStableTicks = Math.min(lullabyStableTicks + 1, LULLABY_STABLE_SEC * LOOP_HZ * 2);
   } else {
-    // 稍微衰减一点而不是立刻归零
     lullabyStableTicks = Math.max(0, lullabyStableTicks - 1);
   }
   const stableSec = lullabyStableTicks / LOOP_HZ;
 
-  // 2）基于时间窗和稳定度决定是否进入 FADE
   if (lullabyPhase === "ON"){
     const elapsedSec = (nowMs - lullabyStartMs)/1000;
     if (elapsedSec > LULLABY_MAX_SEC || stableSec > LULLABY_STABLE_SEC){
@@ -430,6 +452,65 @@ function getCurrentLullabyLevel(nowMs){
     return base * factor;
   }
   return 0;
+}
+
+/* ========== 睡眠阶段窗口统计（CALM / DISTURBED / MIXED） ========== */
+
+function updateWindowStats(Y, sHat){
+  const dt = 1/LOOP_HZ;
+  windowBuffer.push({
+    Y,
+    per: sHat ? sHat.periodicity : 0,
+    flat: sHat ? sHat.flatness : 0,
+    dt
+  });
+
+  // 保持缓冲长度上限（粗略 2*WINDOW_SEC 防止无限增长）
+  let totalT = 0;
+  for (let i=windowBuffer.length-1; i>=0; i--){
+    totalT += windowBuffer[i].dt;
+    if (totalT > WINDOW_SEC*2){
+      windowBuffer = windowBuffer.slice(i);
+      break;
+    }
+  }
+}
+
+function classifyCurrentWindow(nowMs){
+  let totalT = 0, sumY=0, snoreT=0, sumPer=0, sumFlat=0;
+  for (const s of windowBuffer){
+    totalT += s.dt;
+    sumY   += s.Y * s.dt;
+    sumPer += s.per * s.dt;
+    sumFlat+= s.flat* s.dt;
+    if (s.Y > THRESHOLD) snoreT += s.dt;
+  }
+  if (totalT < WINDOW_SEC*0.8) return;
+
+  const Y_mean      = sumY / totalT;
+  const Per_mean    = sumPer / totalT;
+  const Flat_mean   = sumFlat / totalT;
+  const snore_ratio = snoreT / totalT;
+
+  let stage = "MIXED";
+  if (snore_ratio < 0.05 && Y_mean < THRESHOLD*0.2 && Per_mean >= 0.3 && Per_mean <= 0.8){
+    stage = "CALM";
+  } else if (snore_ratio > 0.2 || Y_mean > THRESHOLD*0.4 || Per_mean < 0.2){
+    stage = "DISTURBED";
+  }
+
+  sleepStageHistory.push({
+    startIso: new Date(nowMs - totalT*1000).toISOString(),
+    duration: totalT,
+    stage,
+    Y_mean,
+    Per_mean,
+    Flat_mean,
+    snore_ratio
+  });
+
+  // 清空缓冲，下一窗口重新积累
+  windowBuffer = [];
 }
 
 /* ========== 启动 / 停止内核 ========== */
@@ -644,7 +725,7 @@ function computeYandSHat(){
   return { Y, Y_raw, sHat };
 }
 
-/* ========== token 字典（略微压缩，和前版一致） ========== */
+/* ========== token 构造（略） ========== */
 
 function buildTokens(){
   function makeNoiseSource(){
@@ -848,18 +929,25 @@ function chooseToken(sHat, delta){
   return "BINAURAL_TONE";
 }
 
-/* ========== 主循环（含 LULLABY + Baseline + Control） ========== */
+/* ========== 主循环 ========== */
 
 function logicLoop(){
   if(!isRunning) return;
   const now = Date.now();
   const { Y, Y_raw, sHat } = computeYandSHat();
 
-  // LULLABY 状态机更新（只用来决定入睡噪音的 ON/FADE/OFF）
+  // LULLABY 状态机更新
   updateLullabyPhase(now, Y, sHat);
   const lullabyLevel = getCurrentLullabyLevel(now);
 
-  // 统计总“Δ>0 时间”
+  // 窗口统计更新
+  updateWindowStats(Y, sHat);
+  if (now - lastStageCheckMs > 1000){
+    classifyCurrentWindow(now);
+    lastStageCheckMs = now;
+  }
+
+  // Δ>0 时间累计
   if (Y > THRESHOLD){
     totalSnoreTime += 1/LOOP_HZ;
   }
@@ -869,9 +957,8 @@ function logicLoop(){
   let U_disp = 0;
 
   if(!currentCIEU){
-    // STANDBY：只有 LULLABY（如果还没淡出）
+    // STANDBY：只输出 LULLABY（如果还没淡出）
     setState("STANDBY", "#fff");
-
     if (audioCtx && masterGain && lullabyLevel > 0 && tokens["NOISE_BREATH"]) {
       const sForBgm = lastSHat || {centroid:0.5,periodicity:0.2,eL:0.2,eM:0.3,eH:0.3};
       tokens["NOISE_BREATH"].set(lullabyLevel, sForBgm);
@@ -914,7 +1001,7 @@ function logicLoop(){
     selectToken(token, false);
 
     if (!baselineDone){
-      // Baseline 阶段：不给呼噜闭环控制，只保留 LULLABY 背景
+      // Baseline：不对呼噜闭环控制，只保留 LULLABY（或静音）
       if (audioCtx && masterGain && lullabyLevel > 0 && tokens["NOISE_BREATH"]) {
         const sForBgm = lastSHat || {centroid:0.5,periodicity:0.2,eL:0.2,eM:0.3,eH:0.3};
         tokens["NOISE_BREATH"].set(lullabyLevel, sForBgm);
@@ -923,7 +1010,7 @@ function logicLoop(){
         masterGain.gain.setTargetAtTime(0.0, audioCtx.currentTime, 0.4);
       }
     } else {
-      // Control 阶段：完全闭环控制
+      // Control：闭环
       if (tokens[tokenCurrent]){
         tokens[tokenCurrent].set(u, sHat);
       }
@@ -1011,7 +1098,6 @@ function finishCIEU(){
   cieuHistory.push(currentCIEU);
   totalEvents = cieuHistory.length;
 
-  // 列表行
   let maxDelta = -999;
   currentCIEU.dataParams.forEach(p => { if(p.D > maxDelta) maxDelta = p.D; });
   const duration = currentCIEU.dataParams[currentCIEU.dataParams.length-1]?.t || "0.00";
@@ -1037,7 +1123,7 @@ function finishCIEU(){
   data.forEach(p => { if(p.Y > peakY) peakY = p.Y; });
 
   if (!baselineDone){
-    // Baseline（真实不干预的前 N 个事件）
+    // 基线期：前 N 个真实未干预事件
     if (peakY > thr + 10){
       const alpha_j = E_ctrl / Math.pow(peakY, qEnergy);
       baselineAlphas.push(alpha_j);
@@ -1048,7 +1134,7 @@ function finishCIEU(){
       baselineDone = true;
     }
   } else {
-    // Control：平行世界能量对比
+    // 闭环期：平行世界能量对比
     const E_cf = alphaSession ? alphaSession * Math.pow(peakY, qEnergy) : null;
     const deltaE = (E_cf != null) ? (E_cf - E_ctrl) : null;
 
