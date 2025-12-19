@@ -28,7 +28,16 @@
     .res-badge{padding:2px 6px;border-radius:4px;font-size:10px;font-weight:bold;}
     .res-win{background:#003300;color:#32d74b;border:1px solid #005500;}
     .res-loss{background:#330000;color:#ff3b30;border:1px solid #550000;}
-    .controls{padding:12px 15px;background:#111;border-top:1px solid #222;padding-bottom:env(safe-area-inset-bottom,20px);display:flex;gap:12px;align-items:flex-start;flex-wrap:wrap;}
+    .controls{
+      padding:12px 15px;
+      background:#111;
+      border-top:1px solid #222;
+      padding-bottom:env(safe-area-inset-bottom,20px);
+      display:flex;
+      gap:12px;
+      align-items:flex-start;
+      flex-wrap:wrap;
+    }
     button{flex:1;padding:14px;border:1px solid:#333;background:#000;color:#fff;font-weight:bold;border-radius:8px;font-size:13px;}
     button.start{border-color:#32d74b;color:#32d74b;}
     button.stop{border-color:#ff3b30;color:#ff3b30;}
@@ -62,9 +71,13 @@
       C=<span id="fC">--</span>,
       Flat=<span id="fF">--</span>,
       Per=<span id="fP">--</span><br>
+
       <span style="color:#888">SESSION:</span>
       <span id="sessEvt">0</span> evt,
-      <span id="sessSnore">0.0</span>s Δ&gt;0
+      <span id="sessSnore">0.0</span>s Δ&gt;0<br>
+
+      <span style="color:#888">REPORT:</span>
+      <span id="sessEnergyLine">no report yet</span>
     </div>
   </div>
 
@@ -104,6 +117,9 @@
   </div>
 
 <script>
+/* ========== 全局状态 ========== */
+
+// 音频 & 控制
 let audioCtx;
 let analyserMicFft, analyserMicTime;
 let micSource, micHP, micLP;
@@ -114,18 +130,38 @@ let logicTimer = null;
 let scopeCtx, scopeW, scopeH;
 let traceY=[], traceTarget=[], traceU=[];
 
+// CIEU 事件
 let currentCIEU = null;
 let cieuHistory = [];
 let globalID = 1;
 
-// Session summary
+// Session 时间锚点
+let sessionId = null;
+let sessionStartTime = null;  // ISO string
+let sessionEndTime = null;
+
+// Session 级统计（事件数 & “Δ>0 时间”）
 let totalEvents = 0;
 let totalSnoreTime = 0; // seconds
 
-// Sleep noise (S0) control
-let sleepNoiseEnabled = true;
-let sleepNoiseLevel = 0.25; // 0..1-ish
+// S0/S1 能量模型
+let baselineDone = false;
+const N_BASELINE_CYCLES = 2;
+let baselineAlphas = [];    // α_j = E_base,j / peak_j^q
+let alphaSession = null;
+const qEnergy = 1;          // E ∝ peak^q
+const pEnergy = 1;          // 积分幂次
 
+let totalE_ctrl = 0;
+let totalE_cf   = 0;
+let totalDeltaE = 0;
+let energyEvents = [];      // {id, startTimeIso, peakY, E_ctrl, E_cf, deltaE}
+
+// 入睡噪音 S0
+let sleepNoiseEnabled = true;
+let sleepNoiseLevel = 0.25;
+
+// 控制限幅
 const LOOP_HZ = 50;
 const TARGET_TIME = 5.0;
 const END_HOLD_MS = 2000;
@@ -156,8 +192,12 @@ let masterGain = null;
 const yHistory = [];
 let lastSHat = null;
 
-// autosave key
-const STORAGE_KEY = 'snorefield_cieu_history_v2';
+// autosave
+const STORAGE_KEY_HISTORY = 'snorefield_cieu_history_v3';
+const STORAGE_KEY_SUMMARY = 'snorefield_session_summary_v1';
+const STORAGE_KEY_ENERGY_EVENTS = 'snorefield_energy_events_v1';
+
+/* ========== 工具函数 ========== */
 
 function setState(text, color) {
   const el = document.getElementById('sysState');
@@ -179,42 +219,119 @@ function clamp(x,a,b){ return Math.max(a, Math.min(b, x)); }
 function ema(prev, x, a){ return (a*x + (1-a)*prev); }
 function norm255(x){ return clamp(x/255, 0, 1); }
 
-// ========== autosave ==========
+/* ========== Session 管理 ========== */
+
+function startSessionIfNeeded(){
+  if (!sessionId){
+    sessionId = Date.now();
+    sessionStartTime = new Date().toISOString();
+    // 初始化能量统计
+    totalE_ctrl = 0;
+    totalE_cf   = 0;
+    totalDeltaE = 0;
+    energyEvents = [];
+  }
+}
+
+function endSession(){
+  if (!sessionId) return;
+  if (!sessionEndTime){
+    sessionEndTime = new Date().toISOString();
+  }
+  saveSessionSummaryToStorage();
+}
+
+function getSessionSummary(){
+  return {
+    sessionId,
+    startTime: sessionStartTime,
+    endTime:   sessionEndTime,
+    totalEvents: cieuHistory.length,
+    baselineSamples: baselineAlphas.length,
+    alphaSession,
+    totalE_ctrl,
+    totalE_cf: (alphaSession ? totalE_cf : null),
+    totalDeltaE: (alphaSession ? totalDeltaE : null)
+  };
+}
+
+function saveSessionSummaryToStorage(){
+  try {
+    const summary = getSessionSummary();
+    localStorage.setItem(STORAGE_KEY_SUMMARY, JSON.stringify(summary));
+    localStorage.setItem(STORAGE_KEY_ENERGY_EVENTS, JSON.stringify(energyEvents));
+  } catch(e){
+    console.error('保存 summary 失败', e);
+  }
+}
+
+function loadLastSummaryFromStorage(){
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY_SUMMARY);
+    if (!raw) return null;
+    return JSON.parse(raw);
+  } catch(e){
+    console.error('读取 summary 失败', e);
+    return null;
+  }
+}
+
+function renderSummaryHUD(summary){
+  const elLine = document.getElementById('sessEnergyLine');
+  const eEl = document.getElementById('sessEvt');
+  const sEl = document.getElementById('sessSnore');
+  if (eEl) eEl.innerText = summary.totalEvents || 0;
+  if (sEl) sEl.innerText = totalSnoreTime.toFixed(1);
+
+  if (!elLine) return;
+  if (!summary || !summary.totalE_cf){
+    elLine.innerText = 'no energy report (baseline not established or no snore)';
+    return;
+  }
+  const redPct = summary.totalDeltaE / summary.totalE_cf * 100;
+  const start = summary.startTime ? summary.startTime : '';
+  const end   = summary.endTime   ? summary.endTime   : '';
+  elLine.innerText =
+    `Last: ${start} → ${end} | evt ${summary.totalEvents} | `
+    + `E_cf≈${summary.totalE_cf.toFixed(0)}, `
+    + `E_ctrl=${summary.totalE_ctrl.toFixed(0)}, `
+    + `削减≈${summary.totalDeltaE.toFixed(0)} (${redPct.toFixed(1)}%)`;
+}
+
+/* ========== autosave 历史事件 ========== */
+
 function saveHistoryToStorage(){
   try {
-    const payload = {
+    localStorage.setItem(STORAGE_KEY_HISTORY, JSON.stringify({
       cieuHistory,
       globalID,
       totalEvents,
       totalSnoreTime
-    };
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
+    }));
   } catch(e){
-    console.error('保存到 localStorage 失败：', e);
+    console.error('保存 history 失败', e);
   }
 }
 
 function restoreHistoryFromStorage(){
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if(!raw) {
+    const raw = localStorage.getItem(STORAGE_KEY_HISTORY);
+    if (!raw) {
       updateSessionSummaryHUD();
       return;
     }
     const payload = JSON.parse(raw);
-    if(!payload || !Array.isArray(payload.cieuHistory)) {
+    if (!payload || !Array.isArray(payload.cieuHistory)){
       updateSessionSummaryHUD();
       return;
     }
-
     cieuHistory = payload.cieuHistory;
+    globalID = payload.globalID || (cieuHistory.reduce((m,c)=>Math.max(m,c.id||0),0)+1);
     totalEvents = payload.totalEvents || cieuHistory.length;
     totalSnoreTime = payload.totalSnoreTime || 0;
-    globalID = payload.globalID || (cieuHistory.reduce((m,c)=>Math.max(m,c.id||0),0)+1);
 
     const list = document.getElementById('logList');
     list.innerHTML = '';
-
     cieuHistory.forEach(c => {
       if(!c || !Array.isArray(c.dataParams) || c.dataParams.length === 0) return;
       let maxDelta = -999;
@@ -236,7 +353,7 @@ function restoreHistoryFromStorage(){
 
     updateSessionSummaryHUD();
   } catch(e){
-    console.error('从 localStorage 恢复失败：', e);
+    console.error('恢复 history 失败', e);
     updateSessionSummaryHUD();
   }
 }
@@ -244,16 +361,18 @@ function restoreHistoryFromStorage(){
 function updateSessionSummaryHUD(){
   const eEl = document.getElementById('sessEvt');
   const sEl = document.getElementById('sessSnore');
-  if (eEl) eEl.innerText = totalEvents;
+  if (eEl) eEl.innerText = cieuHistory.length;
   if (sEl) sEl.innerText = totalSnoreTime.toFixed(1);
 }
 
-// ========== 启停 ==========
+/* ========== 启动 / 停止内核 ========== */
+
 async function bootKernel() {
   if (isRunning){
     alert("内核已经在运行，无需重复启动。");
     return;
   }
+  startSessionIfNeeded();
 
   try {
     if ('wakeLock' in navigator) {
@@ -342,9 +461,12 @@ async function stopKernel(){
   document.getElementById('btnStop').style.display = 'none';
   document.getElementById('valToken').innerText = "--";
   masterGain = null;
+
+  endSession();
 }
 
-// ========== 校准 & 特征 ==========
+/* ========== 校准 & 特征提取 ========== */
+
 async function baselineCalibration(){
   const ys = [];
   const t0 = performance.now();
@@ -455,7 +577,8 @@ function computeYandSHat(){
   return { Y, Y_raw, sHat };
 }
 
-// ========== token 字典 ==========
+/* ========== token 字典 ========== */
+
 function buildTokens(){
   function makeNoiseSource(){
     const bufferSize = 2 * audioCtx.sampleRate;
@@ -482,7 +605,7 @@ function buildTokens(){
     return osc;
   }
 
-  // 基础入睡 / 干预噪音 token
+  // NOISE_BREATH：既做入睡噪音，也做干预载波
   (() => {
     const name = "NOISE_BREATH";
     const src = makeNoiseSource();
@@ -517,6 +640,7 @@ function buildTokens(){
     };
   })();
 
+  // 其它 tokens 保留（NARROW_DISRUPT / PULSE_NUDGE / BINAURAL_TONE）
   (() => {
     const name = "NARROW_DISRUPT";
     const src = makeNoiseSource();
@@ -623,6 +747,8 @@ function buildTokens(){
   })();
 }
 
+/* ========== token 选择 ========== */
+
 function selectToken(name, force=false){
   if(!tokens[name]) return;
   const now = Date.now();
@@ -634,7 +760,8 @@ function selectToken(name, force=false){
   });
 
   tokenCurrent = name;
-  document.getElementById('valToken').innerText = name;
+  const el = document.getElementById('valToken');
+  if (el) el.innerText = name;
   lastTokenSwitchAt = now;
 }
 
@@ -652,54 +779,60 @@ function chooseToken(sHat, delta){
   return "BINAURAL_TONE";
 }
 
-// ========== 主循环 ==========
+/* ========== 主循环（含 S0/S1） ========== */
+
 function logicLoop(){
   if(!isRunning) return;
   const now = Date.now();
   const { Y, Y_raw, sHat } = computeYandSHat();
 
-  let Y_star_t = 0;
-  let Delta_t = 0;
-  let U_disp = 0;
-
-  // 累计“Δ>0”的时间（粗略鼾声时间）
+  // 统计总“Δ>0 时间”（粗略 snore 负担）
   if (Y > THRESHOLD){
     totalSnoreTime += 1/LOOP_HZ;
   }
 
+  let Y_star_t = 0;
+  let Delta_t = 0;
+  let U_disp = 0;
+
   if(!currentCIEU){
+    // STANDBY 状态：S0 入睡噪音
     setState("STANDBY", "#fff");
 
-    // S0：入睡噪音
     if (audioCtx && masterGain && sleepNoiseEnabled && tokens["NOISE_BREATH"]) {
-      const sForBgm = lastSHat || {eL:0.2,eM:0.3,eH:0.3,centroid:0.5,flatness:0.7,periodicity:0.2};
+      const sForBgm = lastSHat || {centroid:0.5,periodicity:0.2,eL:0.2,eM:0.3,eH:0.3};
       tokens["NOISE_BREATH"].set(sleepNoiseLevel, sForBgm);
       masterGain.gain.setTargetAtTime(1.0, audioCtx.currentTime, 0.4);
     } else if (audioCtx && masterGain) {
       masterGain.gain.setTargetAtTime(0.0, audioCtx.currentTime, 0.4);
     }
 
+    // 判断是否启动一个新的 CIEU 事件
     if(Y > THRESHOLD){
       currentCIEU = {
         id: globalID++,
         startTime: now,
+        startAbsTime: new Date().toISOString(), // 时间锚点
         startState: Y,
         dataParams: [],
-        cooldown: null,
-        I: 0
+        cooldown: null
       };
       setState("ENGAGED", "#ff3b30");
+      // 初始 token 选一次
       selectToken(chooseToken(sHat, 0), true);
     }
   } else {
+    // 有事件进行中
     const elapsed = (now - currentCIEU.startTime)/1000;
     const tau = Math.max(0.8, TARGET_TIME/2.2);
     Y_star_t = THRESHOLD + (currentCIEU.startState - THRESHOLD) * Math.exp(-elapsed / tau);
     Y_star_t = Math.max(THRESHOLD, Y_star_t);
 
     Delta_t = Y - Y_star_t;
-
     const e = Math.max(0, Delta_t);
+
+    // 闭环控制内部状态（I 积分）
+    if (!currentCIEU.I) currentCIEU.I = 0;
     currentCIEU.I += e * (1/LOOP_HZ);
     currentCIEU.I = clamp(currentCIEU.I, -I_CLAMP, I_CLAMP);
 
@@ -707,14 +840,31 @@ function logicLoop(){
     u = clamp(u, 0, 1.0);
     U_disp = Math.floor(u * 255);
 
+    // token 选择
     const token = chooseToken(sHat, e);
     selectToken(token, false);
-    tokens[tokenCurrent]?.set(u, sHat);
 
-    if (masterGain){
-      masterGain.gain.setTargetAtTime(1.0, audioCtx.currentTime, 0.15);
+    // === S0 / S1 分叉：基线期 vs 闭环期 ===
+    if (!baselineDone){
+      // S0：真正不对呼噜施加控制，只保留入睡噪音，不随 Δ 放大
+      if (audioCtx && masterGain && sleepNoiseEnabled && tokens["NOISE_BREATH"]) {
+        const sForBgm = lastSHat || {centroid:0.5,periodicity:0.2,eL:0.2,eM:0.3,eH:0.3};
+        tokens["NOISE_BREATH"].set(sleepNoiseLevel, sForBgm);
+        masterGain.gain.setTargetAtTime(1.0, audioCtx.currentTime, 0.4);
+      } else if (audioCtx && masterGain) {
+        masterGain.gain.setTargetAtTime(0.0, audioCtx.currentTime, 0.4);
+      }
+    } else {
+      // S1：正常闭环控制
+      if (tokens[tokenCurrent]){
+        tokens[tokenCurrent].set(u, sHat);
+      }
+      if (masterGain){
+        masterGain.gain.setTargetAtTime(1.0, audioCtx.currentTime, 0.15);
+      }
     }
 
+    // 记录事件轨迹
     currentCIEU.dataParams.push({
       t: elapsed.toFixed(2),
       Y: Y,
@@ -722,7 +872,7 @@ function logicLoop(){
       Ys: Math.floor(Y_star_t),
       U: U_disp,
       D: Math.floor(Delta_t),
-      token: tokenCurrent,
+      token: tokenCurrent || token,
       eL: sHat.eL.toFixed(3),
       eM: sHat.eM.toFixed(3),
       eH: sHat.eH.toFixed(3),
@@ -732,6 +882,7 @@ function logicLoop(){
       thr: THRESHOLD
     });
 
+    // 事件结束判定
     if(Y < THRESHOLD){
       if(!currentCIEU.cooldown) currentCIEU.cooldown = now;
       if(now - currentCIEU.cooldown > END_HOLD_MS){
@@ -742,25 +893,59 @@ function logicLoop(){
     }
   }
 
-  document.getElementById('valY').innerText = Y;
-  document.getElementById('valTarget').innerText = currentCIEU ? Math.floor(Y_star_t) : "--";
-  document.getElementById('valU').innerText = U_disp;
-  document.getElementById('valDelta').innerText = Math.floor(Delta_t);
+  // HUD 数字
+  const yEl = document.getElementById('valY');
+  const tEl = document.getElementById('valTarget');
+  const uEl = document.getElementById('valU');
+  const dEl = document.getElementById('valDelta');
+  if (yEl) yEl.innerText = Y;
+  if (tEl) tEl.innerText = currentCIEU ? Math.floor(Y_star_t) : "--";
+  if (uEl) uEl.innerText = U_disp;
+  if (dEl) dEl.innerText = Math.floor(Delta_t);
 
-  document.getElementById('fE').innerText =
-    `${(lastSHat ? lastSHat.eL.toFixed(2) : '--')}/${(lastSHat ? lastSHat.eM.toFixed(2) : '--')}/${(lastSHat ? lastSHat.eH.toFixed(2) : '--')}`;
-  document.getElementById('fC').innerText = lastSHat ? lastSHat.centroid.toFixed(2) : '--';
-  document.getElementById('fF').innerText = lastSHat ? lastSHat.flatness.toFixed(2) : '--';
-  document.getElementById('fP').innerText = lastSHat ? lastSHat.periodicity.toFixed(2) : '--';
+  const fEEl = document.getElementById('fE');
+  const fCEl = document.getElementById('fC');
+  const fFEl = document.getElementById('fF');
+  const fPEl = document.getElementById('fP');
+  if (lastSHat){
+    if (fEEl) fEEl.innerText = `${lastSHat.eL.toFixed(2)}/${lastSHat.eM.toFixed(2)}/${lastSHat.eH.toFixed(2)}`;
+    if (fCEl) fCEl.innerText = lastSHat.centroid.toFixed(2);
+    if (fFEl) fFEl.innerText = lastSHat.flatness.toFixed(2);
+    if (fPEl) fPEl.innerText = lastSHat.periodicity.toFixed(2);
+  } else {
+    if (fEEl) fEEl.innerText = '--/--/--';
+    if (fCEl) fCEl.innerText = '--';
+    if (fFEl) fFEl.innerText = '--';
+    if (fPEl) fPEl.innerText = '--';
+  }
 
   updateSessionSummaryHUD();
   pushTrace(Y, currentCIEU ? Y_star_t : null, U_disp);
 }
 
+/* ========== 事件结束 + 能量计算 ========== */
+
+function computeEventEnergy(dataParams, threshold, p){
+  if (!dataParams || dataParams.length < 2) return 0;
+  let E = 0;
+  for (let k=1; k<dataParams.length; k++){
+    const yPrev = Math.max(dataParams[k-1].Y - threshold, 0);
+    const yCurr = Math.max(dataParams[k].Y   - threshold, 0);
+    const tPrev = parseFloat(dataParams[k-1].t);
+    const tCurr = parseFloat(dataParams[k].t);
+    const dt    = tCurr - tPrev;
+    const vPrev = Math.pow(yPrev, p);
+    const vCurr = Math.pow(yCurr, p);
+    E += 0.5 * (vPrev + vCurr) * dt;
+  }
+  return E;
+}
+
 function finishCIEU(){
   cieuHistory.push(currentCIEU);
-  totalEvents += 1;
+  totalEvents = cieuHistory.length;
 
+  // UI 列表更新
   let maxDelta = -999;
   currentCIEU.dataParams.forEach(p => { if(p.D > maxDelta) maxDelta = p.D; });
   const duration = currentCIEU.dataParams[currentCIEU.dataParams.length-1]?.t || "0.00";
@@ -778,12 +963,54 @@ function finishCIEU(){
   const list = document.getElementById('logList');
   list.insertBefore(div, list.firstChild);
 
+  // === 能量逻辑 ===
+  const data = currentCIEU.dataParams;
+  const thr  = data[0].thr;
+  const E_ctrl = computeEventEnergy(data, thr, pEnergy);
+  let peakY = 0;
+  data.forEach(p => { if(p.Y > peakY) peakY = p.Y; });
+
+  if (!baselineDone){
+    // S0 基线样本阶段：只收集前 N 个“够响”的周期
+    if (peakY > thr + 10){
+      const alpha_j = E_ctrl / Math.pow(peakY, qEnergy);
+      baselineAlphas.push(alpha_j);
+    }
+    if (baselineAlphas.length >= N_BASELINE_CYCLES){
+      baselineAlphas.sort((a,b)=>a-b);
+      alphaSession = baselineAlphas[Math.floor(baselineAlphas.length/2)];
+      baselineDone = true;
+    }
+  } else {
+    // S1 闭环阶段：真正做反事实能量对比
+    const E_cf = alphaSession ? alphaSession * Math.pow(peakY, qEnergy) : null;
+    const deltaE = (E_cf != null) ? (E_cf - E_ctrl) : null;
+
+    totalE_ctrl += E_ctrl;
+    if (E_cf != null){
+      totalE_cf   += E_cf;
+      totalDeltaE += deltaE;
+    }
+
+    energyEvents.push({
+      id: currentCIEU.id,
+      startTimeIso: currentCIEU.startAbsTime,
+      peakY,
+      E_ctrl,
+      E_cf,
+      deltaE
+    });
+  }
+
+  saveHistoryToStorage();
+  saveSessionSummaryToStorage();
+
   currentCIEU = null;
   setState("STANDBY", "#fff");
-  saveHistoryToStorage();
 }
 
-// ========== 画布 ==========
+/* ========== 画布 ========== */
+
 function initCanvas(){
   const c = document.getElementById('scope');
   const dpr = window.devicePixelRatio || 1;
@@ -844,10 +1071,15 @@ function drawLoop(){
   draw(traceY, '#ff3b30', 2, []);
 }
 
-// ========== 导出 CSV ==========
+/* ========== 导出 CSV ========== */
+
 function exportCSV(){
   if(cieuHistory.length === 0){ alert("暂无数据"); return; }
-  let csv = "ID,Time,Y,Y_raw,Y_target,U,Delta,Token,eL,eM,eH,Centroid,Flatness,Periodicity,Threshold\n";
+  let csv = "# sessionId," + (sessionId || "") + "\n";
+  csv += "# sessionStart," + (sessionStartTime || "") + "\n";
+  csv += "# sessionEnd," + (sessionEndTime || "") + "\n";
+  csv += "# alphaSession," + (alphaSession || "") + "\n";
+  csv += "ID,Time,Y,Y_raw,Y_target,U,Delta,Token,eL,eM,eH,Centroid,Flatness,Periodicity,Threshold\n";
   cieuHistory.forEach(c => {
     c.dataParams.forEach(r => {
       csv += `${c.id},${r.t},${r.Y},${r.Yraw},${r.Ys},${r.U},${r.D},${r.token},${r.eL},${r.eM},${r.eH},${r.cent},${r.flat},${r.per},${r.thr}\n`;
@@ -863,9 +1095,15 @@ function exportCSV(){
   document.body.removeChild(a);
 }
 
-// ========== 事件绑定 & 恢复 ==========
+/* ========== DOM 事件绑定 ========== */
+
 document.addEventListener('DOMContentLoaded', () => {
+  // 恢复上一夜的事件 & session summary
   restoreHistoryFromStorage();
+  const lastSummary = loadLastSummaryFromStorage();
+  if (lastSummary){
+    renderSummaryHUD(lastSummary);
+  }
 
   const btnStart = document.getElementById('btnStart');
   const btnStop  = document.getElementById('btnStop');
