@@ -1,1294 +1,1736 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="zh-CN">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>Bat OS: SnoreField Kernel (Earphone Mode)</title>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <title>SnoreField Kernel (CIEU + RL + L1 Sleep Templates)</title>
   <style>
-    body{
-      font-family:'SF Mono','Consolas',monospace;
-      background:#000;
-      color:#ccc;
-      margin:0;
-      height:100vh;
-      display:flex;
-      flex-direction:column;
-      overflow:auto;
+    :root{
+      --bg:#0b0e14; --card:#111827; --muted:#9aa4b2; --txt:#e6edf3;
+      --ok:#22c55e; --warn:#f59e0b; --bad:#ef4444; --line:#263042;
+      --btn:#1f2937; --btn2:#0f172a; --accent:#60a5fa;
     }
-    .monitor{flex:0 0 45%;background:#080808;border-bottom:1px solid #333;position:relative;}
-    canvas{display:block;width:100%;height:100%;}
-    .hud{position:absolute;top:10px;left:10px;font-size:11px;line-height:1.55;pointer-events:none;text-shadow:0 1px 2px #000;max-width:95vw;}
-    .hud-red{color:#ff3b30;font-weight:bold;}
-    .hud-yellow{color:#ffcc00;font-weight:bold;}
-    .hud-green{color:#32d74b;font-weight:bold;}
-    .list-header{padding:8px 12px;background:#111;font-size:10px;color:#666;border-bottom:1px solid #222;display:flex;justify-content:space-between;text-transform:uppercase;}
-    .log-area{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;}
-    .cieu-item{padding:12px;border-bottom:1px solid #1a1a1a;display:flex;justify-content:space-between;align-items:center;font-size:11px;}
-    .cieu-item:nth-child(even){background:#0c0c0c;}
-    .res-badge{padding:2px 6px;border-radius:4px;font-size:10px;font-weight:bold;}
-    .res-win{background:#003300;color:#32d74b;border:1px solid #005500;}
-    .res-loss{background:#330000;color:#ff3b30;border:1px solid #550000;}
-    .controls{
-      padding:12px 15px;
-      background:#111;
-      border-top:1px solid #222;
-      padding-bottom:env(safe-area-inset-bottom,20px);
-      display:flex;
-      gap:12px;
-      align-items:flex-start;
-      flex-wrap:wrap;
+    body{ margin:0; font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial; background:var(--bg); color:var(--txt); }
+    header{ padding:16px 16px 8px; border-bottom:1px solid var(--line); }
+    header h1{ margin:0; font-size:16px; font-weight:700; }
+    header p{ margin:6px 0 0; color:var(--muted); font-size:12px; line-height:1.4; }
+    main{ padding:12px 16px 80px; display:grid; gap:12px; }
+    .grid{ display:grid; gap:12px; grid-template-columns: 1fr; }
+    @media (min-width: 900px){ .grid{ grid-template-columns: 1.2fr 1fr; } }
+    .card{
+      background:linear-gradient(180deg, rgba(17,24,39,0.98), rgba(15,23,42,0.98));
+      border:1px solid var(--line); border-radius:14px; padding:12px;
+      box-shadow: 0 10px 30px rgba(0,0,0,.25);
     }
-    button{flex:1;padding:14px;border:1px solid:#333;background:#000;color:#fff;font-weight:bold;border-radius:8px;font-size:13px;}
-    button.start{border-color:#32d74b;color:#32d74b;}
-    button.stop{border-color:#ff3b30;color:#ff3b30;}
-    button.export{border-color:#007aff;color:#007aff;}
-    button:active{background:#222;}
-    .sliderWrap{flex:2;display:flex;flex-direction:column;gap:6px;min-width:180px;}
-    .sliderWrap label{font-size:10px;color:#777;}
-    .sliderRow{display:flex;align-items:center;gap:6px;}
-    .sliderRow span{font-size:10px;color:#aaa;}
-    input[type="range"]{width:100%;}
-    .toggleRow{display:flex;align-items:center;gap:6px;margin-top:4px;}
-    .toggleRow input[type="checkbox"]{width:14px;height:14px;}
+    .row{ display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
+    .row > *{ flex:0 0 auto; }
+    label{ font-size:12px; color:var(--muted); display:block; margin-bottom:6px; }
+    input[type="range"]{ width: 180px; }
+    input[type="number"], select{
+      background:var(--btn2); color:var(--txt); border:1px solid var(--line);
+      border-radius:10px; padding:8px 10px; font-size:13px;
+    }
+    button{
+      background:var(--btn); color:var(--txt); border:1px solid var(--line);
+      border-radius:12px; padding:10px 12px; font-weight:600; cursor:pointer;
+    }
+    button:hover{ border-color:#3b82f6; }
+    button.primary{ background:#0b3a7a; border-color:#1d4ed8; }
+    button.danger{ background:#3a0b0b; border-color:#7f1d1d; }
+    .kv{ display:grid; grid-template-columns: 1fr 1fr; gap:10px; margin-top:8px; }
+    .k{ color:var(--muted); font-size:12px; }
+    .v{ font-size:14px; font-weight:700; }
+    .pill{ font-size:12px; padding:4px 10px; border-radius:999px; border:1px solid var(--line); }
+    .pill.ok{ border-color:rgba(34,197,94,.6); color:rgba(34,197,94,.95); }
+    .pill.warn{ border-color:rgba(245,158,11,.6); color:rgba(245,158,11,.95); }
+    .pill.bad{ border-color:rgba(239,68,68,.6); color:rgba(239,68,68,.95); }
+    pre{
+      background:rgba(0,0,0,.25); border:1px solid var(--line);
+      padding:10px; border-radius:12px; overflow:auto; max-height:260px;
+      color:#cbd5e1; font-size:12px;
+    }
+    .small{ font-size:12px; color:var(--muted); }
+    .split{ display:grid; grid-template-columns:1fr; gap:10px; }
+    @media (min-width: 900px){ .split{ grid-template-columns:1fr 1fr; } }
+    .footerbar{
+      position:fixed; left:0; right:0; bottom:0; z-index:10;
+      background:rgba(10,14,20,.88); border-top:1px solid var(--line);
+      padding:10px 16px; backdrop-filter: blur(10px);
+      display:flex; gap:10px; align-items:center; justify-content:space-between;
+    }
+    .footerbar .left{ display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+    .mono{ font-family: ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace; }
   </style>
 </head>
 <body>
+<header>
+  <h1>SnoreField Kernel — CIEU + RL（联合动作 token×ρ）+ L1 助眠模板库</h1>
+  <p>
+    使用说明：请佩戴耳机；点击“启动”后允许麦克风权限，并保持页面常亮。系统将自动生成 CIEU，并用 Bandit RL 逐夜个体化。
+    重要：音量上限已被硬限制（GAIN_CAP），但仍请从低音量开始。
+  </p>
+</header>
 
-  <div class="monitor">
-    <canvas id="scope"></canvas>
-    <div class="hud">
-      STATUS: <span id="sysState" style="color:#fff">STANDBY</span><br>
-      OUTPUT: <span style="color:#888">Earphones recommended</span><br><br>
-
-      <span class="hud-red">■ Y (SnoreField):</span> <span id="valY">0</span><br>
-      <span class="hud-yellow">■ Y* (Target):</span> <span id="valTarget">--</span><br>
-      <span class="hud-green">■ U (WaveFlow):</span> <span id="valU">0</span><br>
-      TOKEN: <span id="valToken" style="color:#fff">--</span><br>
-      <span style="color:#888">Δ (Delta):</span> <span id="valDelta">0</span><br><br>
-
-      <span style="color:#888">Ŝ:</span>
-      E(L/M/H)=<span id="fE">--</span>,
-      C=<span id="fC">--</span>,
-      Flat=<span id="fF">--</span>,
-      Per=<span id="fP">--</span><br>
-
-      <span style="color:#888">SESSION:</span>
-      <span id="sessEvt">0</span> evt,
-      <span id="sessSnore">0.0</span>s Δ&gt;0<br>
-
-      <span style="color:#888">REPORT:</span>
-      <span id="sessEnergyLine">no report yet</span>
-    </div>
-  </div>
-
-  <div class="list-header">
-    <span>ID</span>
-    <span>DURATION / MAX Δ</span>
-    <span>RESULT</span>
-  </div>
-  <div class="log-area" id="logList">
-    <div style="padding:30px; text-align:center; color:#444;">
-      Bat OS Field-Loop<br>Plug in earphones, then start.
-    </div>
-  </div>
-
-  <div class="controls">
-    <button class="start" id="btnStart">启动内核</button>
-    <button class="stop" id="btnStop" style="display:none;">停止</button>
-
-    <div class="sliderWrap">
-      <div class="sliderRow">
-        <label>干预输出上限（夜间建议低一些）: <span id="valCap">0.10</span></label>
-      </div>
-      <input id="capSlider" type="range" min="0.02" max="0.20" step="0.01" value="0.10">
-
-      <div class="toggleRow">
-        <input id="sleepNoiseToggle" type="checkbox" checked>
-        <span>入睡噪音（LULLABY）：<span id="sleepNoiseState">ON</span></span>
-      </div>
-      <div class="sliderRow">
-        <span>入睡噪音强度:</span>
-        <span id="sleepNoiseVal">0.25</span>
-      </div>
-      <input id="sleepNoiseSlider" type="range" min="0.05" max="0.6" step="0.05" value="0.25">
+<main class="grid">
+  <section class="card">
+    <div class="row">
+      <button id="btnStart" class="primary">启动</button>
+      <button id="btnStop">停止</button>
+      <button id="btnResetRL" class="danger">重置RL/参数</button>
+      <button id="btnExport">导出CIEU(JSON)</button>
+      <button id="btnClear">清空本地CIEU</button>
+      <span id="statusPill" class="pill warn">IDLE</span>
     </div>
 
-    <button class="export" id="btnExport">导出CSV</button>
+    <div class="split" style="margin-top:10px;">
+      <div>
+        <label>策略模式（L4）</label>
+        <select id="modeSel">
+          <option value="auto">AUTO（推荐）</option>
+          <option value="monitor">MONITOR（只助眠/不抗呼噜）</option>
+          <option value="gentle">GENTLE（温柔抗呼噜）</option>
+          <option value="standard">STANDARD（标准抗呼噜）</option>
+        </select>
+      </div>
+
+      <div>
+        <label>入睡模板（L1）</label>
+        <select id="sleepTplSel">
+          <option value="AUTO">AUTO（Sleep Bandit 选择）</option>
+          <option value="PINK_SOFTGUIDE">PINK_SOFTGUIDE</option>
+          <option value="MULTI_RAIN">MULTI_RAIN</option>
+          <option value="BROWN_DEEPMASK">BROWN_DEEPMASK</option>
+          <option value="WHITE_MASK">WHITE_MASK</option>
+          <option value="BINAURAL_OPTIONAL">BINAURAL_OPTIONAL（实验）</option>
+          <option value="OFF">OFF</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="split" style="margin-top:10px;">
+      <div>
+        <label>阈值 THRESHOLD（0–255）</label>
+        <input id="thr" type="range" min="40" max="210" value="120" />
+        <div class="small">当前：<span id="thrVal" class="mono"></span></div>
+      </div>
+      <div>
+        <label>干预输出上限 GAIN_CAP（安全上限）</label>
+        <input id="cap" type="range" min="0.00" max="0.20" step="0.005" value="0.10" />
+        <div class="small">当前：<span id="capVal" class="mono"></span></div>
+      </div>
+    </div>
+
+    <div class="split" style="margin-top:10px;">
+      <div>
+        <label>Bandit 探索强度 α（越大越探索）</label>
+        <input id="alpha" type="range" min="0.05" max="2.5" step="0.05" value="0.75" />
+        <div class="small">当前：<span id="alphaVal" class="mono"></span></div>
+      </div>
+      <div>
+        <label>PID：KP / KI（脚手架）</label>
+        <div class="row">
+          <input id="kp" type="number" min="0" max="2" step="0.01" value="0.40"/>
+          <input id="ki" type="number" min="0" max="1" step="0.005" value="0.04"/>
+        </div>
+        <div class="small">提示：先用默认值跑几晚，再考虑微调。</div>
+      </div>
+    </div>
+
+    <div class="kv">
+      <div>
+        <div class="k">Y（当前强度）</div>
+        <div class="v"><span id="yNow" class="mono">0</span></div>
+      </div>
+      <div>
+        <div class="k">Y*（目标） / τ(Φ)</div>
+        <div class="v"><span id="yStar" class="mono">0</span> <span class="small">/</span> <span id="tauNow" class="mono">-</span></div>
+      </div>
+      <div>
+        <div class="k">uPID / ρ / uEff</div>
+        <div class="v"><span id="uPid" class="mono">0</span> <span class="small">/</span> <span id="rhoNow" class="mono">0</span> <span class="small">/</span> <span id="uEff" class="mono">0</span></div>
+      </div>
+      <div>
+        <div class="k">Stage（估计）</div>
+        <div class="v"><span id="stageNow" class="mono">CALM</span></div>
+      </div>
+    </div>
+
+    <div style="margin-top:10px;">
+      <div class="k">调试日志（最近）</div>
+      <pre id="log"></pre>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2 style="margin:0 0 10px; font-size:14px;">RL 概览与本地数据</h2>
+    <div class="split">
+      <div>
+        <div class="k">Sleep Bandit（入睡模板）</div>
+        <pre id="sleepBanditView"></pre>
+      </div>
+      <div>
+        <div class="k">Intervention Bandit（token×ρ）</div>
+        <pre id="intBanditView"></pre>
+      </div>
+    </div>
+
+    <div style="margin-top:10px;" class="split">
+      <div>
+        <div class="k">CIEU 数量（本地）</div>
+        <div class="v"><span id="cieuCount" class="mono">0</span></div>
+      </div>
+      <div>
+        <div class="k">最近一个 CIEU 摘要</div>
+        <pre id="lastCIEU"></pre>
+      </div>
+    </div>
+
+    <div class="small" style="margin-top:10px;">
+      说明：本实现采用“安全优先”的 RL 形式（contextual bandit + PID 脚手架 + L2 语法裁剪）。
+      你每晚产生的 CIEU 将自动写入 localStorage，并用于逐夜个体化。
+    </div>
+  </section>
+</main>
+
+<div class="footerbar">
+  <div class="left">
+    <span class="small">Audio:</span>
+    <span id="audioState" class="pill warn">suspended</span>
+    <span class="small">Mic:</span>
+    <span id="micState" class="pill warn">off</span>
+    <span class="small">Template:</span>
+    <span id="tplNow" class="pill ok">-</span>
+    <span class="small">Token:</span>
+    <span id="tokenNow" class="pill ok">-</span>
   </div>
+  <div class="small mono" id="clock">--:--:--</div>
+</div>
 
 <script>
-/* ========== 全局状态 ========== */
+/* =========================================================
+   SnoreField Kernel — Single-file implementation
+   - CIEU event atom + segments
+   - Y* generated by field functional (Phi -> tau -> Y*)
+   - RL: LinUCB contextual bandit
+      (1) Sleep template bandit
+      (2) Intervention (token x rho) bandit
+   - PID scaffold + L2 safety / DSL filter
+   ========================================================= */
 
-// 音频 & 控制
-let audioCtx;
-let analyserMicFft, analyserMicTime;
-let micSource, micHP, micLP;
-let wakeLock = null;
-let isRunning = false;
-let logicTimer = null;
-
-let scopeCtx, scopeW, scopeH;
-let traceY=[], traceTarget=[], traceU=[];
-
-// CIEU 事件
-let currentCIEU = null;
-let cieuHistory = [];
-let globalID = 1;
-
-// Session 时间锚点
-let sessionId = null;
-let sessionStartTime = null;  // ISO string
-let sessionEndTime = null;
-
-// Session 级统计
-let totalEvents = 0;
-let totalSnoreTime = 0; // seconds（Y>Threshold 的累计时间）
-
-// Baseline / Control 能量模型
-let baselineDone = false;
-const N_BASELINE_CYCLES = 2;
-let baselineAlphas = [];    // α_j = E_base,j / peak_j^q
-let alphaSession = null;
-const qEnergy = 1;          // E ∝ peak^q
-const pEnergy = 1;          // 积分幂次
-
-let totalE_ctrl = 0;
-let totalE_cf   = 0;
-let totalDeltaE = 0;
-let energyEvents = [];      // {id, startTimeIso, peakY, E_ctrl, E_cf, deltaE}
-
-// LULLABY（入睡噪音）状态
-let sleepNoiseEnabled = true;
-let sleepNoiseLevel   = 0.25;
-
-// LULLABY 自动淡出状态
-let lullabyPhase = "OFF";   // "OFF" | "ON" | "FADE"
-let lullabyStartMs = null;
-let lullabyFadeStartMs = null;
-let lullabyStableTicks = 0;
-
-// 参数
-const LULLABY_MAX_SEC      = 20 * 60;  // 最长播放 20 分钟
-const LULLABY_STABLE_SEC   = 10 * 60;  // 稳定呼吸/鼾声 10 分钟即可淡出
-const LULLABY_FADE_SEC     = 3  * 60;  // 淡出时长 3 分钟
-
-// 控制限幅
-const LOOP_HZ = 50;
-const TARGET_TIME = 5.0;
-const END_HOLD_MS = 2000;
-
-const MIC_HIGHPASS = 60;
-const MIC_LOWPASS  = 450;
-const FFT_SIZE = 4096;
-
-let THRESHOLD = 25;
-
-let yEMA = 0;
-const EMA_ALPHA = 0.22;
-
-const KP = 0.016;
-const KI = 0.010;
-const I_CLAMP = 50;
-
-let GAIN_CAP = 0.10;
-const GAIN_IDLE = 0.015;
-
-const TOKEN_MIN_HOLD_MS = 3000;
-let lastTokenSwitchAt = 0;
-
-const tokens = {};
-let tokenCurrent = null;
-let masterGain = null;
-
-const yHistory = [];
-let lastSHat = null;
-
-// 睡眠阶段窗口统计
-let windowBuffer = [];  // {Y, per, flat, dt}
-const WINDOW_SEC = 30;
-let lastStageCheckMs = 0;
-let sleepStageHistory = []; // {startIso, duration, stage}
-
-// autosave
-const STORAGE_KEY_HISTORY       = 'snorefield_cieu_history_v3';
-const STORAGE_KEY_SUMMARY       = 'snorefield_session_summary_v2';
-const STORAGE_KEY_ENERGY_EVENTS = 'snorefield_energy_events_v1';
-
-/* ========== 工具函数 ========== */
-
-function setState(text, color) {
-  const el = document.getElementById('sysState');
-  el.innerText = text;
-  el.style.color = color || "#fff";
+/* ----------------------- Utilities ----------------------- */
+const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
+const nowMs = () => performance.now();
+const wallNow = () => Date.now();
+const fmt = (x, d=3) => (typeof x==="number" ? x.toFixed(d) : String(x));
+const rand01 = () => Math.random();
+function logLine(s){
+  const el = document.getElementById("log");
+  el.textContent = (s + "\n" + el.textContent).split("\n").slice(0, 30).join("\n");
 }
-function onCapChange(v){
-  GAIN_CAP = parseFloat(v);
-  const el = document.getElementById('valCap');
-  if (el) el.innerText = GAIN_CAP.toFixed(2);
+function setPill(id, text, kind){
+  const el = document.getElementById(id);
+  el.textContent = text;
+  el.classList.remove("ok","warn","bad");
+  el.classList.add(kind);
 }
-function onSleepNoiseChange(v){
-  sleepNoiseLevel = parseFloat(v);
-  const el = document.getElementById('sleepNoiseVal');
-  if (el) el.innerText = sleepNoiseLevel.toFixed(2);
+function clockTick(){
+  const d = new Date();
+  const hh = String(d.getHours()).padStart(2,"0");
+  const mm = String(d.getMinutes()).padStart(2,"0");
+  const ss = String(d.getSeconds()).padStart(2,"0");
+  document.getElementById("clock").textContent = `${hh}:${mm}:${ss}`;
 }
-function sleep(ms){ return new Promise(r => setTimeout(r, ms)); }
-function clamp(x,a,b){ return Math.max(a, Math.min(b, x)); }
-function ema(prev, x, a){ return (a*x + (1-a)*prev); }
-function norm255(x){ return clamp(x/255, 0, 1); }
+setInterval(clockTick, 300);
 
-/* ========== Session 管理 ========== */
+/* ----------------------- Constants ----------------------- */
+const STORE_CIEU = "snorefield_cieu_v2";
+const STORE_SLEEP_BANDIT = "snorefield_sleep_linuCB_v2";
+const STORE_INT_BANDIT   = "snorefield_int_linuCB_v2";
+const STORE_THETA_YSTAR  = "snorefield_theta_ystar_v2";
 
-function startSessionIfNeeded(){
-  if (!sessionId){
-    sessionId = Date.now();
-    sessionStartTime = new Date().toISOString();
-    // 初始化能量统计
-    totalE_ctrl = 0;
-    totalE_cf   = 0;
-    totalDeltaE = 0;
-    energyEvents = [];
-    sleepStageHistory = [];
-    // 初始化 LULLABY
-    lullabyPhase = "ON";
-    lullabyStartMs = Date.now();
-    lullabyFadeStartMs = null;
-    lullabyStableTicks = 0;
-  }
+const DEFAULT_ONSET_WINDOW_SEC = 15 * 60; // 入睡评估窗口：15分钟
+const LOGIC_HZ = 20;                      // 控制回路频率（20Hz）
+const SEGMENT_SEC = 1.5;                  // 事件内分段长度（用于 credit assignment）
+const WINDOW_SEC = 8.0;                   // 场窗口长度
+const BUDGET_SEC = 10 * 60;               // 能量预算窗口长度 10min
+const STRONG_MAX_PER_MIN = 3;             // 强干预 60秒最多次数
+
+// 这里是“动作空间”定义：token × rho
+const RHO_SET = [-0.20, -0.10, 0.00, +0.10, +0.20];
+
+// 干预 token（抗呼噜）
+// 注意：这是“输出风格”，最终仍受 L2 语法裁剪。
+const INT_TOKENS = [
+  "MASK_PINK",     // 温柔遮蔽（推荐）
+  "MASK_MULTI",    // 多音频/雨纹理（更舒适）
+  "MASK_WHITE",    // 白噪遮蔽（可能更刺）
+  "BINAURAL"       // 实验（必须受语法约束）
+];
+
+// 助眠模板（入睡阶段）
+const SLEEP_TEMPLATES = [
+  "PINK_SOFTGUIDE",
+  "MULTI_RAIN",
+  "BROWN_DEEPMASK",
+  "WHITE_MASK",
+  "BINAURAL_OPTIONAL"
+];
+
+/* ----------------------- UI wiring ----------------------- */
+const ui = {
+  btnStart: document.getElementById("btnStart"),
+  btnStop: document.getElementById("btnStop"),
+  btnResetRL: document.getElementById("btnResetRL"),
+  btnExport: document.getElementById("btnExport"),
+  btnClear: document.getElementById("btnClear"),
+
+  statusPill: document.getElementById("statusPill"),
+  thr: document.getElementById("thr"),
+  thrVal: document.getElementById("thrVal"),
+  cap: document.getElementById("cap"),
+  capVal: document.getElementById("capVal"),
+  alpha: document.getElementById("alpha"),
+  alphaVal: document.getElementById("alphaVal"),
+  kp: document.getElementById("kp"),
+  ki: document.getElementById("ki"),
+
+  modeSel: document.getElementById("modeSel"),
+  sleepTplSel: document.getElementById("sleepTplSel"),
+
+  yNow: document.getElementById("yNow"),
+  yStar: document.getElementById("yStar"),
+  tauNow: document.getElementById("tauNow"),
+  uPid: document.getElementById("uPid"),
+  rhoNow: document.getElementById("rhoNow"),
+  uEff: document.getElementById("uEff"),
+  stageNow: document.getElementById("stageNow"),
+
+  audioState: document.getElementById("audioState"),
+  micState: document.getElementById("micState"),
+  tplNow: document.getElementById("tplNow"),
+  tokenNow: document.getElementById("tokenNow"),
+
+  sleepBanditView: document.getElementById("sleepBanditView"),
+  intBanditView: document.getElementById("intBanditView"),
+  cieuCount: document.getElementById("cieuCount"),
+  lastCIEU: document.getElementById("lastCIEU")
+};
+
+function syncUiNumbers(){
+  ui.thrVal.textContent = ui.thr.value;
+  ui.capVal.textContent = ui.cap.value;
+  ui.alphaVal.textContent = ui.alpha.value;
 }
+ui.thr.addEventListener("input", syncUiNumbers);
+ui.cap.addEventListener("input", syncUiNumbers);
+ui.alpha.addEventListener("input", syncUiNumbers);
+syncUiNumbers();
 
-function endSession(){
-  if (!sessionId) return;
-  if (!sessionEndTime){
-    sessionEndTime = new Date().toISOString();
-  }
-  saveSessionSummaryToStorage();
-}
-
-function summarizeStages(){
-  let tCalm = 0, tDist = 0, tMixed = 0;
-  for (const s of sleepStageHistory){
-    if (s.stage === "CALM") tCalm += s.duration;
-    else if (s.stage === "DISTURBED") tDist += s.duration;
-    else if (s.stage === "MIXED") tMixed += s.duration;
-  }
-  return {tCalm, tDist, tMixed};
-}
-
-function getSessionSummary(){
-  const stages = summarizeStages();
-  return {
-    sessionId,
-    startTime: sessionStartTime,
-    endTime:   sessionEndTime,
-    totalEvents: cieuHistory.length,
-    baselineSamples: baselineAlphas.length,
-    alphaSession,
-    totalE_ctrl,
-    totalE_cf: (alphaSession ? totalE_cf : null),
-    totalDeltaE: (alphaSession ? totalDeltaE : null),
-    stageCalmSec: stages.tCalm,
-    stageDistSec: stages.tDist,
-    stageMixedSec: stages.tMixed
-  };
-}
-
-function saveSessionSummaryToStorage(){
-  try {
-    const summary = getSessionSummary();
-    localStorage.setItem(STORAGE_KEY_SUMMARY, JSON.stringify(summary));
-    localStorage.setItem(STORAGE_KEY_ENERGY_EVENTS, JSON.stringify(energyEvents));
-  } catch(e){
-    console.error('保存 summary 失败', e);
-  }
-}
-
-function loadLastSummaryFromStorage(){
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY_SUMMARY);
-    if (!raw) return null;
+/* ----------------------- Persistent storage ----------------------- */
+function loadJSON(key, fallback){
+  try{
+    const raw = localStorage.getItem(key);
+    if(!raw) return fallback;
     return JSON.parse(raw);
-  } catch(e){
-    console.error('读取 summary 失败', e);
-    return null;
+  }catch(e){
+    return fallback;
   }
 }
-
-function renderSummaryHUD(summary){
-  const elLine = document.getElementById('sessEnergyLine');
-  const eEl = document.getElementById('sessEvt');
-  const sEl = document.getElementById('sessSnore');
-  if (eEl) eEl.innerText = summary.totalEvents || 0;
-  if (sEl) sEl.innerText = totalSnoreTime.toFixed(1);
-
-  if (!elLine) return;
-  if (!summary || !summary.totalE_cf){
-    elLine.innerText = 'no energy report (baseline not established or no snore)';
-    return;
-  }
-  const redPct = summary.totalDeltaE / summary.totalE_cf * 100;
-  const start = summary.startTime ? summary.startTime : '';
-  const end   = summary.endTime   ? summary.endTime   : '';
-  const hCalm = (summary.stageCalmSec || 0)/3600;
-  const hDist = (summary.stageDistSec || 0)/3600;
-
-  elLine.innerText =
-    `Last: ${start} → ${end} | evt ${summary.totalEvents} | `
-    + `E_cf≈${summary.totalE_cf.toFixed(0)}, `
-    + `E_ctrl=${summary.totalE_ctrl.toFixed(0)}, `
-    + `削减≈${summary.totalDeltaE.toFixed(0)} (${redPct.toFixed(1)}%)`
-    + ` | CALM≈${hCalm.toFixed(1)}h, DIST≈${hDist.toFixed(1)}h`;
+function saveJSON(key, obj){
+  try{ localStorage.setItem(key, JSON.stringify(obj)); }catch(e){}
 }
 
-/* ========== autosave 历史事件 ========== */
+/* ----------------------- CIEU store ----------------------- */
+let CIEU_DB = loadJSON(STORE_CIEU, []);
+function persistCIEU(){
+  saveJSON(STORE_CIEU, CIEU_DB);
+  ui.cieuCount.textContent = String(CIEU_DB.length);
+}
+persistCIEU();
 
-function saveHistoryToStorage(){
-  try {
-    localStorage.setItem(STORAGE_KEY_HISTORY, JSON.stringify({
-      cieuHistory,
-      globalID,
-      totalEvents,
-      totalSnoreTime
-    }));
-  } catch(e){
-    console.error('保存 history 失败', e);
-  }
+/* ----------------------- Audio / Mic ----------------------- */
+let audioCtx = null;
+let micStream = null;
+let micSource = null;
+let analyser = null;
+let fftData = null;
+
+let outMaster = null;        // master gain
+let outBusSleep = null;      // sleep template bus
+let outBusInt = null;        // intervention bus
+let currentSleepGraph = null;
+let currentIntGraph = null;
+
+function ensureAudio(){
+  if(audioCtx) return;
+  audioCtx = new (window.AudioContext || window.webkitAudioContext)({ latencyHint: "interactive" });
+
+  outMaster = audioCtx.createGain();
+  outMaster.gain.value = 0.0;
+
+  // 两路总线：入睡模板与抗呼噜干预
+  outBusSleep = audioCtx.createGain();
+  outBusSleep.gain.value = 0.0;
+
+  outBusInt = audioCtx.createGain();
+  outBusInt.gain.value = 0.0;
+
+  outBusSleep.connect(outMaster);
+  outBusInt.connect(outMaster);
+  outMaster.connect(audioCtx.destination);
+
+  setPill("audioState", audioCtx.state, audioCtx.state==="running" ? "ok":"warn");
+  audioCtx.onstatechange = () => setPill("audioState", audioCtx.state, audioCtx.state==="running" ? "ok":"warn");
 }
 
-function restoreHistoryFromStorage(){
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY_HISTORY);
-    if (!raw) {
-      updateSessionSummaryHUD();
-      return;
-    }
-    const payload = JSON.parse(raw);
-    if (!payload || !Array.isArray(payload.cieuHistory)){
-      updateSessionSummaryHUD();
-      return;
-    }
-    cieuHistory = payload.cieuHistory;
-    globalID = payload.globalID || (cieuHistory.reduce((m,c)=>Math.max(m,c.id||0),0)+1);
-    totalEvents = payload.totalEvents || cieuHistory.length;
-    totalSnoreTime = payload.totalSnoreTime || 0;
+async function ensureMic(){
+  if(micStream) return;
+  // iOS 建议关闭回声消除以免影响分析，但不同设备表现不一
+  const constraints = { audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false } };
+  micStream = await navigator.mediaDevices.getUserMedia(constraints);
+  ensureAudio();
 
-    const list = document.getElementById('logList');
-    list.innerHTML = '';
-    cieuHistory.forEach(c => {
-      if(!c || !Array.isArray(c.dataParams) || c.dataParams.length === 0) return;
-      let maxDelta = -999;
-      c.dataParams.forEach(p => { if(p.D > maxDelta) maxDelta = p.D; });
-      const duration = c.dataParams[c.dataParams.length-1].t || "0.00";
-      const isWin = (maxDelta < 35);
+  micSource = audioCtx.createMediaStreamSource(micStream);
+  analyser = audioCtx.createAnalyser();
+  analyser.fftSize = 2048;
+  analyser.smoothingTimeConstant = 0.65;
+  fftData = new Float32Array(analyser.frequencyBinCount);
 
-      const div = document.createElement('div');
-      div.className = 'cieu-item';
-      div.innerHTML = `
-        <div style="color:#666">#${c.id}</div>
-        <div>${duration}s <span style="color:#444">|</span> Δ${maxDelta}</div>
-        <div class="res-badge ${isWin ? 'res-win' : 'res-loss'}">
-          ${isWin ? 'SUPPRESSED' : 'HIGH ERR'}
-        </div>
-      `;
-      list.insertBefore(div, list.firstChild);
-    });
+  micSource.connect(analyser);
 
-    updateSessionSummaryHUD();
-  } catch(e){
-    console.error('恢复 history 失败', e);
-    updateSessionSummaryHUD();
-  }
+  setPill("micState", "on", "ok");
 }
 
-function updateSessionSummaryHUD(){
-  const eEl = document.getElementById('sessEvt');
-  const sEl = document.getElementById('sessSnore');
-  if (eEl) eEl.innerText = cieuHistory.length;
-  if (sEl) sEl.innerText = totalSnoreTime.toFixed(1);
+/* ----------------------- Noise primitives ----------------------- */
+function createWhiteNoiseNode(ctx){
+  const bufferSize = 2 * ctx.sampleRate;
+  const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+  const data = buffer.getChannelData(0);
+  for(let i=0;i<bufferSize;i++) data[i] = (Math.random()*2 - 1) * 0.35;
+  const src = ctx.createBufferSource();
+  src.buffer = buffer;
+  src.loop = true;
+  return src;
 }
 
-/* ========== LULLABY 自动状态机 ========== */
-
-function updateLullabyPhase(nowMs, Y, sHat){
-  if (!sleepNoiseEnabled) {
-    lullabyPhase = "OFF";
-    return;
+// Pink noise via simple filtering of white noise (Voss-McCartney-ish approximation)
+function createPinkNoiseNode(ctx){
+  const bufferSize = 2 * ctx.sampleRate;
+  const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+  const out = buffer.getChannelData(0);
+  let b0=0,b1=0,b2=0,b3=0,b4=0,b5=0,b6=0;
+  for(let i=0;i<bufferSize;i++){
+    const w = Math.random()*2-1;
+    b0 = 0.99886*b0 + w*0.0555179;
+    b1 = 0.99332*b1 + w*0.0750759;
+    b2 = 0.96900*b2 + w*0.1538520;
+    b3 = 0.86650*b3 + w*0.3104856;
+    b4 = 0.55000*b4 + w*0.5329522;
+    b5 = -0.7616*b5 - w*0.0168980;
+    const pink = b0+b1+b2+b3+b4+b5+b6 + w*0.5362;
+    b6 = w*0.115926;
+    out[i] = (pink * 0.08); // scale
   }
-  if (!lullabyStartMs){
-    lullabyPhase = "ON";
-    lullabyStartMs = nowMs;
-  }
-
-  // 基于呼吸/呼噜稳定性累计稳定时间
-  if (sHat && sHat.periodicity > 0.3 && sHat.periodicity < 0.9 && Y < THRESHOLD){
-    lullabyStableTicks = Math.min(lullabyStableTicks + 1, LULLABY_STABLE_SEC * LOOP_HZ * 2);
-  } else {
-    lullabyStableTicks = Math.max(0, lullabyStableTicks - 1);
-  }
-  const stableSec = lullabyStableTicks / LOOP_HZ;
-
-  if (lullabyPhase === "ON"){
-    const elapsedSec = (nowMs - lullabyStartMs)/1000;
-    if (elapsedSec > LULLABY_MAX_SEC || stableSec > LULLABY_STABLE_SEC){
-      lullabyPhase = "FADE";
-      lullabyFadeStartMs = nowMs;
-    }
-  } else if (lullabyPhase === "FADE"){
-    const fadeSec = (nowMs - lullabyFadeStartMs)/1000;
-    if (fadeSec >= LULLABY_FADE_SEC){
-      lullabyPhase = "OFF";
-    }
-  }
+  const src = ctx.createBufferSource();
+  src.buffer = buffer;
+  src.loop = true;
+  return src;
 }
 
-function getCurrentLullabyLevel(nowMs){
-  if (!sleepNoiseEnabled) return 0;
-  if (!lullabyStartMs) return 0;
-  let base = sleepNoiseLevel;
-  if (lullabyPhase === "OFF") return 0;
-  if (lullabyPhase === "ON") return base;
-  if (lullabyPhase === "FADE"){
-    const fadeSec = (nowMs - lullabyFadeStartMs)/1000;
-    const factor = Math.max(0, 1 - fadeSec / LULLABY_FADE_SEC);
-    return base * factor;
+// Brown noise: integrate white
+function createBrownNoiseNode(ctx){
+  const bufferSize = 2 * ctx.sampleRate;
+  const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+  const out = buffer.getChannelData(0);
+  let last = 0;
+  for(let i=0;i<bufferSize;i++){
+    const w = Math.random()*2-1;
+    last = (last + 0.02*w);
+    last = clamp(last, -1, 1);
+    out[i] = last * 0.35;
   }
-  return 0;
+  const src = ctx.createBufferSource();
+  src.buffer = buffer;
+  src.loop = true;
+  return src;
 }
 
-/* ========== 睡眠阶段窗口统计（CALM / DISTURBED / MIXED） ========== */
-
-function updateWindowStats(Y, sHat){
-  const dt = 1/LOOP_HZ;
-  windowBuffer.push({
-    Y,
-    per: sHat ? sHat.periodicity : 0,
-    flat: sHat ? sHat.flatness : 0,
-    dt
-  });
-
-  // 保持缓冲长度上限（粗略 2*WINDOW_SEC 防止无限增长）
-  let totalT = 0;
-  for (let i=windowBuffer.length-1; i>=0; i--){
-    totalT += windowBuffer[i].dt;
-    if (totalT > WINDOW_SEC*2){
-      windowBuffer = windowBuffer.slice(i);
-      break;
-    }
-  }
+/* ----------------------- Graph builders ----------------------- */
+function stopGraph(g){
+  if(!g) return;
+  try{ g.stop?.(); }catch(e){}
+  try{ g.dispose?.(); }catch(e){}
 }
 
-function classifyCurrentWindow(nowMs){
-  let totalT = 0, sumY=0, snoreT=0, sumPer=0, sumFlat=0;
-  for (const s of windowBuffer){
+function buildSleepTemplate(ctx, tplName){
+  // returns { node, stop(), dispose() }
+  const g = { node: ctx.createGain() };
+  g.node.gain.value = 0.0;
+
+  // gentle limiter chain
+  const lp = ctx.createBiquadFilter();
+  lp.type = "lowpass";
+  lp.frequency.value = 2200;
+  lp.Q.value = 0.7;
+
+  const hp = ctx.createBiquadFilter();
+  hp.type = "highpass";
+  hp.frequency.value = 35;
+
+  const gain = ctx.createGain();
+  gain.gain.value = 1.0;
+
+  // very slow amplitude modulation (breath-like)
+  const lfo = ctx.createOscillator();
+  lfo.type = "sine";
+  lfo.frequency.value = 0.10;
+  const lfoGain = ctx.createGain();
+  lfoGain.gain.value = 0.10; // depth
+  lfo.connect(lfoGain);
+
+  const mod = ctx.createGain();
+  mod.gain.value = 0.85; // base
+  lfoGain.connect(mod.gain);
+
+  // source
+  let src = null;
+
+  if(tplName==="PINK_SOFTGUIDE"){
+    src = createPinkNoiseNode(ctx);
+    lp.frequency.value = 2100;
+  }else if(tplName==="MULTI_RAIN"){
+    // pink base + highpassed "rain texture"
+    const base = createPinkNoiseNode(ctx);
+    const rain = createWhiteNoiseNode(ctx);
+
+    const rainHP = ctx.createBiquadFilter();
+    rainHP.type = "highpass";
+    rainHP.frequency.value = 550;
+    rainHP.Q.value = 0.7;
+
+    const rainLP = ctx.createBiquadFilter();
+    rainLP.type = "lowpass";
+    rainLP.frequency.value = 5200;
+    rainLP.Q.value = 0.9;
+
+    // rain "droplets": random slow gating
+    const gate = ctx.createGain();
+    gate.gain.value = 0.0;
+
+    // Scriptless random gating using periodic ramps
+    const dropletLFO = ctx.createOscillator();
+    dropletLFO.type = "triangle";
+    dropletLFO.frequency.value = 0.35; // slow
+    const dropletDepth = ctx.createGain();
+    dropletDepth.gain.value = 0.35;
+    dropletLFO.connect(dropletDepth);
+    dropletDepth.connect(gate.gain);
+
+    // mix
+    const mix = ctx.createGain();
+    mix.gain.value = 1.0;
+
+    base.connect(mix);
+    rain.connect(rainHP);
+    rainHP.connect(rainLP);
+    rainLP.connect(gate);
+    gate.connect(mix);
+
+    // route to chain
+    mix.connect(hp);
+    hp.connect(lp);
+    lp.connect(mod);
+    mod.connect(gain);
+    gain.connect(g.node);
+
+    // lifecycle
+    lfo.start();
+    dropletLFO.start();
+    base.start();
+    rain.start();
+    g.stop = () => { base.stop(); rain.stop(); lfo.stop(); dropletLFO.stop(); };
+    g.dispose = () => {};
+    return g;
+  }else if(tplName==="BROWN_DEEPMASK"){
+    src = createBrownNoiseNode(ctx);
+    lp.frequency.value = 1100;
+  }else if(tplName==="WHITE_MASK"){
+    src = createWhiteNoiseNode(ctx);
+    lp.frequency.value = 1600;
+  }else if(tplName==="BINAURAL_OPTIONAL"){
+    // very gentle binaural beats for onset (experimental)
+    // carrier 180Hz, diff ramps 4Hz->1Hz over 12min
+    const carrier = 180;
+    const diffStart = 4.0;
+    const diffEnd = 1.0;
+
+    const oscL = ctx.createOscillator();
+    const oscR = ctx.createOscillator();
+    oscL.type = "sine"; oscR.type = "sine";
+    oscL.frequency.value = carrier - diffStart/2;
+    oscR.frequency.value = carrier + diffStart/2;
+
+    // slowly ramp diff
+    const t0 = ctx.currentTime;
+    const t1 = t0 + 12*60;
+    oscL.frequency.setValueAtTime(carrier - diffStart/2, t0);
+    oscR.frequency.setValueAtTime(carrier + diffStart/2, t0);
+    oscL.frequency.linearRampToValueAtTime(carrier - diffEnd/2, t1);
+    oscR.frequency.linearRampToValueAtTime(carrier + diffEnd/2, t1);
+
+    // stereo panner: split channels
+    const splitter = ctx.createChannelMerger(2);
+    const gL = ctx.createGain();
+    const gR = ctx.createGain();
+    gL.gain.value = 0.22;
+    gR.gain.value = 0.22;
+    oscL.connect(gL); oscR.connect(gR);
+    gL.connect(splitter, 0, 0);
+    gR.connect(splitter, 0, 1);
+
+    // mild noise bed for comfort
+    const bed = createPinkNoiseNode(ctx);
+    const bedGain = ctx.createGain();
+    bedGain.gain.value = 0.12;
+    bed.connect(bedGain);
+
+    const mix = ctx.createGain();
+    mix.gain.value = 1.0;
+    splitter.connect(mix);
+    bedGain.connect(mix);
+
+    // chain
+    mix.connect(hp); hp.connect(lp); lp.connect(mod); mod.connect(gain); gain.connect(g.node);
+
+    lfo.start();
+    oscL.start(); oscR.start(); bed.start();
+    g.stop = () => { oscL.stop(); oscR.stop(); bed.stop(); lfo.stop(); };
+    g.dispose = () => {};
+    return g;
+  }else{
+    // OFF or unknown
+    g.node.gain.value = 0.0;
+    g.stop = () => {};
+    g.dispose = () => {};
+    return g;
+  }
+
+  // default chain with src
+  src.connect(hp);
+  hp.connect(lp);
+  lp.connect(mod);
+  mod.connect(gain);
+  gain.connect(g.node);
+
+  lfo.start();
+  src.start();
+  g.stop = () => { src.stop(); lfo.stop(); };
+  g.dispose = () => {};
+  return g;
+}
+
+function buildInterventionGraph(ctx, token){
+  const g = { node: ctx.createGain() };
+  g.node.gain.value = 1.0;
+
+  // base limiter filters (comfort)
+  const hp = ctx.createBiquadFilter();
+  hp.type="highpass"; hp.frequency.value=45;
+
+  const lp = ctx.createBiquadFilter();
+  lp.type="lowpass"; lp.frequency.value=2200;
+
+  const gain = ctx.createGain();
+  gain.gain.value = 1.0;
+
+  // very shallow modulation to avoid “刺”
+  const lfo = ctx.createOscillator();
+  lfo.type="sine"; lfo.frequency.value=0.12;
+  const lfoGain = ctx.createGain();
+  lfoGain.gain.value=0.05;
+  const mod = ctx.createGain();
+  mod.gain.value=1.0;
+  lfo.connect(lfoGain);
+  lfoGain.connect(mod.gain);
+
+  let srcMain = null;
+
+  if(token==="MASK_PINK"){
+    srcMain = createPinkNoiseNode(ctx);
+    lp.frequency.value=2000;
+  }else if(token==="MASK_MULTI"){
+    // reuse MULTI_RAIN style but without droplet emphasis
+    const base = createPinkNoiseNode(ctx);
+    const tex = createWhiteNoiseNode(ctx);
+
+    const texHP = ctx.createBiquadFilter();
+    texHP.type="highpass"; texHP.frequency.value=650;
+    const texGain = ctx.createGain();
+    texGain.gain.value=0.18;
+
+    const mix = ctx.createGain();
+    mix.gain.value=1.0;
+
+    base.connect(mix);
+    tex.connect(texHP);
+    texHP.connect(texGain);
+    texGain.connect(mix);
+
+    mix.connect(hp); hp.connect(lp); lp.connect(mod); mod.connect(gain); gain.connect(g.node);
+
+    lfo.start(); base.start(); tex.start();
+    g.stop = () => { base.stop(); tex.stop(); lfo.stop(); };
+    g.dispose = () => {};
+    return g;
+  }else if(token==="MASK_WHITE"){
+    srcMain = createWhiteNoiseNode(ctx);
+    lp.frequency.value=1700;
+  }else if(token==="BINAURAL"){
+    // Experimental intervention: gentle binaural with pink bed
+    const carrier = 180;
+    const diff = 2.0; // fixed small diff for intervention
+    const oscL = ctx.createOscillator();
+    const oscR = ctx.createOscillator();
+    oscL.type="sine"; oscR.type="sine";
+    oscL.frequency.value = carrier - diff/2;
+    oscR.frequency.value = carrier + diff/2;
+
+    const gL = ctx.createGain();
+    const gR = ctx.createGain();
+    gL.gain.value = 0.18;
+    gR.gain.value = 0.18;
+
+    const merger = ctx.createChannelMerger(2);
+    oscL.connect(gL); oscR.connect(gR);
+    gL.connect(merger, 0, 0);
+    gR.connect(merger, 0, 1);
+
+    const bed = createPinkNoiseNode(ctx);
+    const bedGain = ctx.createGain();
+    bedGain.gain.value = 0.15;
+    bed.connect(bedGain);
+
+    const mix = ctx.createGain();
+    mix.gain.value = 1.0;
+    merger.connect(mix);
+    bedGain.connect(mix);
+
+    mix.connect(hp); hp.connect(lp); lp.connect(mod); mod.connect(gain); gain.connect(g.node);
+
+    lfo.start(); oscL.start(); oscR.start(); bed.start();
+    g.stop = () => { oscL.stop(); oscR.stop(); bed.stop(); lfo.stop(); };
+    g.dispose = () => {};
+    return g;
+  }else{
+    // fallback: silence
+    g.node.gain.value=0.0;
+    g.stop = ()=>{};
+    g.dispose=()=>{};
+    return g;
+  }
+
+  srcMain.connect(hp);
+  hp.connect(lp);
+  lp.connect(mod);
+  mod.connect(gain);
+  gain.connect(g.node);
+
+  lfo.start();
+  srcMain.start();
+  g.stop = () => { srcMain.stop(); lfo.stop(); };
+  g.dispose = () => {};
+  return g;
+}
+
+/* ----------------------- Field features ----------------------- */
+let windowBuffer = []; // {t, dt, Y, per, flat, centroid}
+let budgetBuffer = []; // {t, dt, u2} sliding window for energy budget
+
+function pushWindowSample(sample){
+  windowBuffer.push(sample);
+  // trim to WINDOW_SEC
+  const tNow = sample.t;
+  while(windowBuffer.length && (tNow - windowBuffer[0].t) > WINDOW_SEC) windowBuffer.shift();
+}
+
+function pushBudgetSample(t, dt, uEff){
+  const u2 = (uEff*uEff)*dt;
+  budgetBuffer.push({t, dt, u2});
+  while(budgetBuffer.length && (t - budgetBuffer[0].t) > BUDGET_SEC) budgetBuffer.shift();
+}
+
+function budgetUsed(){
+  let sum=0;
+  for(const s of budgetBuffer) sum += s.u2;
+  return sum;
+}
+
+function buildFieldPhi(){
+  let totalT=0, sumY=0, snoreT=0, sumPer=0, sumFlat=0, sumCent=0;
+  const thr = getTHR();
+  for(const s of windowBuffer){
     totalT += s.dt;
-    sumY   += s.Y * s.dt;
-    sumPer += s.per * s.dt;
-    sumFlat+= s.flat* s.dt;
-    if (s.Y > THRESHOLD) snoreT += s.dt;
+    sumY += s.Y*s.dt;
+    sumPer += s.per*s.dt;
+    sumFlat += s.flat*s.dt;
+    sumCent += s.centroid*s.dt;
+    if(s.Y > thr) snoreT += s.dt;
   }
-  if (totalT < WINDOW_SEC*0.8) return;
+  const Ymean = totalT>0 ? sumY/totalT : 0;
+  const snoreRatio = totalT>0 ? snoreT/totalT : 0;
+  const perMean = totalT>0 ? sumPer/totalT : 0;
+  const flatMean = totalT>0 ? sumFlat/totalT : 0;
+  const centroidMean = totalT>0 ? sumCent/totalT : 0;
 
-  const Y_mean      = sumY / totalT;
-  const Per_mean    = sumPer / totalT;
-  const Flat_mean   = sumFlat / totalT;
-  const snore_ratio = snoreT / totalT;
+  // syntax pressure from strong events (in last 60s)
+  const now = wallNow();
+  const winMs = 60*1000;
+  const strongCount = syntaxState.strongEventTimes.filter(t => (now - t) <= winMs).length;
+  const syntaxPressure = clamp(strongCount / STRONG_MAX_PER_MIN, 0, 1);
 
-  let stage = "MIXED";
-  if (snore_ratio < 0.05 && Y_mean < THRESHOLD*0.2 && Per_mean >= 0.3 && Per_mean <= 0.8){
-    stage = "CALM";
-  } else if (snore_ratio > 0.2 || Y_mean > THRESHOLD*0.4 || Per_mean < 0.2){
-    stage = "DISTURBED";
-  }
+  // mode numeric
+  const m = getMode();
+  const modeVal = (m==="monitor")?0:((m==="gentle")?0.5:1);
 
-  sleepStageHistory.push({
-    startIso: new Date(nowMs - totalT*1000).toISOString(),
-    duration: totalT,
-    stage,
-    Y_mean,
-    Per_mean,
-    Flat_mean,
-    snore_ratio
-  });
-
-  // 清空缓冲，下一窗口重新积累
-  windowBuffer = [];
+  return { Ymean, snoreRatio, perMean, flatMean, centroidMean, syntaxPressure, modeVal };
 }
 
-/* ========== 启动 / 停止内核 ========== */
+/* ----------------------- Y* Field Functional ----------------------- */
+let thetaY = loadJSON(STORE_THETA_YSTAR, {
+  b: 0.0,
+  wYmean: 0.6,
+  wSnoreRatio: 1.2,
+  wPer: -0.35,
+  wFlat: 0.25,
+  wSyntax: 0.8,
+  wMode: 0.5,
+  tauMin: 0.8,
+  tauMax: 4.5,
+  lr: 0.012
+});
 
-async function bootKernel() {
-  if (isRunning){
-    alert("内核已经在运行，无需重复启动。");
-    return;
+function sigmoid(z){ return 1/(1+Math.exp(-z)); }
+
+function computeTauFromField(phi){
+  const z =
+    thetaY.b +
+    thetaY.wYmean      * clamp(phi.Ymean/255, 0, 1) +
+    thetaY.wSnoreRatio * clamp(phi.snoreRatio, 0, 1) +
+    thetaY.wPer        * clamp(phi.perMean, 0, 1) +
+    thetaY.wFlat       * clamp(phi.flatMean, 0, 1) +
+    thetaY.wSyntax     * clamp(phi.syntaxPressure, 0, 1) +
+    thetaY.wMode       * clamp(phi.modeVal, 0, 1);
+
+  const s = sigmoid(z);
+  // z越大 -> s越大 -> tau越小（更快收敛）
+  return thetaY.tauMin + (thetaY.tauMax - thetaY.tauMin) * (1 - s);
+}
+
+function computeYStar(elapsedSec, startY){
+  const phi = buildFieldPhi();
+  const tau = computeTauFromField(phi);
+  const k = 1 / Math.max(0.25, tau);
+  let Ystar = getTHR() + (startY - getTHR()) * Math.exp(-k * elapsedSec);
+  Ystar = Math.max(getTHR(), Ystar);
+  return { Ystar, tau, phi };
+}
+
+function updateThetaYFromReward(phiAtStart, rewardNorm){
+  // rewardNorm: [-1,1], higher better -> gentler (larger tau) -> decrease z
+  // g = -reward
+  const g = -clamp(rewardNorm, -1, 1);
+  const lr = thetaY.lr;
+
+  const x = {
+    Ymean: clamp(phiAtStart.Ymean/255,0,1),
+    snoreRatio: clamp(phiAtStart.snoreRatio,0,1),
+    perMean: clamp(phiAtStart.perMean,0,1),
+    flatMean: clamp(phiAtStart.flatMean,0,1),
+    syntaxPressure: clamp(phiAtStart.syntaxPressure,0,1),
+    modeVal: clamp(phiAtStart.modeVal,0,1)
+  };
+
+  thetaY.b += lr*g;
+  thetaY.wYmean += lr*g*x.Ymean;
+  thetaY.wSnoreRatio += lr*g*x.snoreRatio;
+  thetaY.wPer += lr*g*x.perMean;
+  thetaY.wFlat += lr*g*x.flatMean;
+  thetaY.wSyntax += lr*g*x.syntaxPressure;
+  thetaY.wMode += lr*g*x.modeVal;
+
+  saveJSON(STORE_THETA_YSTAR, thetaY);
+}
+
+/* ----------------------- LinUCB Bandit ----------------------- */
+// We store Ainv (dxd) and b (d). theta = Ainv*b.
+// Choose action: argmax theta·x + alpha*sqrt(x^T Ainv x)
+
+function zeros(n){ return Array.from({length:n}, ()=>0); }
+function eye(n){
+  const m = [];
+  for(let i=0;i<n;i++){
+    const row = zeros(n);
+    row[i]=1;
+    m.push(row);
   }
-  startSessionIfNeeded();
-
-  try {
-    if ('wakeLock' in navigator) {
-      try { wakeLock = await navigator.wakeLock.request('screen'); } catch(e){}
+  return m;
+}
+function dot(a,b){ let s=0; for(let i=0;i<a.length;i++) s+=a[i]*b[i]; return s; }
+function matVec(A,x){
+  const y = zeros(A.length);
+  for(let i=0;i<A.length;i++){
+    let s=0;
+    for(let j=0;j<x.length;j++) s += A[i][j]*x[j];
+    y[i]=s;
+  }
+  return y;
+}
+function quad(x,A){ // x^T A x
+  const Ax = matVec(A,x);
+  return dot(x,Ax);
+}
+// Sherman-Morrison update for Ainv when A <- A + x x^T
+function shermanMorrison(Ainv, x){
+  const Ax = matVec(Ainv, x);
+  const denom = 1 + dot(x, Ax);
+  const n = x.length;
+  const out = Array.from({length:n}, ()=>zeros(n));
+  for(let i=0;i<n;i++){
+    for(let j=0;j<n;j++){
+      out[i][j] = Ainv[i][j] - (Ax[i]*Ax[j]) / denom;
     }
+  }
+  return out;
+}
 
-    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    masterGain = audioCtx.createGain();
-    masterGain.gain.value = 0.0;
-    masterGain.connect(audioCtx.destination);
-
-    buildTokens();
-
-    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-      throw new Error("当前浏览器不支持 navigator.mediaDevices.getUserMedia");
+class LinUCB{
+  constructor(name, actions, d, storeKey){
+    this.name=name;
+    this.actions=actions;
+    this.d=d;
+    this.storeKey=storeKey;
+    this.alpha=0.75;
+    this.models = {}; // action -> {Ainv, b, n}
+    this._load();
+  }
+  _initAction(a){
+    if(this.models[a]) return;
+    this.models[a] = { Ainv: eye(this.d), b: zeros(this.d), n: 0, rSum: 0 };
+  }
+  _load(){
+    const raw = loadJSON(this.storeKey, null);
+    if(raw && raw.models){
+      this.models = raw.models;
+    }else{
+      this.models = {};
     }
-
-    const stream = await navigator.mediaDevices.getUserMedia({
-      audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: false }
-    });
-
-    micSource = audioCtx.createMediaStreamSource(stream);
-
-    micHP = audioCtx.createBiquadFilter();
-    micHP.type = 'highpass';
-    micHP.frequency.value = MIC_HIGHPASS;
-
-    micLP = audioCtx.createBiquadFilter();
-    micLP.type = 'lowpass';
-    micLP.frequency.value = MIC_LOWPASS;
-
-    analyserMicFft = audioCtx.createAnalyser();
-    analyserMicFft.fftSize = FFT_SIZE;
-    analyserMicFft.smoothingTimeConstant = 0.15;
-
-    analyserMicTime = audioCtx.createAnalyser();
-    analyserMicTime.fftSize = 2048;
-    analyserMicTime.smoothingTimeConstant = 0.10;
-
-    micSource.connect(micHP);
-    micHP.connect(micLP);
-    micLP.connect(analyserMicFft);
-    micLP.connect(analyserMicTime);
-
-    initCanvas();
-    document.getElementById('btnStart').style.display = 'none';
-    document.getElementById('btnStop').style.display = 'block';
-    const logList = document.getElementById('logList');
-    if (logList && cieuHistory.length === 0) {
-      logList.innerHTML = "";
+    for(const a of this.actions) this._initAction(a);
+  }
+  save(){
+    saveJSON(this.storeKey, {models:this.models});
+  }
+  setAlpha(a){ this.alpha=a; }
+  thetaOf(a){
+    const m = this.models[a];
+    const t = matVec(m.Ainv, m.b);
+    return t;
+  }
+  choose(x){
+    let bestA = this.actions[0];
+    let bestScore = -1e9;
+    for(const a of this.actions){
+      this._initAction(a);
+      const m = this.models[a];
+      const theta = matVec(m.Ainv, m.b);
+      const mean = dot(theta, x);
+      const bonus = this.alpha * Math.sqrt(Math.max(0, quad(x, m.Ainv)));
+      const score = mean + bonus;
+      if(score > bestScore){
+        bestScore = score;
+        bestA = a;
+      }
     }
-    isRunning = true;
-
-    setState("BASELINE CAL", "#ffcc00");
-    await baselineCalibration();
-    setState("STANDBY", "#fff");
-
-    selectToken("NOISE_BREATH", true);
-    masterGain.gain.setTargetAtTime(0.0, audioCtx.currentTime, 0.2);
-
-    logicTimer = setInterval(logicLoop, 1000/LOOP_HZ);
-    drawLoop();
-
-  } catch (e) {
-    alert("启动失败：麦克风权限被拒绝或音频初始化异常。\n\n详细信息："
-          + (e.name || "Error") + " - " + (e.message || e.toString()));
-    console.error(e);
+    return bestA;
+  }
+  update(a, x, r){
+    this._initAction(a);
+    const m = this.models[a];
+    // Ainv <- (A + xx^T)^-1 using Sherman-Morrison
+    m.Ainv = shermanMorrison(m.Ainv, x);
+    // b <- b + r x
+    for(let i=0;i<this.d;i++) m.b[i] += r * x[i];
+    m.n += 1;
+    m.rSum += r;
+    this.save();
+  }
+  summary(topK=12){
+    const rows = [];
+    for(const a of this.actions){
+      const m = this.models[a];
+      const avg = m.n>0 ? (m.rSum/m.n) : 0;
+      rows.push({a, n:m.n, avg});
+    }
+    rows.sort((p,q)=>q.avg-p.avg);
+    return rows.slice(0, topK);
   }
 }
 
-async function stopKernel(){
-  if(!isRunning) return;
-  isRunning = false;
-  if (logicTimer) { clearInterval(logicTimer); logicTimer = null; }
-
-  try { if (wakeLock) { await wakeLock.release(); wakeLock = null; } } catch(e){}
-  try {
-    if (micSource && micSource.mediaStream) micSource.mediaStream.getTracks().forEach(t => t.stop());
-  } catch(e){}
-
-  try { if (audioCtx) await audioCtx.close(); } catch(e){}
-
-  currentCIEU = null;
-  setState("STOPPED", "#ff3b30");
-  document.getElementById('btnStart').style.display = 'block';
-  document.getElementById('btnStop').style.display = 'none';
-  document.getElementById('valToken').innerText = "--";
-  masterGain = null;
-
-  endSession();
-}
-
-/* ========== 校准 & 特征提取 ========== */
-
-async function baselineCalibration(){
-  const ys = [];
-  const t0 = performance.now();
-  while ((performance.now() - t0) < 10000){
-    const y = computeYandSHat().Y;
-    ys.push(y);
-    await sleep(60);
+function buildInterventionActions(){
+  const acts = [];
+  for(const t of INT_TOKENS){
+    for(const rho of RHO_SET){
+      acts.push(`${t}::${rho.toFixed(2)}`);
+    }
   }
-  ys.sort((a,b)=>a-b);
-  const p50 = ys[Math.floor(ys.length*0.5)] || 10;
-  const p90 = ys[Math.floor(ys.length*0.9)] || p50;
-  THRESHOLD = clamp(Math.floor(p90 * 1.25), 18, 85);
+  return acts;
 }
 
-function bandEnergy(freq, f1, f2){
-  const nyq = audioCtx.sampleRate / 2;
-  const binCount = freq.length;
-  const i1 = Math.floor((f1/nyq)*binCount);
-  const i2 = Math.floor((f2/nyq)*binCount);
-  let sum = 0;
-  const a = clamp(i1,0,binCount-1);
-  const b = clamp(i2,0,binCount-1);
-  const n = Math.max(1, b-a);
-  for(let i=a;i<b;i++) sum += freq[i];
-  return sum / n;
+/* ----------------------- Instantiate bandits ----------------------- */
+const dCtx = 9; // context feature dimension
+function makeCtxVec(phi, stageVal, deltaNorm){
+  // x = [1, Ymean, snoreRatio, per, flat, centroidN, syntax, modeVal, deltaNorm]
+  const centroidN = clamp((phi.centroidMean||0) / 4000, 0, 1);
+  return [
+    1,
+    clamp(phi.Ymean/255,0,1),
+    clamp(phi.snoreRatio,0,1),
+    clamp(phi.perMean,0,1),
+    clamp(phi.flatMean,0,1),
+    centroidN,
+    clamp(phi.syntaxPressure,0,1),
+    clamp(phi.modeVal,0,1),
+    clamp(deltaNorm, -1, 1) * 0.5 + 0.5 // map to [0,1]
+  ];
 }
 
-function spectralFeatures(freq, fLow=60, fHigh=450){
-  const nyq = audioCtx.sampleRate / 2;
-  const N = freq.length;
-  const i1 = clamp(Math.floor((fLow/nyq)*N), 0, N-1);
-  const i2 = clamp(Math.floor((fHigh/nyq)*N), 0, N-1);
+const sleepBandit = new LinUCB("sleep", SLEEP_TEMPLATES, dCtx, STORE_SLEEP_BANDIT);
+const intBandit   = new LinUCB("intervention", buildInterventionActions(), dCtx, STORE_INT_BANDIT);
 
-  let sumMag = 0, sumWeighted = 0;
-  let geoSum = 0, arithSum = 0, count = 0;
+/* ----------------------- Snore detection features ----------------------- */
+function computeSpectrumFeatures(){
+  // Needs analyser & fftData
+  analyser.getFloatFrequencyData(fftData);
+  // Convert dB to linear power roughly
+  // Note: this is a heuristic; stable enough for RL signals.
+  const sr = audioCtx.sampleRate;
+  const nyq = sr/2;
+  const N = fftData.length;
 
-  for(let i=i1;i<i2;i++){
-    const mag = Math.max(1e-6, freq[i]/255);
+  let sumP=0, sumF=0;
+  let geom=0, count=0;
+
+  // band energies
+  let eL=0,eM=0,eH=0;
+  let peakP=0; let peakIdx=0;
+
+  for(let i=0;i<N;i++){
     const f = (i/N)*nyq;
-    sumMag += mag;
-    sumWeighted += mag * f;
+    // clamp floor to avoid -Inf
+    const db = fftData[i];
+    const p = Math.pow(10, (db/10)); // power-ish
+    const pC = Math.max(1e-12, p);
 
-    geoSum += Math.log(mag);
-    arithSum += mag;
+    sumP += pC;
+    sumF += f * pC;
+    geom += Math.log(pC);
     count++;
+
+    if(pC>peakP){ peakP=pC; peakIdx=i; }
+
+    if(f>=60 && f<200) eL += pC;
+    else if(f>=200 && f<800) eM += pC;
+    else if(f>=800 && f<2500) eH += pC;
   }
 
-  const centroid = (sumMag > 0) ? (sumWeighted / sumMag) : 0;
-  const flatness = (count > 0) ? (Math.exp(geoSum / count) / (arithSum / count)) : 0;
-  return { centroid, flatness: clamp(flatness, 0, 1) };
+  const centroid = sumP>0 ? (sumF/sumP) : 0;
+  const flatness = Math.exp(geom/count) / (sumP/count);
+
+  // periodicity proxy via peak prominence in low-mid band:
+  // ratio of peak power to mean power (clamped)
+  const meanP = sumP / Math.max(1,count);
+  const periodicity = clamp(peakP / Math.max(1e-12, meanP) / 20, 0, 1); // scale
+
+  // normalize band energies to [0,1]
+  const norm = (x) => clamp(x / Math.max(1e-9, sumP), 0, 1);
+  const nl = norm(eL), nm = norm(eM), nh = norm(eH);
+
+  return { nl, nm, nh, centroid, flatness: clamp(flatness,0,1), periodicity };
 }
 
-function periodicityScore(){
-  const L = yHistory.length;
-  if(L < LOOP_HZ * 4) return 0;
-  const lagMin = Math.floor(0.8 * LOOP_HZ);
-  const lagMax = Math.floor(2.2 * LOOP_HZ);
+function computeY(features){
+  // Heuristic: snore-like tends to have energy in low/mid, plus periodicity, plus not too flat (but this is individual).
+  // We'll keep a stable monotonic score.
+  const {nl,nm,nh,flatness,periodicity} = features;
 
-  const mean = yHistory.reduce((a,b)=>a+b,0)/L;
-  let varSum = 0;
-  for(let i=0;i<L;i++){ const d = yHistory[i]-mean; varSum += d*d; }
-  if(varSum < 1e-6) return 0;
+  let y = 0;
+  y += 0.55*nl + 0.35*nm - 0.10*nh;
+  y += 0.55*periodicity;
+  y += 0.15*(1-flatness);
 
-  let best = 0;
-  for(let lag=lagMin; lag<=lagMax; lag++){
-    let c = 0;
-    for(let i=lag;i<L;i++){
-      c += (yHistory[i]-mean)*(yHistory[i-lag]-mean);
+  y = clamp(y, 0, 1);
+  return Math.round(y * 255);
+}
+
+function estimateStage(phi, Y){
+  // simplistic stage estimator for control logic
+  // CALM: low Ymean & low snoreRatio
+  // MIXED: moderate
+  // DISTURBED: high
+  const a = clamp(phi.Ymean/255,0,1);
+  const b = clamp(phi.snoreRatio,0,1);
+  const z = 0.7*a + 0.9*b + 0.3*clamp(Y/255,0,1);
+  if(z < 0.28) return "CALM";
+  if(z < 0.55) return "MIXED";
+  return "DISTURBED";
+}
+
+/* ----------------------- L2 Syntax & Safety DSL ----------------------- */
+const syntaxState = {
+  strongEventTimes: [], // wall time ms
+  strongWindowCount: 0,
+  lastU: 0
+};
+
+function applySafety(uEff, token){
+  // 1) absolute cap
+  const cap = getCAP();
+  let u = clamp(uEff, 0, cap);
+
+  // 2) du/dt cap (slew-rate limiter)
+  const maxDu = 0.015; // per tick
+  const du = u - syntaxState.lastU;
+  if(du > maxDu) u = syntaxState.lastU + maxDu;
+  if(du < -maxDu) u = syntaxState.lastU - maxDu;
+
+  // 3) energy budget: if budget used too high, scale down
+  const budget = budgetUsed();
+  // heuristic budget threshold proportional to window size: allow more if cap small
+  const budgetThr = 0.9 * BUDGET_SEC * (cap*cap) * 0.25; // conservative
+  if(budget > budgetThr){
+    const scale = clamp(budgetThr / Math.max(1e-9, budget), 0.25, 1.0);
+    u *= scale;
+  }
+
+  // 4) strong intervention frequency rule (only if u near cap)
+  const strong = u > (0.75*cap);
+  if(strong){
+    const t = wallNow();
+    syntaxState.strongEventTimes.push(t);
+    // trim last 60s
+    const winMs=60*1000;
+    syntaxState.strongEventTimes = syntaxState.strongEventTimes.filter(x=>t-x<=winMs);
+    if(syntaxState.strongEventTimes.length > STRONG_MAX_PER_MIN){
+      // degrade
+      u *= 0.65;
     }
-    c = c / varSum;
-    if(c > best) best = c;
   }
-  return clamp(best, 0, 1);
+
+  // 5) token compatibility rule: binaural only if calm-ish
+  if(token==="BINAURAL" && lastStage!=="CALM"){
+    // force degrade
+    u *= 0.5;
+  }
+
+  syntaxState.lastU = u;
+  return u;
 }
 
-function computeYandSHat(){
-  const freq = new Uint8Array(analyserMicFft.frequencyBinCount);
-  analyserMicFft.getByteFrequencyData(freq);
+/* ----------------------- Control core state ----------------------- */
+let running = false;
+let timer = null;
+let lastTick = 0;
 
-  const eL = bandEnergy(freq, 60, 150);
-  const eM = bandEnergy(freq, 150, 300);
-  const eH = bandEnergy(freq, 300, 450);
+let pid = { integ: 0, integMax: 0.8 };
+let currentY = 0;
+let lastStage = "CALM";
 
-  let Y_raw = Math.floor(0.45*eL + 0.35*eM + 0.20*eH);
-  Y_raw = clamp(Y_raw, 0, 255);
+let selectedSleepTemplate = "PINK_SOFTGUIDE";
+let selectedIntToken = "MASK_PINK";
+let selectedRho = 0.0;
+let selectedActionKey = "MASK_PINK::0.00";
 
-  yEMA = ema(yEMA, Y_raw, EMA_ALPHA);
-  const Y = Math.floor(yEMA);
+let onset = {
+  active: false,
+  startT: 0,
+  sumY: 0,
+  sumT: 0,
+  snoreT: 0,
+  uEnergy: 0,
+  chosenTemplate: null,
+  ctxAtStart: null
+};
 
-  const { centroid, flatness } = spectralFeatures(freq, 60, 450);
-  const centroidNorm = clamp((centroid - 60) / (450 - 60), 0, 1);
+let cieuEvent = null; // current event
+let lastSegmentT = 0;
 
-  yHistory.push(Y);
-  const maxHist = LOOP_HZ * 6;
-  if(yHistory.length > maxHist) yHistory.shift();
-  const per = periodicityScore();
+/* ----------------------- Get UI params ----------------------- */
+function getTHR(){ return parseInt(ui.thr.value,10); }
+function getCAP(){ return parseFloat(ui.cap.value); }
+function getAlpha(){ return parseFloat(ui.alpha.value); }
+function getMode(){
+  const v = ui.modeSel.value;
+  if(v==="auto"){
+    // auto depends on stage
+    if(lastStage==="CALM") return "gentle";
+    if(lastStage==="MIXED") return "standard";
+    return "standard";
+  }
+  return v;
+}
 
-  const sHat = {
-    eL: norm255(eL),
-    eM: norm255(eM),
-    eH: norm255(eH),
-    centroid: centroidNorm,
-    flatness: flatness,
-    periodicity: per
+/* ----------------------- Sleep Template selection ----------------------- */
+function chooseSleepTemplate(phi){
+  const sel = ui.sleepTplSel.value;
+  if(sel !== "AUTO") return sel;
+  // choose via sleep bandit
+  sleepBandit.setAlpha(getAlpha());
+  const stageVal = (lastStage==="CALM")?0:((lastStage==="MIXED")?0.5:1.0);
+  const x = makeCtxVec(phi, stageVal, 0);
+  const tpl = sleepBandit.choose(x);
+  return tpl;
+}
+
+function applySleepTemplate(tpl){
+  if(!audioCtx) return;
+  stopGraph(currentSleepGraph);
+  currentSleepGraph = buildSleepTemplate(audioCtx, tpl);
+  currentSleepGraph.node.connect(outBusSleep);
+  selectedSleepTemplate = tpl;
+  setPill("tplNow", tpl, "ok");
+}
+
+/* ----------------------- Intervention selection ----------------------- */
+function chooseInterventionAction(phi, deltaNorm){
+  intBandit.setAlpha(getAlpha());
+  const stageVal = (lastStage==="CALM")?0:((lastStage==="MIXED")?0.5:1.0);
+  const x = makeCtxVec(phi, stageVal, deltaNorm);
+  const a = intBandit.choose(x);
+  return { actionKey:a, x };
+}
+
+function parseActionKey(a){
+  const [tok, r] = a.split("::");
+  return { token: tok, rho: parseFloat(r) };
+}
+
+function applyInterventionToken(token){
+  if(!audioCtx) return;
+  stopGraph(currentIntGraph);
+  currentIntGraph = buildInterventionGraph(audioCtx, token);
+  currentIntGraph.node.connect(outBusInt);
+  selectedIntToken = token;
+  setPill("tokenNow", token, "ok");
+}
+
+/* ----------------------- CIEU helpers ----------------------- */
+function startCIEU(t, Ystart){
+  const phi0 = buildFieldPhi();
+  const mode = getMode();
+
+  cieuEvent = {
+    id: `cieu_${Math.floor(Date.now())}_${Math.floor(Math.random()*1e6)}`,
+    t0_wall: Date.now(),
+    t0: t,
+    x: {
+      fieldPhiAtStart: phi0,
+      startY: Ystart,
+      modeAtStart: mode,
+      sleepTemplateAtStart: selectedSleepTemplate
+    },
+    u: {
+      // will fill with action info
+      rl: {
+        segments: []
+      }
+    },
+    yStar: {
+      E_cf: 0
+    },
+    yOut: {
+      E_ctrl: 0,
+      uEnergy: 0,
+      syntaxPenalty: 0,
+      peakY: Ystart,
+      durationSec: 0
+    },
+    r: {
+      reward: 0,
+      rewardNorm: 0,
+      components: {}
+    }
   };
 
-  lastSHat = sHat;
-  return { Y, Y_raw, sHat };
+  lastSegmentT = t;
 }
 
-/* ========== token 构造（略） ========== */
+function finishCIEU(t){
+  if(!cieuEvent) return;
+  cieuEvent.yOut.durationSec = (t - cieuEvent.t0);
+  // reward = benefit - cost
+  const Ecf = cieuEvent.yStar.E_cf;
+  const Ectrl = cieuEvent.yOut.E_ctrl;
+  const uE = cieuEvent.yOut.uEnergy;
+  const syn = cieuEvent.yOut.syntaxPenalty;
 
-function buildTokens(){
-  function makeNoiseSource(){
-    const bufferSize = 2 * audioCtx.sampleRate;
-    const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
-    const data = buffer.getChannelData(0);
-    let lastOut = 0;
-    for(let i=0;i<bufferSize;i++){
-      const white = Math.random()*2 - 1;
-      data[i] = (lastOut + (0.02*white))/1.02;
-      lastOut = data[i];
-      data[i] *= 2.0;
+  const deltaE = Ecf - Ectrl;
+  const benefit = deltaE;
+  const cost = 0.35*uE + 0.80*syn;
+  const reward = benefit - cost;
+
+  // normalize for stable updates
+  const denom = Math.max(1e-6, Ecf + 0.5*uE + 1);
+  const rewardNorm = clamp(reward/denom, -1, 1);
+
+  cieuEvent.r.reward = reward;
+  cieuEvent.r.rewardNorm = rewardNorm;
+  cieuEvent.r.components = { deltaE, benefit, cost, Ecf, Ectrl, uEnergy:uE, syntaxPenalty:syn };
+
+  // update thetaY (target functional) using field at start
+  updateThetaYFromReward(cieuEvent.x.fieldPhiAtStart, rewardNorm);
+
+  // also update bandit for segments (already updated online), but we can add a small end-of-event update for stability:
+  // (optional, keep it light)
+  // no extra.
+
+  CIEU_DB.push(cieuEvent);
+  persistCIEU();
+  ui.lastCIEU.textContent = JSON.stringify({
+    id: cieuEvent.id,
+    durationSec: cieuEvent.yOut.durationSec,
+    peakY: cieuEvent.yOut.peakY,
+    rewardNorm: cieuEvent.r.rewardNorm,
+    deltaE: cieuEvent.r.components.deltaE,
+    actionLast: cieuEvent.u.rl.segments.slice(-1)[0]?.actionKey || "-"
+  }, null, 2);
+
+  cieuEvent = null;
+}
+
+/* ----------------------- Onset (sleep template bandit reward) ----------------------- */
+function beginOnset(t){
+  onset.active = true;
+  onset.startT = t;
+  onset.sumY = 0;
+  onset.sumT = 0;
+  onset.snoreT = 0;
+  onset.uEnergy = 0;
+  onset.chosenTemplate = null;
+
+  const phi = buildFieldPhi();
+  onset.ctxAtStart = makeCtxVec(phi, 0, 0);
+  onset.chosenTemplate = chooseSleepTemplate(phi);
+  applySleepTemplate(onset.chosenTemplate);
+
+  // fade in sleep bus gently
+  outBusSleep.gain.cancelScheduledValues(audioCtx.currentTime);
+  outBusSleep.gain.setValueAtTime(outBusSleep.gain.value, audioCtx.currentTime);
+  outBusSleep.gain.linearRampToValueAtTime(0.85, audioCtx.currentTime + 6.0);
+
+  setPill("statusPill","ONSET","ok");
+}
+
+function endOnset(t){
+  if(!onset.active) return;
+  onset.active = false;
+
+  const thr = getTHR();
+  const snoreRatio = onset.sumT>0 ? onset.snoreT/onset.sumT : 0;
+  const Ymean = onset.sumT>0 ? onset.sumY/onset.sumT : 0;
+
+  // reward: encourage calm & low snore ratio & low intervention energy during onset
+  // note: during onset we may still have intervention low or off depending on mode
+  const r = clamp( (1 - snoreRatio) * 0.75 + (1 - clamp(Ymean/255,0,1))*0.25 - 0.15*onset.uEnergy, -1, 1);
+
+  // update sleep bandit
+  sleepBandit.update(onset.chosenTemplate, onset.ctxAtStart, r);
+
+  // fade sleep bus down a bit after onset window (keep low bed if you want)
+  outBusSleep.gain.cancelScheduledValues(audioCtx.currentTime);
+  outBusSleep.gain.setValueAtTime(outBusSleep.gain.value, audioCtx.currentTime);
+  outBusSleep.gain.linearRampToValueAtTime(0.45, audioCtx.currentTime + 8.0);
+
+  logLine(`[SleepBandit] tpl=${onset.chosenTemplate} reward=${fmt(r,3)} snoreRatio=${fmt(snoreRatio,3)} Ymean=${fmt(Ymean,1)}`);
+}
+
+/* ----------------------- Main control loop ----------------------- */
+function setMasterGain(on){
+  if(!audioCtx) return;
+  const t = audioCtx.currentTime;
+  outMaster.gain.cancelScheduledValues(t);
+  outMaster.gain.setValueAtTime(outMaster.gain.value, t);
+  outMaster.gain.linearRampToValueAtTime(on ? 1.0 : 0.0, t + (on ? 0.6 : 0.4));
+}
+
+function setInterventionGain(u){
+  if(!audioCtx) return;
+  const t = audioCtx.currentTime;
+  // We modulate intervention bus gain to implement u
+  outBusInt.gain.cancelScheduledValues(t);
+  outBusInt.gain.setValueAtTime(outBusInt.gain.value, t);
+  outBusInt.gain.linearRampToValueAtTime(u, t + 0.08);
+}
+
+function setSleepBaseGain(g){
+  if(!audioCtx) return;
+  const t = audioCtx.currentTime;
+  outBusSleep.gain.cancelScheduledValues(t);
+  outBusSleep.gain.setValueAtTime(outBusSleep.gain.value, t);
+  outBusSleep.gain.linearRampToValueAtTime(g, t + 0.4);
+}
+
+function controlTick(){
+  if(!running) return;
+  const tNow = nowMs()/1000;
+  const dt = (lastTick>0) ? (tNow-lastTick) : (1/LOGIC_HZ);
+  lastTick = tNow;
+
+  // features
+  const f = computeSpectrumFeatures();
+  currentY = computeY(f);
+
+  // window sample
+  pushWindowSample({
+    t: tNow,
+    dt,
+    Y: currentY,
+    per: f.periodicity,
+    flat: f.flatness,
+    centroid: f.centroid
+  });
+
+  const phi = buildFieldPhi();
+  lastStage = estimateStage(phi, currentY);
+
+  // onset tracking
+  if(onset.active){
+    onset.sumY += currentY*dt;
+    onset.sumT += dt;
+    if(currentY > getTHR()) onset.snoreT += dt;
+    // during onset, intervention energy is usually small; track bus gain squared
+    onset.uEnergy += (outBusInt.gain.value*outBusInt.gain.value)*dt;
+    if((tNow - onset.startT) >= DEFAULT_ONSET_WINDOW_SEC){
+      endOnset(tNow);
     }
-    const src = audioCtx.createBufferSource();
-    src.buffer = buffer;
-    src.loop = true;
-    src.start();
-    return src;
-  }
-  function makeLFO(freqHz){
-    const osc = audioCtx.createOscillator();
-    osc.type = 'sine';
-    osc.frequency.value = freqHz;
-    osc.start();
-    return osc;
   }
 
-  // LULLABY + 基础噪音
-  (() => {
-    const name = "NOISE_BREATH";
-    const src = makeNoiseSource();
-    const lp = audioCtx.createBiquadFilter();
-    lp.type = "lowpass";
-    lp.frequency.value = 220;
+  // Determine Y*
+  let Ystar = getTHR();
+  let tau = null;
+  if(cieuEvent){
+    const res = computeYStar(tNow - cieuEvent.t0, cieuEvent.x.startY);
+    Ystar = res.Ystar;
+    tau = res.tau;
+    // store phi snapshot
+    cieuEvent.yStar.lastTau = tau;
+    cieuEvent.yStar.lastPhi = res.phi;
+  }else{
+    // still compute for display
+    const res = computeYStar(0.0, currentY);
+    Ystar = res.Ystar;
+    tau = res.tau;
+  }
 
-    const g = audioCtx.createGain();
-    g.gain.value = 0.0;
+  // Decide whether we are in an event
+  const thr = getTHR();
+  const inEvent = !!cieuEvent;
+  const wantEvent = (currentY > thr);
 
-    const lfo = makeLFO(0.25); // ~4s 节律
-    const lfoGain = audioCtx.createGain();
-    lfoGain.gain.value = 0.0;
-    lfo.connect(lfoGain);
-    lfoGain.connect(g.gain);
+  if(!inEvent && wantEvent){
+    startCIEU(tNow, currentY);
+    // choose initial action immediately
+    const deltaNorm0 = (currentY - Ystar)/255;
+    const chosen = chooseInterventionAction(phi, deltaNorm0);
+    selectedActionKey = chosen.actionKey;
+    const parsed = parseActionKey(selectedActionKey);
+    selectedRho = parsed.rho;
+    applyInterventionToken(parsed.token);
+  }
 
-    src.connect(lp);
-    lp.connect(g);
-    g.connect(masterGain);
+  // End event if stable below threshold for some time (hysteresis)
+  if(inEvent && !wantEvent){
+    // simple hysteresis: require 2 seconds below thr
+    if(!cieuEvent._belowStart) cieuEvent._belowStart = tNow;
+    if(tNow - cieuEvent._belowStart > 2.0){
+      finishCIEU(tNow);
+      // gently reduce intervention
+      setInterventionGain(0.0);
+      // if user selected template OFF, keep it off, else keep low sleep bed
+    }
+  }else if(inEvent && wantEvent){
+    cieuEvent._belowStart = null;
+  }
 
-    tokens[name] = {
-      name,
-      gain: g,
-      set: (u, sHat) => {
-        const carrier = 180 + u*(600) + 120*(sHat ? sHat.centroid : 0.5);
-        lp.frequency.setTargetAtTime(clamp(carrier, 160, 900), audioCtx.currentTime, 0.20);
-        const level = GAIN_IDLE + u*(GAIN_CAP - GAIN_IDLE);
-        g.gain.setTargetAtTime(level, audioCtx.currentTime, 0.30);
-        const depth = 0.05 * u * (0.5 + 0.5*(sHat ? sHat.periodicity : 0.2));
-        lfoGain.gain.setTargetAtTime(depth, audioCtx.currentTime, 0.30);
-      }
-    };
-  })();
+  // Control output
+  let uPID = 0, uEff = 0, rho = selectedRho;
+  const mode = getMode();
 
-  // NARROW_DISRUPT
-  (() => {
-    const name = "NARROW_DISRUPT";
-    const src = makeNoiseSource();
-    const bp = audioCtx.createBiquadFilter();
-    bp.type = "bandpass";
-    bp.frequency.value = 260;
-    bp.Q.value = 6.0;
+  // Sleep template management: if user forces OFF, enforce
+  const selTpl = ui.sleepTplSel.value;
+  if(selTpl==="OFF"){
+    setSleepBaseGain(0.0);
+  }else{
+    // keep some sleep bed always, but if event strong, slightly down
+    if(inEvent && lastStage==="DISTURBED") setSleepBaseGain(0.28);
+    else setSleepBaseGain(0.45);
+  }
 
-    const g = audioCtx.createGain();
-    g.gain.value = 0.0;
+  if(mode==="monitor"){
+    // no anti-snore
+    uEff = 0;
+    setInterventionGain(0);
+  }else{
+    // compute delta
+    const delta = (currentY - Ystar); // 0..255
+    const deltaNorm = clamp(delta/255, -1, 1);
 
-    src.connect(bp);
-    bp.connect(g);
-    g.connect(masterGain);
+    // PID scaffold: only reacts when delta positive
+    const e = Math.max(0, deltaNorm);
+    const kp = parseFloat(ui.kp.value);
+    const ki = parseFloat(ui.ki.value);
 
-    tokens[name] = {
-      name,
-      gain: g,
-      set: (u, sHat) => {
-        const center = 200 + 220*(sHat ? sHat.eM : 0.3) + 180*(sHat ? sHat.eH : 0.3) + 250*u;
-        bp.frequency.setTargetAtTime(clamp(center, 180, 700), audioCtx.currentTime, 0.15);
-        const q = 4.0 + 8.0*(1 - (sHat ? sHat.flatness : 0.6));
-        bp.Q.setTargetAtTime(clamp(q, 3, 12), audioCtx.currentTime, 0.2);
-        const level = GAIN_IDLE + u*(GAIN_CAP - GAIN_IDLE);
-        g.gain.setTargetAtTime(level, audioCtx.currentTime, 0.18);
-      }
-    };
-  })();
+    pid.integ = clamp(pid.integ + e*dt, 0, pid.integMax);
+    uPID = clamp(kp*e + ki*pid.integ, 0, 1);
 
-  // PULSE_NUDGE
-  (() => {
-    const name = "PULSE_NUDGE";
-    const src = makeNoiseSource();
-    const lp = audioCtx.createBiquadFilter();
-    lp.type = "lowpass";
-    lp.frequency.value = 500;
+    // RL residual: u = uPID * (1 + rho)
+    uEff = uPID * (1 + rho);
 
-    const g = audioCtx.createGain();
-    g.gain.value = 0.0;
+    // L2 safety + syntax constraints
+    uEff = applySafety(uEff, selectedIntToken);
 
-    src.connect(lp);
-    lp.connect(g);
-    g.connect(masterGain);
+    // apply output
+    setInterventionGain(uEff);
 
-    let nextPulseAt = audioCtx.currentTime + 0.5;
+    // budget tracking
+    pushBudgetSample(tNow, dt, uEff);
 
-    tokens[name] = {
-      name,
-      gain: g,
-      set: (u, sHat) => {
-        lp.frequency.setTargetAtTime(350 + 450*u, audioCtx.currentTime, 0.12);
-        const interval = 2.0 - 1.0*(sHat ? sHat.periodicity : 0.5);
-        const now = audioCtx.currentTime;
+    // Event bookkeeping
+    if(cieuEvent){
+      cieuEvent.yOut.peakY = Math.max(cieuEvent.yOut.peakY, currentY);
 
-        if(now >= nextPulseAt){
-          const base = GAIN_IDLE;
-          const peak = clamp(base + 0.55*u*(GAIN_CAP), 0, GAIN_CAP);
-          g.gain.cancelScheduledValues(now);
-          g.gain.setValueAtTime(base, now);
-          g.gain.linearRampToValueAtTime(peak, now + 0.03);
-          g.gain.exponentialRampToValueAtTime(Math.max(0.0001, base), now + 0.16);
-          nextPulseAt = now + interval;
-        } else {
-          g.gain.setTargetAtTime(GAIN_IDLE, now, 0.25);
+      // Counterfactual energy (E_cf): integrate positive deviation from Y*
+      const dPos = Math.max(0, currentY - Ystar);
+      cieuEvent.yStar.E_cf += (dPos*dPos) * dt;
+
+      // Control energy (E_ctrl): integrate u^2
+      cieuEvent.yOut.E_ctrl += (uEff*uEff) * dt;
+
+      cieuEvent.yOut.uEnergy += (uEff*uEff) * dt;
+
+      // syntaxPenalty: count when we degrade or near cap (proxy)
+      if(uEff > 0.75*getCAP()) cieuEvent.yOut.syntaxPenalty += 0.02*dt;
+
+      // Segment update: every SEGMENT_SEC
+      if(tNow - lastSegmentT >= SEGMENT_SEC){
+        const segEnd = tNow;
+        const segStart = lastSegmentT;
+        lastSegmentT = tNow;
+
+        // define segment reward:
+        // benefit: reduction in Y relative to Y* (we use negative delta energy proxy)
+        // cost: uEnergy
+        // Here, approximate with current delta and uEff over segment window.
+        const segDelta = Math.max(0, (currentY - Ystar))/255; // [0,1]
+        // Encourage lower delta & lower u:
+        const rSeg = clamp((1 - segDelta) - 0.40*(uEff/getCAP()), -1, 1);
+
+        const segPhi = buildFieldPhi();
+        const xSeg = makeCtxVec(segPhi, (lastStage==="CALM")?0:((lastStage==="MIXED")?0.5:1), (currentY-Ystar)/255);
+
+        // Update bandit with previous action
+        intBandit.update(selectedActionKey, xSeg, rSeg);
+
+        // Optionally re-choose action mid-event (adaptive)
+        // Only if not too frequent and if stage changed
+        const chosen2 = chooseInterventionAction(segPhi, (currentY-Ystar)/255);
+        selectedActionKey = chosen2.actionKey;
+        const parsed2 = parseActionKey(selectedActionKey);
+        selectedRho = parsed2.rho;
+
+        // Switch token only if changed (avoid clicks)
+        if(parsed2.token !== selectedIntToken){
+          applyInterventionToken(parsed2.token);
         }
-      }
-    };
-  })();
 
-  // BINAURAL_TONE
-  (() => {
-    const name = "BINAURAL_TONE";
-    const oscL = audioCtx.createOscillator();
-    const oscR = audioCtx.createOscillator();
-    oscL.type = "sine";
-    oscR.type = "sine";
-    oscL.frequency.value = 190;
-    oscR.frequency.value = 196;
-
-    const pL = audioCtx.createStereoPanner();
-    const pR = audioCtx.createStereoPanner();
-    pL.pan.value = -0.8;
-    pR.pan.value = 0.8;
-
-    const g = audioCtx.createGain();
-    g.gain.value = 0.0;
-
-    oscL.connect(pL); pL.connect(g);
-    oscR.connect(pR); pR.connect(g);
-    g.connect(masterGain);
-
-    oscL.start(); oscR.start();
-
-    tokens[name] = {
-      name,
-      gain: g,
-      set: (u, sHat) => {
-        const base = 170 + 120*(sHat ? sHat.centroid : 0.5);
-        const beat = 4 + 4*(sHat ? sHat.periodicity : 0.5);
-        oscL.frequency.setTargetAtTime(base, audioCtx.currentTime, 0.20);
-        oscR.frequency.setTargetAtTime(base + beat, audioCtx.currentTime, 0.20);
-        const level = clamp(0.5*(GAIN_IDLE + u*(GAIN_CAP - GAIN_IDLE)), 0, GAIN_CAP*0.6);
-        g.gain.setTargetAtTime(level, audioCtx.currentTime, 0.25);
-      }
-    };
-  })();
-}
-
-/* ========== token 选择 ========== */
-
-function selectToken(name, force=false){
-  if(!tokens[name]) return;
-  const now = Date.now();
-  if(!force && tokenCurrent === name) return;
-  if(!force && (now - lastTokenSwitchAt) < TOKEN_MIN_HOLD_MS) return;
-
-  Object.keys(tokens).forEach(k => {
-    tokens[k].gain.gain.setTargetAtTime(0.0, audioCtx.currentTime, 0.12);
-  });
-
-  tokenCurrent = name;
-  const el = document.getElementById('valToken');
-  if (el) el.innerText = name;
-  lastTokenSwitchAt = now;
-}
-
-function chooseToken(sHat, delta){
-  const tonal = (sHat.flatness < 0.35);
-  const periodic = (sHat.periodicity > 0.55);
-  const broadband = (sHat.flatness > 0.60);
-  const urgent = (delta > 12);
-
-  if(tonal && urgent) return "NARROW_DISRUPT";
-  if(periodic && urgent) return "PULSE_NUDGE";
-  if(broadband) return "NOISE_BREATH";
-  if(tonal) return "NARROW_DISRUPT";
-  if(periodic) return "NOISE_BREATH";
-  return "BINAURAL_TONE";
-}
-
-/* ========== 主循环 ========== */
-
-function logicLoop(){
-  if(!isRunning) return;
-  const now = Date.now();
-  const { Y, Y_raw, sHat } = computeYandSHat();
-
-  // LULLABY 状态机更新
-  updateLullabyPhase(now, Y, sHat);
-  const lullabyLevel = getCurrentLullabyLevel(now);
-
-  // 窗口统计更新
-  updateWindowStats(Y, sHat);
-  if (now - lastStageCheckMs > 1000){
-    classifyCurrentWindow(now);
-    lastStageCheckMs = now;
-  }
-
-  // Δ>0 时间累计
-  if (Y > THRESHOLD){
-    totalSnoreTime += 1/LOOP_HZ;
-  }
-
-  let Y_star_t = 0;
-  let Delta_t = 0;
-  let U_disp = 0;
-
-  if(!currentCIEU){
-    // STANDBY：只输出 LULLABY（如果还没淡出）
-    setState("STANDBY", "#fff");
-    if (audioCtx && masterGain && lullabyLevel > 0 && tokens["NOISE_BREATH"]) {
-      const sForBgm = lastSHat || {centroid:0.5,periodicity:0.2,eL:0.2,eM:0.3,eH:0.3};
-      tokens["NOISE_BREATH"].set(lullabyLevel, sForBgm);
-      masterGain.gain.setTargetAtTime(1.0, audioCtx.currentTime, 0.4);
-    } else if (audioCtx && masterGain) {
-      masterGain.gain.setTargetAtTime(0.0, audioCtx.currentTime, 0.4);
-    }
-
-    if(Y > THRESHOLD){
-      currentCIEU = {
-        id: globalID++,
-        startTime: now,
-        startAbsTime: new Date().toISOString(),
-        startState: Y,
-        dataParams: [],
-        cooldown: null,
-        I: 0
-      };
-      setState("ENGAGED", "#ff3b30");
-      selectToken(chooseToken(sHat, 0), true);
-    }
-  } else {
-    // 事件进行中
-    const elapsed = (now - currentCIEU.startTime)/1000;
-    const tau = Math.max(0.8, TARGET_TIME/2.2);
-    Y_star_t = THRESHOLD + (currentCIEU.startState - THRESHOLD) * Math.exp(-elapsed / tau);
-    Y_star_t = Math.max(THRESHOLD, Y_star_t);
-
-    Delta_t = Y - Y_star_t;
-    const e = Math.max(0, Delta_t);
-
-    currentCIEU.I += e * (1/LOOP_HZ);
-    currentCIEU.I = clamp(currentCIEU.I, -I_CLAMP, I_CLAMP);
-
-    let u = KP*e + KI*currentCIEU.I;
-    u = clamp(u, 0, 1.0);
-    U_disp = Math.floor(u * 255);
-
-    const token = chooseToken(sHat, e);
-    selectToken(token, false);
-
-    if (!baselineDone){
-      // Baseline：不对呼噜闭环控制，只保留 LULLABY（或静音）
-      if (audioCtx && masterGain && lullabyLevel > 0 && tokens["NOISE_BREATH"]) {
-        const sForBgm = lastSHat || {centroid:0.5,periodicity:0.2,eL:0.2,eM:0.3,eH:0.3};
-        tokens["NOISE_BREATH"].set(lullabyLevel, sForBgm);
-        masterGain.gain.setTargetAtTime(1.0, audioCtx.currentTime, 0.4);
-      } else if (audioCtx && masterGain) {
-        masterGain.gain.setTargetAtTime(0.0, audioCtx.currentTime, 0.4);
-      }
-    } else {
-      // Control：闭环
-      if (tokens[tokenCurrent]){
-        tokens[tokenCurrent].set(u, sHat);
-      }
-      if (masterGain){
-        masterGain.gain.setTargetAtTime(1.0, audioCtx.currentTime, 0.15);
+        // record segment into CIEU
+        cieuEvent.u.rl.segments.push({
+          t: segEnd,
+          actionKey: selectedActionKey,
+          token: selectedIntToken,
+          rho: selectedRho,
+          stage: lastStage,
+          Y: currentY,
+          Ystar,
+          uPID,
+          uEff,
+          rewardSeg: rSeg,
+          phi: segPhi
+        });
       }
     }
-
-    currentCIEU.dataParams.push({
-      t: elapsed.toFixed(2),
-      Y: Y,
-      Yraw: Y_raw,
-      Ys: Math.floor(Y_star_t),
-      U: U_disp,
-      D: Math.floor(Delta_t),
-      token: tokenCurrent || token,
-      eL: sHat.eL.toFixed(3),
-      eM: sHat.eM.toFixed(3),
-      eH: sHat.eH.toFixed(3),
-      cent: sHat.centroid.toFixed(3),
-      flat: sHat.flatness.toFixed(3),
-      per: sHat.periodicity.toFixed(3),
-      thr: THRESHOLD
-    });
-
-    if(Y < THRESHOLD){
-      if(!currentCIEU.cooldown) currentCIEU.cooldown = now;
-      if(now - currentCIEU.cooldown > END_HOLD_MS){
-        finishCIEU();
-      }
-    } else {
-      currentCIEU.cooldown = null;
-    }
   }
 
-  // HUD 更新
-  const yEl = document.getElementById('valY');
-  const tEl = document.getElementById('valTarget');
-  const uEl = document.getElementById('valU');
-  const dEl = document.getElementById('valDelta');
-  if (yEl) yEl.innerText = Y;
-  if (tEl) tEl.innerText = currentCIEU ? Math.floor(Y_star_t) : "--";
-  if (uEl) uEl.innerText = U_disp;
-  if (dEl) dEl.innerText = Math.floor(Delta_t);
+  // UI update
+  ui.yNow.textContent = String(currentY);
+  ui.yStar.textContent = String(Math.round(Ystar));
+  ui.tauNow.textContent = tau ? fmt(tau,2) : "-";
+  ui.uPid.textContent = fmt(uPID,3);
+  ui.rhoNow.textContent = fmt(selectedRho,2);
+  ui.uEff.textContent = fmt(uEff,3);
+  ui.stageNow.textContent = lastStage;
 
-  const fEEl = document.getElementById('fE');
-  const fCEl = document.getElementById('fC');
-  const fFEl = document.getElementById('fF');
-  const fPEl = document.getElementById('fP');
-  if (lastSHat){
-    if (fEEl) fEEl.innerText = `${lastSHat.eL.toFixed(2)}/${lastSHat.eM.toFixed(2)}/${lastSHat.eH.toFixed(2)}`;
-    if (fCEl) fCEl.innerText = lastSHat.centroid.toFixed(2);
-    if (fFEl) fFEl.innerText = lastSHat.flatness.toFixed(2);
-    if (fPEl) fPEl.innerText = lastSHat.periodicity.toFixed(2);
-  } else {
-    if (fEEl) fEEl.innerText = '--/--/--';
-    if (fCEl) fCEl.innerText = '--';
-    if (fFEl) fFEl.innerText = '--';
-    if (fPEl) fPEl.innerText = '--';
-  }
+  // UI pills
+  const st = (running ? (cieuEvent ? "EVENT" : (onset.active ? "ONSET":"RUN")) : "IDLE");
+  if(st==="EVENT") setPill("statusPill","EVENT","bad");
+  else if(st==="ONSET") setPill("statusPill","ONSET","ok");
+  else if(st==="RUN") setPill("statusPill","RUN","warn");
+  else setPill("statusPill","IDLE","warn");
 
-  updateSessionSummaryHUD();
-  pushTrace(Y, currentCIEU ? Y_star_t : null, U_disp);
-}
-
-/* ========== 事件结束 + 能量计算 ========== */
-
-function computeEventEnergy(dataParams, threshold, p){
-  if (!dataParams || dataParams.length < 2) return 0;
-  let E = 0;
-  for (let k=1; k<dataParams.length; k++){
-    const yPrev = Math.max(dataParams[k-1].Y - threshold, 0);
-    const yCurr = Math.max(dataParams[k].Y   - threshold, 0);
-    const tPrev = parseFloat(dataParams[k-1].t);
-    const tCurr = parseFloat(dataParams[k].t);
-    const dt    = tCurr - tPrev;
-    const vPrev = Math.pow(yPrev, p);
-    const vCurr = Math.pow(yCurr, p);
-    E += 0.5 * (vPrev + vCurr) * dt;
-  }
-  return E;
-}
-
-function finishCIEU(){
-  cieuHistory.push(currentCIEU);
-  totalEvents = cieuHistory.length;
-
-  let maxDelta = -999;
-  currentCIEU.dataParams.forEach(p => { if(p.D > maxDelta) maxDelta = p.D; });
-  const duration = currentCIEU.dataParams[currentCIEU.dataParams.length-1]?.t || "0.00";
-  const isWin = (maxDelta < 35);
-
-  const div = document.createElement('div');
-  div.className = 'cieu-item';
-  div.innerHTML = `
-    <div style="color:#666">#${currentCIEU.id}</div>
-    <div>${duration}s <span style="color:#444">|</span> Δ${maxDelta}</div>
-    <div class="res-badge ${isWin ? 'res-win' : 'res-loss'}">
-      ${isWin ? 'SUPPRESSED' : 'HIGH ERR'}
-    </div>
-  `;
-  const list = document.getElementById('logList');
-  list.insertBefore(div, list.firstChild);
-
-  // 能量计算
-  const data = currentCIEU.dataParams;
-  const thr  = data[0].thr;
-  const E_ctrl = computeEventEnergy(data, thr, pEnergy);
-  let peakY = 0;
-  data.forEach(p => { if(p.Y > peakY) peakY = p.Y; });
-
-  if (!baselineDone){
-    // 基线期：前 N 个真实未干预事件
-    if (peakY > thr + 10){
-      const alpha_j = E_ctrl / Math.pow(peakY, qEnergy);
-      baselineAlphas.push(alpha_j);
-    }
-    if (baselineAlphas.length >= N_BASELINE_CYCLES){
-      baselineAlphas.sort((a,b)=>a-b);
-      alphaSession = baselineAlphas[Math.floor(baselineAlphas.length/2)];
-      baselineDone = true;
-    }
-  } else {
-    // 闭环期：平行世界能量对比
-    const E_cf = alphaSession ? alphaSession * Math.pow(peakY, qEnergy) : null;
-    const deltaE = (E_cf != null) ? (E_cf - E_ctrl) : null;
-
-    totalE_ctrl += E_ctrl;
-    if (E_cf != null){
-      totalE_cf   += E_cf;
-      totalDeltaE += deltaE;
-    }
-
-    energyEvents.push({
-      id: currentCIEU.id,
-      startTimeIso: currentCIEU.startAbsTime,
-      peakY,
-      E_ctrl,
-      E_cf,
-      deltaE
-    });
-  }
-
-  saveHistoryToStorage();
-  saveSessionSummaryToStorage();
-
-  currentCIEU = null;
-  setState("STANDBY", "#fff");
-}
-
-/* ========== 画布 ========== */
-
-function initCanvas(){
-  const c = document.getElementById('scope');
-  const dpr = window.devicePixelRatio || 1;
-  const r = c.getBoundingClientRect();
-  c.width = r.width * dpr;
-  c.height = r.height * dpr;
-  scopeCtx = c.getContext('2d');
-  scopeCtx.scale(dpr, dpr);
-  scopeW = r.width;
-  scopeH = r.height;
-}
-
-function pushTrace(y, target, u){
-  traceY.push(y);
-  traceTarget.push(target==null ? NaN : target);
-  traceU.push(u);
-  if(traceY.length > scopeW){
-    traceY.shift(); traceTarget.shift(); traceU.shift();
+  // update bandit views (lightweight)
+  if(Math.random()<0.08){
+    ui.sleepBanditView.textContent = JSON.stringify(sleepBandit.summary(10), null, 2);
+    ui.intBanditView.textContent = JSON.stringify(intBandit.summary(12), null, 2);
   }
 }
 
-function drawLoop(){
-  requestAnimationFrame(drawLoop);
-  if(!scopeCtx) return;
+/* ----------------------- Session start/stop ----------------------- */
+async function start(){
+  try{
+    ensureAudio();
+    await audioCtx.resume();
+    setPill("audioState", audioCtx.state, "ok");
 
-  scopeCtx.fillStyle = '#080808';
-  scopeCtx.fillRect(0,0,scopeW,scopeH);
+    await ensureMic();
 
-  const thY = scopeH - (THRESHOLD/255 * scopeH);
-  scopeCtx.strokeStyle = '#333';
-  scopeCtx.beginPath();
-  scopeCtx.setLineDash([2,4]);
-  scopeCtx.moveTo(0, thY);
-  scopeCtx.lineTo(scopeW, thY);
-  scopeCtx.stroke();
-  scopeCtx.setLineDash([]);
+    // initialize default graphs
+    applySleepTemplate("PINK_SOFTGUIDE");
+    applyInterventionToken("MASK_PINK");
 
-  const draw = (data, color, width, dash, skipNaN=false) => {
-    scopeCtx.beginPath();
-    scopeCtx.strokeStyle = color;
-    scopeCtx.lineWidth = width;
-    if(dash) scopeCtx.setLineDash(dash);
+    // RL alpha
+    sleepBandit.setAlpha(getAlpha());
+    intBandit.setAlpha(getAlpha());
 
-    let started = false;
-    for(let i=0;i<data.length;i++){
-      const v = data[i];
-      if(skipNaN && !Number.isFinite(v)) { started=false; continue; }
-      const h = scopeH - (clamp(v,0,255)/255 * scopeH);
-      if(!started){ scopeCtx.moveTo(i,h); started=true; }
-      else scopeCtx.lineTo(i,h);
-    }
-    scopeCtx.stroke();
-    scopeCtx.setLineDash([]);
-  };
+    // master fade in
+    setMasterGain(true);
 
-  draw(traceU, '#32d74b', 2, []);
-  draw(traceTarget, '#ffcc00', 1.5, [6,4], true);
-  draw(traceY, '#ff3b30', 2, []);
+    // begin onset
+    beginOnset(nowMs()/1000);
+
+    // run
+    running = true;
+    lastTick = 0;
+    timer = setInterval(controlTick, 1000/LOGIC_HZ);
+
+    logLine("Started. Mic on. Audio running.");
+  }catch(e){
+    console.error(e);
+    logLine("Start failed: " + (e?.message || e));
+    alert("启动失败：请确认浏览器支持麦克风权限，并在 iOS 上确保由用户手势触发音频。");
+  }
 }
 
-/* ========== 导出 CSV（事件级） ========== */
+function stop(){
+  running = false;
+  if(timer){ clearInterval(timer); timer=null; }
+  // end onset if active
+  endOnset(nowMs()/1000);
 
-function exportCSV(){
-  if(cieuHistory.length === 0){ alert("暂无数据"); return; }
-  let csv = "# sessionId," + (sessionId || "") + "\n";
-  csv += "# sessionStart," + (sessionStartTime || "") + "\n";
-  csv += "# sessionEnd," + (sessionEndTime || "") + "\n";
-  csv += "# alphaSession," + (alphaSession || "") + "\n";
-  csv += "ID,Time,Y,Y_raw,Y_target,U,Delta,Token,eL,eM,eH,Centroid,Flatness,Periodicity,Threshold\n";
-  cieuHistory.forEach(c => {
-    c.dataParams.forEach(r => {
-      csv += `${c.id},${r.t},${r.Y},${r.Yraw},${r.Ys},${r.U},${r.D},${r.token},${r.eL},${r.eM},${r.eH},${r.cent},${r.flat},${r.per},${r.thr}\n`;
-    });
-  });
-  const blob = new Blob([csv], { type:'text/csv' });
+  // finish any open event
+  if(cieuEvent){
+    finishCIEU(nowMs()/1000);
+  }
+
+  // fade out
+  if(audioCtx){
+    setInterventionGain(0);
+    setSleepBaseGain(0);
+    setMasterGain(false);
+  }
+
+  logLine("Stopped.");
+  setPill("statusPill","IDLE","warn");
+}
+
+function resetRL(){
+  // clear bandits & thetaY
+  localStorage.removeItem(STORE_SLEEP_BANDIT);
+  localStorage.removeItem(STORE_INT_BANDIT);
+  localStorage.removeItem(STORE_THETA_YSTAR);
+
+  // re-init in memory
+  location.reload();
+}
+
+function exportCIEU(){
+  const blob = new Blob([JSON.stringify(CIEU_DB, null, 2)], {type:"application/json"});
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  a.download = `BAT_SNOREFIELD_${Date.now()}.csv`;
-  document.body.appendChild(a);
+  a.download = `SnoreField_CIEU_${Date.now()}.json`;
   a.click();
-  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
 }
 
-/* ========== DOM 事件绑定 ========== */
+function clearCIEU(){
+  if(!confirm("确定清空本地 CIEU 吗？（不可撤销）")) return;
+  CIEU_DB = [];
+  persistCIEU();
+  ui.lastCIEU.textContent = "";
+  logLine("Local CIEU cleared.");
+}
 
-document.addEventListener('DOMContentLoaded', () => {
-  restoreHistoryFromStorage();
-  const lastSummary = loadLastSummaryFromStorage();
-  if (lastSummary){
-    renderSummaryHUD(lastSummary);
+/* ----------------------- UI handlers ----------------------- */
+ui.btnStart.addEventListener("click", start);
+ui.btnStop.addEventListener("click", stop);
+ui.btnResetRL.addEventListener("click", resetRL);
+ui.btnExport.addEventListener("click", exportCIEU);
+ui.btnClear.addEventListener("click", clearCIEU);
+
+ui.sleepTplSel.addEventListener("change", () => {
+  if(!audioCtx) return;
+  const sel = ui.sleepTplSel.value;
+  if(sel==="OFF"){
+    setSleepBaseGain(0.0);
+    setPill("tplNow","OFF","warn");
+    return;
   }
-
-  const btnStart = document.getElementById('btnStart');
-  const btnStop  = document.getElementById('btnStop');
-  const btnExport = document.getElementById('btnExport');
-  const capSlider = document.getElementById('capSlider');
-  const sleepToggle = document.getElementById('sleepNoiseToggle');
-  const sleepState = document.getElementById('sleepNoiseState');
-  const sleepSlider = document.getElementById('sleepNoiseSlider');
-  const sleepVal = document.getElementById('sleepNoiseVal');
-
-  if (btnStart) btnStart.addEventListener('click', () => { bootKernel(); });
-  if (btnStop)  btnStop.addEventListener('click',  () => { stopKernel(); });
-  if (btnExport) btnExport.addEventListener('click', () => { exportCSV(); });
-  if (capSlider) capSlider.addEventListener('input', (e) => onCapChange(e.target.value));
-
-  if (sleepToggle){
-    sleepToggle.checked = sleepNoiseEnabled;
-    sleepToggle.addEventListener('change', () => {
-      sleepNoiseEnabled = sleepToggle.checked;
-      if (sleepState) sleepState.innerText = sleepNoiseEnabled ? 'ON' : 'OFF';
-      if (!sleepNoiseEnabled){
-        lullabyPhase = "OFF";
-      }
-    });
-    if (sleepState) sleepState.innerText = sleepNoiseEnabled ? 'ON' : 'OFF';
+  if(sel!=="AUTO"){
+    applySleepTemplate(sel);
+    outBusSleep.gain.linearRampToValueAtTime(0.65, audioCtx.currentTime + 1.5);
+  }else{
+    // AUTO will be applied at onset start; if running now, choose immediately
+    const phi = buildFieldPhi();
+    const tpl = chooseSleepTemplate(phi);
+    applySleepTemplate(tpl);
   }
-  if (sleepSlider){
-    sleepSlider.value = sleepNoiseLevel.toString();
-    sleepSlider.addEventListener('input', (e) => onSleepNoiseChange(e.target.value));
-  }
-  if (sleepVal){ sleepVal.innerText = sleepNoiseLevel.toFixed(2); }
-
-  updateSessionSummaryHUD();
 });
+
+ui.alpha.addEventListener("input", () => {
+  sleepBandit.setAlpha(getAlpha());
+  intBandit.setAlpha(getAlpha());
+});
+
+/* ----------------------- Init display ----------------------- */
+ui.cieuCount.textContent = String(CIEU_DB.length);
+ui.sleepBanditView.textContent = JSON.stringify(sleepBandit.summary(10), null, 2);
+ui.intBanditView.textContent = JSON.stringify(intBandit.summary(12), null, 2);
+ui.lastCIEU.textContent = CIEU_DB.length ? JSON.stringify(CIEU_DB[CIEU_DB.length-1], null, 2) : "";
+
+ui.thrVal.textContent = ui.thr.value;
+ui.capVal.textContent = ui.cap.value;
+ui.alphaVal.textContent = ui.alpha.value;
+
+setPill("audioState","suspended","warn");
+setPill("micState","off","warn");
+setPill("tplNow","-","warn");
+setPill("tokenNow","-","warn");
+
+/* ----------------------- Helpful notes -----------------------
+  你可以在 GitHub Pages 直接跑：
+  - iOS Safari 必须由按钮触发 AudioContext.resume()（本代码已满足）
+  - 耳机输出更可靠：手机麦克风负责输入，耳机负责输出
+  - 若你想更强的 RL（IQL/CQL）：
+    - 建议把 CIEU JSON 导出到本地，再离线训练，最后回灌策略参数
+-------------------------------------------------------------- */
 </script>
 </body>
 </html>
