@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
-  <title>SnoreField Kernel (CIEU + RL + L1 Sleep Templates)</title>
+  <title>SnoreField OS Kernel — CIEU + Safe RL Options + Multi-Scale Field + Functional Y*</title>
   <style>
     :root{
       --bg:#0b0e14; --card:#111827; --muted:#9aa4b2; --txt:#e6edf3;
@@ -12,34 +12,33 @@
     }
     body{ margin:0; font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial; background:var(--bg); color:var(--txt); }
     header{ padding:16px 16px 8px; border-bottom:1px solid var(--line); }
-    header h1{ margin:0; font-size:16px; font-weight:700; }
-    header p{ margin:6px 0 0; color:var(--muted); font-size:12px; line-height:1.4; }
-    main{ padding:12px 16px 80px; display:grid; gap:12px; }
+    header h1{ margin:0; font-size:16px; font-weight:800; }
+    header p{ margin:6px 0 0; color:var(--muted); font-size:12px; line-height:1.45; }
+    main{ padding:12px 16px 90px; display:grid; gap:12px; }
     .grid{ display:grid; gap:12px; grid-template-columns: 1fr; }
-    @media (min-width: 900px){ .grid{ grid-template-columns: 1.2fr 1fr; } }
+    @media (min-width: 980px){ .grid{ grid-template-columns: 1.2fr 1fr; } }
     .card{
       background:linear-gradient(180deg, rgba(17,24,39,0.98), rgba(15,23,42,0.98));
       border:1px solid var(--line); border-radius:14px; padding:12px;
       box-shadow: 0 10px 30px rgba(0,0,0,.25);
     }
     .row{ display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
-    .row > *{ flex:0 0 auto; }
     label{ font-size:12px; color:var(--muted); display:block; margin-bottom:6px; }
-    input[type="range"]{ width: 180px; }
+    input[type="range"]{ width: 190px; }
     input[type="number"], select{
       background:var(--btn2); color:var(--txt); border:1px solid var(--line);
       border-radius:10px; padding:8px 10px; font-size:13px;
     }
     button{
       background:var(--btn); color:var(--txt); border:1px solid var(--line);
-      border-radius:12px; padding:10px 12px; font-weight:600; cursor:pointer;
+      border-radius:12px; padding:10px 12px; font-weight:700; cursor:pointer;
     }
     button:hover{ border-color:#3b82f6; }
     button.primary{ background:#0b3a7a; border-color:#1d4ed8; }
     button.danger{ background:#3a0b0b; border-color:#7f1d1d; }
     .kv{ display:grid; grid-template-columns: 1fr 1fr; gap:10px; margin-top:8px; }
     .k{ color:var(--muted); font-size:12px; }
-    .v{ font-size:14px; font-weight:700; }
+    .v{ font-size:14px; font-weight:800; }
     .pill{ font-size:12px; padding:4px 10px; border-radius:999px; border:1px solid var(--line); }
     .pill.ok{ border-color:rgba(34,197,94,.6); color:rgba(34,197,94,.95); }
     .pill.warn{ border-color:rgba(245,158,11,.6); color:rgba(245,158,11,.95); }
@@ -51,7 +50,7 @@
     }
     .small{ font-size:12px; color:var(--muted); }
     .split{ display:grid; grid-template-columns:1fr; gap:10px; }
-    @media (min-width: 900px){ .split{ grid-template-columns:1fr 1fr; } }
+    @media (min-width: 980px){ .split{ grid-template-columns:1fr 1fr; } }
     .footerbar{
       position:fixed; left:0; right:0; bottom:0; z-index:10;
       background:rgba(10,14,20,.88); border-top:1px solid var(--line);
@@ -60,14 +59,16 @@
     }
     .footerbar .left{ display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
     .mono{ font-family: ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace; }
+    .chk{ display:flex; gap:8px; align-items:center; }
+    .chk input{ transform: scale(1.1); }
   </style>
 </head>
 <body>
 <header>
-  <h1>SnoreField Kernel — CIEU + RL（联合动作 token×ρ）+ L1 助眠模板库</h1>
+  <h1>SnoreField OS Kernel — CIEU + Safe RL Options + Multi-Scale Field + Functional Y*</h1>
   <p>
-    使用说明：请佩戴耳机；点击“启动”后允许麦克风权限，并保持页面常亮。系统将自动生成 CIEU，并用 Bandit RL 逐夜个体化。
-    重要：音量上限已被硬限制（GAIN_CAP），但仍请从低音量开始。
+    安全提示：请从低音量开始；本系统为个人实验性质的声学闭环原型，不是医疗设备。
+    你最终目标是“尽可能不牺牲睡眠质量前提下抑制打呼噜”，因此本版本将睡眠质量代理指标纳入 reward，并采用更安全的 RL（Options + 分层）。
   </p>
 </header>
 
@@ -76,10 +77,17 @@
     <div class="row">
       <button id="btnStart" class="primary">启动</button>
       <button id="btnStop">停止</button>
-      <button id="btnResetRL" class="danger">重置RL/参数</button>
+      <button id="btnReset" class="danger">重置RL/参数</button>
       <button id="btnExport">导出CIEU(JSON)</button>
       <button id="btnClear">清空本地CIEU</button>
       <span id="statusPill" class="pill warn">IDLE</span>
+    </div>
+
+    <div class="row" style="margin-top:10px;">
+      <div class="chk">
+        <input id="autoBackup" type="checkbox" checked />
+        <label for="autoBackup" style="margin:0;">停止时自动备份（建议开启）</label>
+      </div>
     </div>
 
     <div class="split" style="margin-top:10px;">
@@ -123,22 +131,36 @@
     <div class="split" style="margin-top:10px;">
       <div>
         <label>Bandit 探索强度 α（越大越探索）</label>
-        <input id="alpha" type="range" min="0.05" max="2.5" step="0.05" value="0.75" />
+        <input id="alpha" type="range" min="0.05" max="2.5" step="0.05" value="0.70" />
         <div class="small">当前：<span id="alphaVal" class="mono"></span></div>
       </div>
+      <div>
+        <label>RL Option 时长（秒）</label>
+        <input id="optSec" type="range" min="8" max="30" step="1" value="15" />
+        <div class="small">当前：<span id="optSecVal" class="mono"></span>（建议 12–20）</div>
+      </div>
+    </div>
+
+    <div class="split" style="margin-top:10px;">
       <div>
         <label>PID：KP / KI（脚手架）</label>
         <div class="row">
           <input id="kp" type="number" min="0" max="2" step="0.01" value="0.40"/>
           <input id="ki" type="number" min="0" max="1" step="0.005" value="0.04"/>
         </div>
-        <div class="small">提示：先用默认值跑几晚，再考虑微调。</div>
+        <div class="small">提示：优先依赖 RL 的逐夜收敛，不要过早大幅调 PID。</div>
+      </div>
+
+      <div>
+        <label>睡眠质量优先权重（越大越“温柔”）</label>
+        <input id="sqw" type="range" min="0.5" max="2.5" step="0.1" value="1.4" />
+        <div class="small">当前：<span id="sqwVal" class="mono"></span></div>
       </div>
     </div>
 
     <div class="kv">
       <div>
-        <div class="k">Y（当前强度）</div>
+        <div class="k">Y（当前）</div>
         <div class="v"><span id="yNow" class="mono">0</span></div>
       </div>
       <div>
@@ -150,8 +172,16 @@
         <div class="v"><span id="uPid" class="mono">0</span> <span class="small">/</span> <span id="rhoNow" class="mono">0</span> <span class="small">/</span> <span id="uEff" class="mono">0</span></div>
       </div>
       <div>
-        <div class="k">Stage（估计）</div>
+        <div class="k">Phase（ONSET/STABLE/EVENT/AROUSAL）</div>
+        <div class="v"><span id="phaseNow" class="mono">ONSET</span></div>
+      </div>
+      <div>
+        <div class="k">Stage（CALM/MIXED/DIST）</div>
         <div class="v"><span id="stageNow" class="mono">CALM</span></div>
+      </div>
+      <div>
+        <div class="k">RL Level（SOFT/NORM/ASSERT）</div>
+        <div class="v"><span id="levelNow" class="mono">SOFT</span></div>
       </div>
     </div>
 
@@ -162,19 +192,30 @@
   </section>
 
   <section class="card">
-    <h2 style="margin:0 0 10px; font-size:14px;">RL 概览与本地数据</h2>
+    <h2 style="margin:0 0 10px; font-size:14px;">Bandit 概览 / CIEU 数据资产</h2>
     <div class="split">
       <div>
         <div class="k">Sleep Bandit（入睡模板）</div>
         <pre id="sleepBanditView"></pre>
       </div>
       <div>
-        <div class="k">Intervention Bandit（token×ρ）</div>
-        <pre id="intBanditView"></pre>
+        <div class="k">High-Level Bandit（抑制等级）</div>
+        <pre id="levelBanditView"></pre>
       </div>
     </div>
 
-    <div style="margin-top:10px;" class="split">
+    <div class="split" style="margin-top:10px;">
+      <div>
+        <div class="k">Low-Level Bandit（token×ρ，受等级约束）</div>
+        <pre id="intBanditView"></pre>
+      </div>
+      <div>
+        <div class="k">Session Summary（本次）</div>
+        <pre id="sessionView"></pre>
+      </div>
+    </div>
+
+    <div class="split" style="margin-top:10px;">
       <div>
         <div class="k">CIEU 数量（本地）</div>
         <div class="v"><span id="cieuCount" class="mono">0</span></div>
@@ -186,8 +227,8 @@
     </div>
 
     <div class="small" style="margin-top:10px;">
-      说明：本实现采用“安全优先”的 RL 形式（contextual bandit + PID 脚手架 + L2 语法裁剪）。
-      你每晚产生的 CIEU 将自动写入 localStorage，并用于逐夜个体化。
+      已合入 A/B/C/D：睡眠质量代理指标入 reward；三尺度场；分阶段约束型 Y*；Options + 分层 Bandit RL。
+      如需进一步升级到离线 RL（IQL/CQL），建议先积累足够多晚 CIEU 再做。
     </div>
   </section>
 </main>
@@ -208,13 +249,11 @@
 
 <script>
 /* =========================================================
-   SnoreField Kernel — Single-file implementation
-   - CIEU event atom + segments
-   - Y* generated by field functional (Phi -> tau -> Y*)
-   - RL: LinUCB contextual bandit
-      (1) Sleep template bandit
-      (2) Intervention (token x rho) bandit
-   - PID scaffold + L2 safety / DSL filter
+   SnoreField OS Kernel — A/B/C/D integrated
+   A) Sleep-quality proxies into reward + CIEU
+   B) Multi-scale fields Phi_short/mid/long
+   C) Phase-aware constrained functional Y*
+   D) Safe RL: Options + Hierarchical Bandits
    ========================================================= */
 
 /* ----------------------- Utilities ----------------------- */
@@ -222,10 +261,9 @@ const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
 const nowMs = () => performance.now();
 const wallNow = () => Date.now();
 const fmt = (x, d=3) => (typeof x==="number" ? x.toFixed(d) : String(x));
-const rand01 = () => Math.random();
 function logLine(s){
   const el = document.getElementById("log");
-  el.textContent = (s + "\n" + el.textContent).split("\n").slice(0, 30).join("\n");
+  el.textContent = (s + "\n" + el.textContent).split("\n").slice(0, 34).join("\n");
 }
 function setPill(id, text, kind){
   const el = document.getElementById(id);
@@ -243,46 +281,49 @@ function clockTick(){
 setInterval(clockTick, 300);
 
 /* ----------------------- Constants ----------------------- */
-const STORE_CIEU = "snorefield_cieu_v2";
-const STORE_SLEEP_BANDIT = "snorefield_sleep_linuCB_v2";
-const STORE_INT_BANDIT   = "snorefield_int_linuCB_v2";
-const STORE_THETA_YSTAR  = "snorefield_theta_ystar_v2";
+const STORE = {
+  CIEU: "snorefield_cieu_v3",
+  SLEEP_BANDIT: "snorefield_sleep_linuCB_v3",
+  LEVEL_BANDIT: "snorefield_level_linuCB_v3",
+  INT_BANDIT: "snorefield_int_linuCB_v3",
+  THETA_Y: "snorefield_thetaY_v3"
+};
 
-const DEFAULT_ONSET_WINDOW_SEC = 15 * 60; // 入睡评估窗口：15分钟
-const LOGIC_HZ = 20;                      // 控制回路频率（20Hz）
-const SEGMENT_SEC = 1.5;                  // 事件内分段长度（用于 credit assignment）
-const WINDOW_SEC = 8.0;                   // 场窗口长度
-const BUDGET_SEC = 10 * 60;               // 能量预算窗口长度 10min
-const STRONG_MAX_PER_MIN = 3;             // 强干预 60秒最多次数
+// Frequencies & windows
+const LOGIC_HZ = 20;
+const PHI_SHORT_SEC = 8.0;
+const PHI_MID_SEC   = 60.0;
+const PHI_LONG_SEC  = 600.0;
+const BUDGET_SEC    = 10*60;
+const STRONG_MAX_PER_MIN = 3;
 
-// 这里是“动作空间”定义：token × rho
+// Phases
+const PHASE = {
+  ONSET: "ONSET",
+  STABLE: "STABLE",
+  EVENT: "EVENT",
+  AROUSAL: "AROUSAL"
+};
+
+// Low-level tokens (intervention)
+const INT_TOKENS = ["MASK_PINK","MASK_MULTI","MASK_WHITE","BINAURAL"];
 const RHO_SET = [-0.20, -0.10, 0.00, +0.10, +0.20];
 
-// 干预 token（抗呼噜）
-// 注意：这是“输出风格”，最终仍受 L2 语法裁剪。
-const INT_TOKENS = [
-  "MASK_PINK",     // 温柔遮蔽（推荐）
-  "MASK_MULTI",    // 多音频/雨纹理（更舒适）
-  "MASK_WHITE",    // 白噪遮蔽（可能更刺）
-  "BINAURAL"       // 实验（必须受语法约束）
-];
+// High-level suppression levels (options constraints)
+const LEVELS = ["SOFT","NORMAL","ASSERTIVE"];
 
-// 助眠模板（入睡阶段）
-const SLEEP_TEMPLATES = [
-  "PINK_SOFTGUIDE",
-  "MULTI_RAIN",
-  "BROWN_DEEPMASK",
-  "WHITE_MASK",
-  "BINAURAL_OPTIONAL"
-];
+// Sleep templates
+const SLEEP_TEMPLATES = ["PINK_SOFTGUIDE","MULTI_RAIN","BROWN_DEEPMASK","WHITE_MASK","BINAURAL_OPTIONAL"];
 
-/* ----------------------- UI wiring ----------------------- */
+/* ----------------------- UI ----------------------- */
 const ui = {
   btnStart: document.getElementById("btnStart"),
   btnStop: document.getElementById("btnStop"),
-  btnResetRL: document.getElementById("btnResetRL"),
+  btnReset: document.getElementById("btnReset"),
   btnExport: document.getElementById("btnExport"),
   btnClear: document.getElementById("btnClear"),
+
+  autoBackup: document.getElementById("autoBackup"),
 
   statusPill: document.getElementById("statusPill"),
   thr: document.getElementById("thr"),
@@ -291,8 +332,14 @@ const ui = {
   capVal: document.getElementById("capVal"),
   alpha: document.getElementById("alpha"),
   alphaVal: document.getElementById("alphaVal"),
+  optSec: document.getElementById("optSec"),
+  optSecVal: document.getElementById("optSecVal"),
+
   kp: document.getElementById("kp"),
   ki: document.getElementById("ki"),
+
+  sqw: document.getElementById("sqw"),
+  sqwVal: document.getElementById("sqwVal"),
 
   modeSel: document.getElementById("modeSel"),
   sleepTplSel: document.getElementById("sleepTplSel"),
@@ -304,6 +351,8 @@ const ui = {
   rhoNow: document.getElementById("rhoNow"),
   uEff: document.getElementById("uEff"),
   stageNow: document.getElementById("stageNow"),
+  phaseNow: document.getElementById("phaseNow"),
+  levelNow: document.getElementById("levelNow"),
 
   audioState: document.getElementById("audioState"),
   micState: document.getElementById("micState"),
@@ -311,7 +360,10 @@ const ui = {
   tokenNow: document.getElementById("tokenNow"),
 
   sleepBanditView: document.getElementById("sleepBanditView"),
+  levelBanditView: document.getElementById("levelBanditView"),
   intBanditView: document.getElementById("intBanditView"),
+
+  sessionView: document.getElementById("sessionView"),
   cieuCount: document.getElementById("cieuCount"),
   lastCIEU: document.getElementById("lastCIEU")
 };
@@ -320,13 +372,19 @@ function syncUiNumbers(){
   ui.thrVal.textContent = ui.thr.value;
   ui.capVal.textContent = ui.cap.value;
   ui.alphaVal.textContent = ui.alpha.value;
+  ui.optSecVal.textContent = ui.optSec.value;
+  ui.sqwVal.textContent = ui.sqw.value;
 }
-ui.thr.addEventListener("input", syncUiNumbers);
-ui.cap.addEventListener("input", syncUiNumbers);
-ui.alpha.addEventListener("input", syncUiNumbers);
+["input","change"].forEach(ev=>{
+  ui.thr.addEventListener(ev, syncUiNumbers);
+  ui.cap.addEventListener(ev, syncUiNumbers);
+  ui.alpha.addEventListener(ev, syncUiNumbers);
+  ui.optSec.addEventListener(ev, syncUiNumbers);
+  ui.sqw.addEventListener(ev, syncUiNumbers);
+});
 syncUiNumbers();
 
-/* ----------------------- Persistent storage ----------------------- */
+/* ----------------------- Storage helpers ----------------------- */
 function loadJSON(key, fallback){
   try{
     const raw = localStorage.getItem(key);
@@ -340,53 +398,37 @@ function saveJSON(key, obj){
   try{ localStorage.setItem(key, JSON.stringify(obj)); }catch(e){}
 }
 
-/* ----------------------- CIEU store ----------------------- */
-let CIEU_DB = loadJSON(STORE_CIEU, []);
+/* ----------------------- CIEU DB ----------------------- */
+let CIEU_DB = loadJSON(STORE.CIEU, []);
 function persistCIEU(){
-  saveJSON(STORE_CIEU, CIEU_DB);
+  saveJSON(STORE.CIEU, CIEU_DB);
   ui.cieuCount.textContent = String(CIEU_DB.length);
 }
 persistCIEU();
 
 /* ----------------------- Audio / Mic ----------------------- */
-let audioCtx = null;
-let micStream = null;
-let micSource = null;
-let analyser = null;
-let fftData = null;
-
-let outMaster = null;        // master gain
-let outBusSleep = null;      // sleep template bus
-let outBusInt = null;        // intervention bus
-let currentSleepGraph = null;
-let currentIntGraph = null;
+let audioCtx=null, micStream=null, micSource=null, analyser=null, fftData=null;
+let outMaster=null, outBusSleep=null, outBusInt=null;
+let currentSleepGraph=null, currentIntGraph=null;
 
 function ensureAudio(){
   if(audioCtx) return;
-  audioCtx = new (window.AudioContext || window.webkitAudioContext)({ latencyHint: "interactive" });
+  audioCtx = new (window.AudioContext || window.webkitAudioContext)({ latencyHint:"interactive" });
+  outMaster = audioCtx.createGain(); outMaster.gain.value = 0.0;
 
-  outMaster = audioCtx.createGain();
-  outMaster.gain.value = 0.0;
-
-  // 两路总线：入睡模板与抗呼噜干预
-  outBusSleep = audioCtx.createGain();
-  outBusSleep.gain.value = 0.0;
-
-  outBusInt = audioCtx.createGain();
-  outBusInt.gain.value = 0.0;
+  outBusSleep = audioCtx.createGain(); outBusSleep.gain.value = 0.0;
+  outBusInt = audioCtx.createGain(); outBusInt.gain.value = 0.0;
 
   outBusSleep.connect(outMaster);
   outBusInt.connect(outMaster);
   outMaster.connect(audioCtx.destination);
 
   setPill("audioState", audioCtx.state, audioCtx.state==="running" ? "ok":"warn");
-  audioCtx.onstatechange = () => setPill("audioState", audioCtx.state, audioCtx.state==="running" ? "ok":"warn");
+  audioCtx.onstatechange = ()=> setPill("audioState", audioCtx.state, audioCtx.state==="running" ? "ok":"warn");
 }
-
 async function ensureMic(){
   if(micStream) return;
-  // iOS 建议关闭回声消除以免影响分析，但不同设备表现不一
-  const constraints = { audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false } };
+  const constraints = { audio: { echoCancellation:false, noiseSuppression:false, autoGainControl:false } };
   micStream = await navigator.mediaDevices.getUserMedia(constraints);
   ensureAudio();
 
@@ -395,10 +437,9 @@ async function ensureMic(){
   analyser.fftSize = 2048;
   analyser.smoothingTimeConstant = 0.65;
   fftData = new Float32Array(analyser.frequencyBinCount);
-
   micSource.connect(analyser);
 
-  setPill("micState", "on", "ok");
+  setPill("micState","on","ok");
 }
 
 /* ----------------------- Noise primitives ----------------------- */
@@ -407,13 +448,9 @@ function createWhiteNoiseNode(ctx){
   const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
   const data = buffer.getChannelData(0);
   for(let i=0;i<bufferSize;i++) data[i] = (Math.random()*2 - 1) * 0.35;
-  const src = ctx.createBufferSource();
-  src.buffer = buffer;
-  src.loop = true;
+  const src = ctx.createBufferSource(); src.buffer = buffer; src.loop = true;
   return src;
 }
-
-// Pink noise via simple filtering of white noise (Voss-McCartney-ish approximation)
 function createPinkNoiseNode(ctx){
   const bufferSize = 2 * ctx.sampleRate;
   const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
@@ -429,15 +466,11 @@ function createPinkNoiseNode(ctx){
     b5 = -0.7616*b5 - w*0.0168980;
     const pink = b0+b1+b2+b3+b4+b5+b6 + w*0.5362;
     b6 = w*0.115926;
-    out[i] = (pink * 0.08); // scale
+    out[i] = pink * 0.08;
   }
-  const src = ctx.createBufferSource();
-  src.buffer = buffer;
-  src.loop = true;
+  const src = ctx.createBufferSource(); src.buffer = buffer; src.loop = true;
   return src;
 }
-
-// Brown noise: integrate white
 function createBrownNoiseNode(ctx){
   const bufferSize = 2 * ctx.sampleRate;
   const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
@@ -449,183 +482,110 @@ function createBrownNoiseNode(ctx){
     last = clamp(last, -1, 1);
     out[i] = last * 0.35;
   }
-  const src = ctx.createBufferSource();
-  src.buffer = buffer;
-  src.loop = true;
+  const src = ctx.createBufferSource(); src.buffer = buffer; src.loop = true;
   return src;
 }
-
-/* ----------------------- Graph builders ----------------------- */
 function stopGraph(g){
   if(!g) return;
   try{ g.stop?.(); }catch(e){}
   try{ g.dispose?.(); }catch(e){}
 }
 
+/* ----------------------- Graph builders ----------------------- */
 function buildSleepTemplate(ctx, tplName){
-  // returns { node, stop(), dispose() }
   const g = { node: ctx.createGain() };
   g.node.gain.value = 0.0;
 
-  // gentle limiter chain
-  const lp = ctx.createBiquadFilter();
-  lp.type = "lowpass";
-  lp.frequency.value = 2200;
-  lp.Q.value = 0.7;
+  const hp = ctx.createBiquadFilter(); hp.type="highpass"; hp.frequency.value=35;
+  const lp = ctx.createBiquadFilter(); lp.type="lowpass"; lp.frequency.value=2200;
+  const gain = ctx.createGain(); gain.gain.value=1.0;
 
-  const hp = ctx.createBiquadFilter();
-  hp.type = "highpass";
-  hp.frequency.value = 35;
+  const lfo = ctx.createOscillator(); lfo.type="sine"; lfo.frequency.value=0.10;
+  const lfoGain = ctx.createGain(); lfoGain.gain.value=0.10;
+  const mod = ctx.createGain(); mod.gain.value=0.85;
+  lfo.connect(lfoGain); lfoGain.connect(mod.gain);
 
-  const gain = ctx.createGain();
-  gain.gain.value = 1.0;
-
-  // very slow amplitude modulation (breath-like)
-  const lfo = ctx.createOscillator();
-  lfo.type = "sine";
-  lfo.frequency.value = 0.10;
-  const lfoGain = ctx.createGain();
-  lfoGain.gain.value = 0.10; // depth
-  lfo.connect(lfoGain);
-
-  const mod = ctx.createGain();
-  mod.gain.value = 0.85; // base
-  lfoGain.connect(mod.gain);
-
-  // source
-  let src = null;
+  const route = (node)=>{
+    node.connect(hp); hp.connect(lp); lp.connect(mod); mod.connect(gain); gain.connect(g.node);
+  };
 
   if(tplName==="PINK_SOFTGUIDE"){
-    src = createPinkNoiseNode(ctx);
-    lp.frequency.value = 2100;
-  }else if(tplName==="MULTI_RAIN"){
-    // pink base + highpassed "rain texture"
+    const src = createPinkNoiseNode(ctx); lp.frequency.value=2100;
+    route(src); lfo.start(); src.start();
+    g.stop=()=>{src.stop(); lfo.stop();}; g.dispose=()=>{};
+    return g;
+  }
+
+  if(tplName==="MULTI_RAIN"){
     const base = createPinkNoiseNode(ctx);
     const rain = createWhiteNoiseNode(ctx);
+    const rainHP = ctx.createBiquadFilter(); rainHP.type="highpass"; rainHP.frequency.value=550;
+    const rainLP = ctx.createBiquadFilter(); rainLP.type="lowpass"; rainLP.frequency.value=5200;
+    const gate = ctx.createGain(); gate.gain.value=0.0;
+    const dropletLFO = ctx.createOscillator(); dropletLFO.type="triangle"; dropletLFO.frequency.value=0.35;
+    const dropletDepth = ctx.createGain(); dropletDepth.gain.value=0.35;
+    dropletLFO.connect(dropletDepth); dropletDepth.connect(gate.gain);
 
-    const rainHP = ctx.createBiquadFilter();
-    rainHP.type = "highpass";
-    rainHP.frequency.value = 550;
-    rainHP.Q.value = 0.7;
-
-    const rainLP = ctx.createBiquadFilter();
-    rainLP.type = "lowpass";
-    rainLP.frequency.value = 5200;
-    rainLP.Q.value = 0.9;
-
-    // rain "droplets": random slow gating
-    const gate = ctx.createGain();
-    gate.gain.value = 0.0;
-
-    // Scriptless random gating using periodic ramps
-    const dropletLFO = ctx.createOscillator();
-    dropletLFO.type = "triangle";
-    dropletLFO.frequency.value = 0.35; // slow
-    const dropletDepth = ctx.createGain();
-    dropletDepth.gain.value = 0.35;
-    dropletLFO.connect(dropletDepth);
-    dropletDepth.connect(gate.gain);
-
-    // mix
-    const mix = ctx.createGain();
-    mix.gain.value = 1.0;
-
+    const mix = ctx.createGain(); mix.gain.value=1.0;
     base.connect(mix);
-    rain.connect(rainHP);
-    rainHP.connect(rainLP);
-    rainLP.connect(gate);
-    gate.connect(mix);
+    rain.connect(rainHP); rainHP.connect(rainLP); rainLP.connect(gate); gate.connect(mix);
 
-    // route to chain
-    mix.connect(hp);
-    hp.connect(lp);
-    lp.connect(mod);
-    mod.connect(gain);
-    gain.connect(g.node);
-
-    // lifecycle
-    lfo.start();
-    dropletLFO.start();
-    base.start();
-    rain.start();
-    g.stop = () => { base.stop(); rain.stop(); lfo.stop(); dropletLFO.stop(); };
-    g.dispose = () => {};
+    route(mix);
+    lfo.start(); dropletLFO.start(); base.start(); rain.start();
+    g.stop=()=>{base.stop(); rain.stop(); lfo.stop(); dropletLFO.stop();}; g.dispose=()=>{};
     return g;
-  }else if(tplName==="BROWN_DEEPMASK"){
-    src = createBrownNoiseNode(ctx);
-    lp.frequency.value = 1100;
-  }else if(tplName==="WHITE_MASK"){
-    src = createWhiteNoiseNode(ctx);
-    lp.frequency.value = 1600;
-  }else if(tplName==="BINAURAL_OPTIONAL"){
-    // very gentle binaural beats for onset (experimental)
-    // carrier 180Hz, diff ramps 4Hz->1Hz over 12min
-    const carrier = 180;
-    const diffStart = 4.0;
-    const diffEnd = 1.0;
+  }
 
+  if(tplName==="BROWN_DEEPMASK"){
+    const src = createBrownNoiseNode(ctx); lp.frequency.value=1100;
+    route(src); lfo.start(); src.start();
+    g.stop=()=>{src.stop(); lfo.stop();}; g.dispose=()=>{};
+    return g;
+  }
+
+  if(tplName==="WHITE_MASK"){
+    const src = createWhiteNoiseNode(ctx); lp.frequency.value=1600;
+    route(src); lfo.start(); src.start();
+    g.stop=()=>{src.stop(); lfo.stop();}; g.dispose=()=>{};
+    return g;
+  }
+
+  if(tplName==="BINAURAL_OPTIONAL"){
+    const carrier = 180;
+    const diffStart = 4.0, diffEnd = 1.0;
     const oscL = ctx.createOscillator();
     const oscR = ctx.createOscillator();
-    oscL.type = "sine"; oscR.type = "sine";
+    oscL.type="sine"; oscR.type="sine";
     oscL.frequency.value = carrier - diffStart/2;
     oscR.frequency.value = carrier + diffStart/2;
-
-    // slowly ramp diff
-    const t0 = ctx.currentTime;
-    const t1 = t0 + 12*60;
+    const t0 = ctx.currentTime, t1 = t0 + 12*60;
     oscL.frequency.setValueAtTime(carrier - diffStart/2, t0);
     oscR.frequency.setValueAtTime(carrier + diffStart/2, t0);
     oscL.frequency.linearRampToValueAtTime(carrier - diffEnd/2, t1);
     oscR.frequency.linearRampToValueAtTime(carrier + diffEnd/2, t1);
 
-    // stereo panner: split channels
-    const splitter = ctx.createChannelMerger(2);
-    const gL = ctx.createGain();
-    const gR = ctx.createGain();
-    gL.gain.value = 0.22;
-    gR.gain.value = 0.22;
+    const gL = ctx.createGain(); const gR = ctx.createGain();
+    gL.gain.value=0.22; gR.gain.value=0.22;
+    const merger = ctx.createChannelMerger(2);
     oscL.connect(gL); oscR.connect(gR);
-    gL.connect(splitter, 0, 0);
-    gR.connect(splitter, 0, 1);
+    gL.connect(merger,0,0); gR.connect(merger,0,1);
 
-    // mild noise bed for comfort
     const bed = createPinkNoiseNode(ctx);
-    const bedGain = ctx.createGain();
-    bedGain.gain.value = 0.12;
-    bed.connect(bedGain);
+    const bedG = ctx.createGain(); bedG.gain.value=0.12;
+    bed.connect(bedG);
 
-    const mix = ctx.createGain();
-    mix.gain.value = 1.0;
-    splitter.connect(mix);
-    bedGain.connect(mix);
+    const mix = ctx.createGain(); mix.gain.value=1.0;
+    merger.connect(mix); bedG.connect(mix);
 
-    // chain
-    mix.connect(hp); hp.connect(lp); lp.connect(mod); mod.connect(gain); gain.connect(g.node);
-
-    lfo.start();
-    oscL.start(); oscR.start(); bed.start();
-    g.stop = () => { oscL.stop(); oscR.stop(); bed.stop(); lfo.stop(); };
-    g.dispose = () => {};
-    return g;
-  }else{
-    // OFF or unknown
-    g.node.gain.value = 0.0;
-    g.stop = () => {};
-    g.dispose = () => {};
+    route(mix);
+    lfo.start(); oscL.start(); oscR.start(); bed.start();
+    g.stop=()=>{oscL.stop(); oscR.stop(); bed.stop(); lfo.stop();}; g.dispose=()=>{};
     return g;
   }
 
-  // default chain with src
-  src.connect(hp);
-  hp.connect(lp);
-  lp.connect(mod);
-  mod.connect(gain);
-  gain.connect(g.node);
-
-  lfo.start();
-  src.start();
-  g.stop = () => { src.stop(); lfo.stop(); };
-  g.dispose = () => {};
+  // OFF
+  g.node.gain.value=0;
+  g.stop=()=>{}; g.dispose=()=>{};
   return g;
 }
 
@@ -633,142 +593,115 @@ function buildInterventionGraph(ctx, token){
   const g = { node: ctx.createGain() };
   g.node.gain.value = 1.0;
 
-  // base limiter filters (comfort)
-  const hp = ctx.createBiquadFilter();
-  hp.type="highpass"; hp.frequency.value=45;
+  const hp = ctx.createBiquadFilter(); hp.type="highpass"; hp.frequency.value=45;
+  const lp = ctx.createBiquadFilter(); lp.type="lowpass"; lp.frequency.value=2200;
+  const gain = ctx.createGain(); gain.gain.value=1.0;
 
-  const lp = ctx.createBiquadFilter();
-  lp.type="lowpass"; lp.frequency.value=2200;
+  // shallow mod to reduce “刺”
+  const lfo = ctx.createOscillator(); lfo.type="sine"; lfo.frequency.value=0.12;
+  const lfoGain = ctx.createGain(); lfoGain.gain.value=0.05;
+  const mod = ctx.createGain(); mod.gain.value=1.0;
+  lfo.connect(lfoGain); lfoGain.connect(mod.gain);
 
-  const gain = ctx.createGain();
-  gain.gain.value = 1.0;
-
-  // very shallow modulation to avoid “刺”
-  const lfo = ctx.createOscillator();
-  lfo.type="sine"; lfo.frequency.value=0.12;
-  const lfoGain = ctx.createGain();
-  lfoGain.gain.value=0.05;
-  const mod = ctx.createGain();
-  mod.gain.value=1.0;
-  lfo.connect(lfoGain);
-  lfoGain.connect(mod.gain);
-
-  let srcMain = null;
+  const route = (node)=>{
+    node.connect(hp); hp.connect(lp); lp.connect(mod); mod.connect(gain); gain.connect(g.node);
+  };
 
   if(token==="MASK_PINK"){
-    srcMain = createPinkNoiseNode(ctx);
+    const src = createPinkNoiseNode(ctx);
     lp.frequency.value=2000;
-  }else if(token==="MASK_MULTI"){
-    // reuse MULTI_RAIN style but without droplet emphasis
+    route(src);
+    lfo.start(); src.start();
+    g.stop=()=>{src.stop(); lfo.stop();}; g.dispose=()=>{};
+    return g;
+  }
+
+  if(token==="MASK_MULTI"){
     const base = createPinkNoiseNode(ctx);
     const tex = createWhiteNoiseNode(ctx);
-
-    const texHP = ctx.createBiquadFilter();
-    texHP.type="highpass"; texHP.frequency.value=650;
-    const texGain = ctx.createGain();
-    texGain.gain.value=0.18;
-
-    const mix = ctx.createGain();
-    mix.gain.value=1.0;
+    const texHP = ctx.createBiquadFilter(); texHP.type="highpass"; texHP.frequency.value=650;
+    const texGain = ctx.createGain(); texGain.gain.value=0.18;
+    const mix = ctx.createGain(); mix.gain.value=1.0;
 
     base.connect(mix);
-    tex.connect(texHP);
-    texHP.connect(texGain);
-    texGain.connect(mix);
+    tex.connect(texHP); texHP.connect(texGain); texGain.connect(mix);
 
-    mix.connect(hp); hp.connect(lp); lp.connect(mod); mod.connect(gain); gain.connect(g.node);
-
+    route(mix);
     lfo.start(); base.start(); tex.start();
-    g.stop = () => { base.stop(); tex.stop(); lfo.stop(); };
-    g.dispose = () => {};
+    g.stop=()=>{base.stop(); tex.stop(); lfo.stop();}; g.dispose=()=>{};
     return g;
-  }else if(token==="MASK_WHITE"){
-    srcMain = createWhiteNoiseNode(ctx);
+  }
+
+  if(token==="MASK_WHITE"){
+    const src = createWhiteNoiseNode(ctx);
     lp.frequency.value=1700;
-  }else if(token==="BINAURAL"){
-    // Experimental intervention: gentle binaural with pink bed
+    route(src);
+    lfo.start(); src.start();
+    g.stop=()=>{src.stop(); lfo.stop();}; g.dispose=()=>{};
+    return g;
+  }
+
+  if(token==="BINAURAL"){
     const carrier = 180;
-    const diff = 2.0; // fixed small diff for intervention
+    const diff = 2.0;
     const oscL = ctx.createOscillator();
     const oscR = ctx.createOscillator();
     oscL.type="sine"; oscR.type="sine";
     oscL.frequency.value = carrier - diff/2;
     oscR.frequency.value = carrier + diff/2;
 
-    const gL = ctx.createGain();
-    const gR = ctx.createGain();
-    gL.gain.value = 0.18;
-    gR.gain.value = 0.18;
-
+    const gL = ctx.createGain(); const gR = ctx.createGain();
+    gL.gain.value=0.18; gR.gain.value=0.18;
     const merger = ctx.createChannelMerger(2);
     oscL.connect(gL); oscR.connect(gR);
-    gL.connect(merger, 0, 0);
-    gR.connect(merger, 0, 1);
+    gL.connect(merger,0,0); gR.connect(merger,0,1);
 
     const bed = createPinkNoiseNode(ctx);
-    const bedGain = ctx.createGain();
-    bedGain.gain.value = 0.15;
-    bed.connect(bedGain);
+    const bedG = ctx.createGain(); bedG.gain.value=0.15;
+    bed.connect(bedG);
 
-    const mix = ctx.createGain();
-    mix.gain.value = 1.0;
-    merger.connect(mix);
-    bedGain.connect(mix);
+    const mix = ctx.createGain(); mix.gain.value=1.0;
+    merger.connect(mix); bedG.connect(mix);
 
-    mix.connect(hp); hp.connect(lp); lp.connect(mod); mod.connect(gain); gain.connect(g.node);
-
+    route(mix);
     lfo.start(); oscL.start(); oscR.start(); bed.start();
-    g.stop = () => { oscL.stop(); oscR.stop(); bed.stop(); lfo.stop(); };
-    g.dispose = () => {};
-    return g;
-  }else{
-    // fallback: silence
-    g.node.gain.value=0.0;
-    g.stop = ()=>{};
-    g.dispose=()=>{};
+    g.stop=()=>{oscL.stop(); oscR.stop(); bed.stop(); lfo.stop();}; g.dispose=()=>{};
     return g;
   }
 
-  srcMain.connect(hp);
-  hp.connect(lp);
-  lp.connect(mod);
-  mod.connect(gain);
-  gain.connect(g.node);
-
-  lfo.start();
-  srcMain.start();
-  g.stop = () => { srcMain.stop(); lfo.stop(); };
-  g.dispose = () => {};
+  g.node.gain.value=0;
+  g.stop=()=>{}; g.dispose=()=>{};
   return g;
 }
 
-/* ----------------------- Field features ----------------------- */
-let windowBuffer = []; // {t, dt, Y, per, flat, centroid}
-let budgetBuffer = []; // {t, dt, u2} sliding window for energy budget
+/* ----------------------- Multi-scale buffers (B) ----------------------- */
+let bufShort=[], bufMid=[], bufLong=[];
+let budgetBuf=[]; // {t, dt, u2}
+let duBuf=[];     // slew proxy (to infer arousal risk), {t, dt, absDu}
 
-function pushWindowSample(sample){
-  windowBuffer.push(sample);
-  // trim to WINDOW_SEC
+function pushBuf(buf, winSec, sample){
+  buf.push(sample);
   const tNow = sample.t;
-  while(windowBuffer.length && (tNow - windowBuffer[0].t) > WINDOW_SEC) windowBuffer.shift();
+  while(buf.length && (tNow - buf[0].t) > winSec) buf.shift();
 }
-
-function pushBudgetSample(t, dt, uEff){
-  const u2 = (uEff*uEff)*dt;
-  budgetBuffer.push({t, dt, u2});
-  while(budgetBuffer.length && (t - budgetBuffer[0].t) > BUDGET_SEC) budgetBuffer.shift();
+function pushBudget(t, dt, uEff){
+  budgetBuf.push({t, dt, u2:(uEff*uEff)*dt});
+  while(budgetBuf.length && (t - budgetBuf[0].t) > BUDGET_SEC) budgetBuf.shift();
 }
-
 function budgetUsed(){
-  let sum=0;
-  for(const s of budgetBuffer) sum += s.u2;
-  return sum;
+  let s=0; for(const x of budgetBuf) s+=x.u2; return s;
+}
+function pushDu(t, dt, absDu){
+  duBuf.push({t, dt, absDu:absDu*dt});
+  while(duBuf.length && (t - duBuf[0].t) > 30.0) duBuf.shift(); // 30s arousal proxy window
+}
+function duUsed(){
+  let s=0; for(const x of duBuf) s+=x.absDu; return s;
 }
 
-function buildFieldPhi(){
+function buildPhiFrom(buf, winSec, thr){
   let totalT=0, sumY=0, snoreT=0, sumPer=0, sumFlat=0, sumCent=0;
-  const thr = getTHR();
-  for(const s of windowBuffer){
+  for(const s of buf){
     totalT += s.dt;
     sumY += s.Y*s.dt;
     sumPer += s.per*s.dt;
@@ -776,401 +709,379 @@ function buildFieldPhi(){
     sumCent += s.centroid*s.dt;
     if(s.Y > thr) snoreT += s.dt;
   }
-  const Ymean = totalT>0 ? sumY/totalT : 0;
-  const snoreRatio = totalT>0 ? snoreT/totalT : 0;
-  const perMean = totalT>0 ? sumPer/totalT : 0;
-  const flatMean = totalT>0 ? sumFlat/totalT : 0;
-  const centroidMean = totalT>0 ? sumCent/totalT : 0;
-
-  // syntax pressure from strong events (in last 60s)
-  const now = wallNow();
-  const winMs = 60*1000;
-  const strongCount = syntaxState.strongEventTimes.filter(t => (now - t) <= winMs).length;
-  const syntaxPressure = clamp(strongCount / STRONG_MAX_PER_MIN, 0, 1);
-
-  // mode numeric
-  const m = getMode();
-  const modeVal = (m==="monitor")?0:((m==="gentle")?0.5:1);
-
-  return { Ymean, snoreRatio, perMean, flatMean, centroidMean, syntaxPressure, modeVal };
-}
-
-/* ----------------------- Y* Field Functional ----------------------- */
-let thetaY = loadJSON(STORE_THETA_YSTAR, {
-  b: 0.0,
-  wYmean: 0.6,
-  wSnoreRatio: 1.2,
-  wPer: -0.35,
-  wFlat: 0.25,
-  wSyntax: 0.8,
-  wMode: 0.5,
-  tauMin: 0.8,
-  tauMax: 4.5,
-  lr: 0.012
-});
-
-function sigmoid(z){ return 1/(1+Math.exp(-z)); }
-
-function computeTauFromField(phi){
-  const z =
-    thetaY.b +
-    thetaY.wYmean      * clamp(phi.Ymean/255, 0, 1) +
-    thetaY.wSnoreRatio * clamp(phi.snoreRatio, 0, 1) +
-    thetaY.wPer        * clamp(phi.perMean, 0, 1) +
-    thetaY.wFlat       * clamp(phi.flatMean, 0, 1) +
-    thetaY.wSyntax     * clamp(phi.syntaxPressure, 0, 1) +
-    thetaY.wMode       * clamp(phi.modeVal, 0, 1);
-
-  const s = sigmoid(z);
-  // z越大 -> s越大 -> tau越小（更快收敛）
-  return thetaY.tauMin + (thetaY.tauMax - thetaY.tauMin) * (1 - s);
-}
-
-function computeYStar(elapsedSec, startY){
-  const phi = buildFieldPhi();
-  const tau = computeTauFromField(phi);
-  const k = 1 / Math.max(0.25, tau);
-  let Ystar = getTHR() + (startY - getTHR()) * Math.exp(-k * elapsedSec);
-  Ystar = Math.max(getTHR(), Ystar);
-  return { Ystar, tau, phi };
-}
-
-function updateThetaYFromReward(phiAtStart, rewardNorm){
-  // rewardNorm: [-1,1], higher better -> gentler (larger tau) -> decrease z
-  // g = -reward
-  const g = -clamp(rewardNorm, -1, 1);
-  const lr = thetaY.lr;
-
-  const x = {
-    Ymean: clamp(phiAtStart.Ymean/255,0,1),
-    snoreRatio: clamp(phiAtStart.snoreRatio,0,1),
-    perMean: clamp(phiAtStart.perMean,0,1),
-    flatMean: clamp(phiAtStart.flatMean,0,1),
-    syntaxPressure: clamp(phiAtStart.syntaxPressure,0,1),
-    modeVal: clamp(phiAtStart.modeVal,0,1)
+  const safeDiv = (a,b)=> (b>0? a/b : 0);
+  return {
+    winSec,
+    Ymean: safeDiv(sumY,totalT),
+    snoreRatio: safeDiv(snoreT,totalT),
+    perMean: safeDiv(sumPer,totalT),
+    flatMean: safeDiv(sumFlat,totalT),
+    centroidMean: safeDiv(sumCent,totalT)
   };
-
-  thetaY.b += lr*g;
-  thetaY.wYmean += lr*g*x.Ymean;
-  thetaY.wSnoreRatio += lr*g*x.snoreRatio;
-  thetaY.wPer += lr*g*x.perMean;
-  thetaY.wFlat += lr*g*x.flatMean;
-  thetaY.wSyntax += lr*g*x.syntaxPressure;
-  thetaY.wMode += lr*g*x.modeVal;
-
-  saveJSON(STORE_THETA_YSTAR, thetaY);
 }
 
-/* ----------------------- LinUCB Bandit ----------------------- */
-// We store Ainv (dxd) and b (d). theta = Ainv*b.
-// Choose action: argmax theta·x + alpha*sqrt(x^T Ainv x)
+/* ----------------------- Syntax & Safety DSL ----------------------- */
+const syntax = {
+  lastU: 0,
+  strongTimes: [], // wall ms
+  strongCountTotal: 0,
+  degradedCountTotal: 0
+};
 
+function applySafety(uEff, token, cap, level){
+  // L2 DSL + comfort protection
+  let u = clamp(uEff, 0, cap);
+
+  // slew-rate
+  const maxDu = 0.015; // per tick
+  const du = u - syntax.lastU;
+  const absDu = Math.abs(du);
+  if(du > maxDu) u = syntax.lastU + maxDu;
+  if(du < -maxDu) u = syntax.lastU - maxDu;
+
+  // record slew for arousal proxy
+  pushDu(lastT, dtLast, absDu);
+
+  // energy budget scaling
+  const budget = budgetUsed();
+  const budgetThr = 0.9 * BUDGET_SEC * (cap*cap) * 0.25;
+  if(budget > budgetThr){
+    const scale = clamp(budgetThr / Math.max(1e-9, budget), 0.25, 1.0);
+    u *= scale;
+    syntax.degradedCountTotal++;
+  }
+
+  // strong frequency rule
+  const strong = u > (0.75*cap);
+  if(strong){
+    const t = wallNow();
+    syntax.strongTimes.push(t);
+    const winMs=60*1000;
+    syntax.strongTimes = syntax.strongTimes.filter(x=>t-x<=winMs);
+    syntax.strongCountTotal++;
+    if(syntax.strongTimes.length > STRONG_MAX_PER_MIN){
+      u *= 0.65;
+      syntax.degradedCountTotal++;
+    }
+  }
+
+  // token compatibility (binaural only in calm-ish and SOFT/NORMAL)
+  if(token==="BINAURAL"){
+    if(level==="ASSERTIVE") { u *= 0.5; syntax.degradedCountTotal++; }
+    if(lastStage!=="CALM") { u *= 0.5; syntax.degradedCountTotal++; }
+  }
+
+  // gentle-onset protection: during ONSET/AROUSAL downscale
+  if(currentPhase===PHASE.ONSET) u *= 0.72;
+  if(currentPhase===PHASE.AROUSAL) u *= 0.60;
+
+  syntax.lastU = u;
+  return u;
+}
+
+/* ----------------------- RL: LinUCB (contextual bandit) ----------------------- */
 function zeros(n){ return Array.from({length:n}, ()=>0); }
 function eye(n){
-  const m = [];
-  for(let i=0;i<n;i++){
-    const row = zeros(n);
-    row[i]=1;
-    m.push(row);
-  }
+  const m=[]; for(let i=0;i<n;i++){ const r=zeros(n); r[i]=1; m.push(r); }
   return m;
 }
 function dot(a,b){ let s=0; for(let i=0;i<a.length;i++) s+=a[i]*b[i]; return s; }
 function matVec(A,x){
-  const y = zeros(A.length);
-  for(let i=0;i<A.length;i++){
-    let s=0;
-    for(let j=0;j<x.length;j++) s += A[i][j]*x[j];
-    y[i]=s;
-  }
+  const y=zeros(A.length);
+  for(let i=0;i<A.length;i++){ let s=0; for(let j=0;j<x.length;j++) s+=A[i][j]*x[j]; y[i]=s; }
   return y;
 }
-function quad(x,A){ // x^T A x
-  const Ax = matVec(A,x);
-  return dot(x,Ax);
-}
-// Sherman-Morrison update for Ainv when A <- A + x x^T
-function shermanMorrison(Ainv, x){
-  const Ax = matVec(Ainv, x);
-  const denom = 1 + dot(x, Ax);
-  const n = x.length;
+function quad(x,A){ const Ax=matVec(A,x); return dot(x,Ax); }
+function shermanMorrison(Ainv,x){
+  const Ax = matVec(Ainv,x);
+  const denom = 1 + dot(x,Ax);
+  const n=x.length;
   const out = Array.from({length:n}, ()=>zeros(n));
   for(let i=0;i<n;i++){
     for(let j=0;j<n;j++){
-      out[i][j] = Ainv[i][j] - (Ax[i]*Ax[j]) / denom;
+      out[i][j] = Ainv[i][j] - (Ax[i]*Ax[j])/denom;
     }
   }
   return out;
 }
-
 class LinUCB{
-  constructor(name, actions, d, storeKey){
-    this.name=name;
+  constructor(actions, d, storeKey){
     this.actions=actions;
     this.d=d;
     this.storeKey=storeKey;
-    this.alpha=0.75;
-    this.models = {}; // action -> {Ainv, b, n}
+    this.alpha=0.7;
+    this.models={};
     this._load();
   }
-  _initAction(a){
+  _init(a){
     if(this.models[a]) return;
-    this.models[a] = { Ainv: eye(this.d), b: zeros(this.d), n: 0, rSum: 0 };
+    this.models[a] = { Ainv: eye(this.d), b: zeros(this.d), n:0, rSum:0 };
   }
   _load(){
     const raw = loadJSON(this.storeKey, null);
-    if(raw && raw.models){
-      this.models = raw.models;
-    }else{
-      this.models = {};
-    }
-    for(const a of this.actions) this._initAction(a);
+    if(raw && raw.models) this.models = raw.models;
+    for(const a of this.actions) this._init(a);
   }
-  save(){
-    saveJSON(this.storeKey, {models:this.models});
-  }
+  save(){ saveJSON(this.storeKey, {models:this.models}); }
   setAlpha(a){ this.alpha=a; }
-  thetaOf(a){
-    const m = this.models[a];
-    const t = matVec(m.Ainv, m.b);
-    return t;
-  }
   choose(x){
-    let bestA = this.actions[0];
-    let bestScore = -1e9;
+    let best=this.actions[0], bestScore=-1e9;
     for(const a of this.actions){
-      this._initAction(a);
-      const m = this.models[a];
+      this._init(a);
+      const m=this.models[a];
       const theta = matVec(m.Ainv, m.b);
-      const mean = dot(theta, x);
-      const bonus = this.alpha * Math.sqrt(Math.max(0, quad(x, m.Ainv)));
+      const mean = dot(theta,x);
+      const bonus = this.alpha * Math.sqrt(Math.max(0, quad(x,m.Ainv)));
       const score = mean + bonus;
-      if(score > bestScore){
-        bestScore = score;
-        bestA = a;
-      }
+      if(score>bestScore){ bestScore=score; best=a; }
     }
-    return bestA;
+    return best;
   }
-  update(a, x, r){
-    this._initAction(a);
-    const m = this.models[a];
-    // Ainv <- (A + xx^T)^-1 using Sherman-Morrison
-    m.Ainv = shermanMorrison(m.Ainv, x);
-    // b <- b + r x
-    for(let i=0;i<this.d;i++) m.b[i] += r * x[i];
+  update(a,x,r){
+    this._init(a);
+    const m=this.models[a];
+    m.Ainv = shermanMorrison(m.Ainv,x);
+    for(let i=0;i<this.d;i++) m.b[i]+=r*x[i];
     m.n += 1;
     m.rSum += r;
     this.save();
   }
-  summary(topK=12){
-    const rows = [];
+  summary(k=10){
+    const rows=[];
     for(const a of this.actions){
-      const m = this.models[a];
-      const avg = m.n>0 ? (m.rSum/m.n) : 0;
+      const m=this.models[a]; const avg = m.n>0? m.rSum/m.n : 0;
       rows.push({a, n:m.n, avg});
     }
     rows.sort((p,q)=>q.avg-p.avg);
-    return rows.slice(0, topK);
+    return rows.slice(0,k);
   }
 }
 
-function buildInterventionActions(){
-  const acts = [];
-  for(const t of INT_TOKENS){
-    for(const rho of RHO_SET){
-      acts.push(`${t}::${rho.toFixed(2)}`);
+function buildLowActions(allowedTokens, allowedRhos){
+  const acts=[];
+  for(const t of allowedTokens){
+    for(const r of allowedRhos){
+      acts.push(`${t}::${r.toFixed(2)}`);
     }
   }
   return acts;
 }
+function parseActionKey(a){
+  const [tok, r] = a.split("::");
+  return { token: tok, rho: parseFloat(r) };
+}
 
-/* ----------------------- Instantiate bandits ----------------------- */
-const dCtx = 9; // context feature dimension
-function makeCtxVec(phi, stageVal, deltaNorm){
-  // x = [1, Ymean, snoreRatio, per, flat, centroidN, syntax, modeVal, deltaNorm]
-  const centroidN = clamp((phi.centroidMean||0) / 4000, 0, 1);
+/* ----------------------- Context features (B -> RL) ----------------------- */
+/*
+  dCtx: keep moderate for stability.
+  We'll use:
+  [1,
+   short: Ymean, snoreRatio,
+   mid:   Ymean, snoreRatio,
+   long:  Ymean, snoreRatio,
+   syntaxPressure, budgetNorm, duNorm,
+   phaseVal, modeVal]
+  => 1 + 2+2+2 + 1+1+1 + 1+1 = 12
+*/
+const dCtx = 12;
+
+function modeVal(){
+  const m=getMode();
+  return (m==="monitor")?0:((m==="gentle")?0.5:1.0);
+}
+function phaseVal(){
+  if(currentPhase===PHASE.ONSET) return 0.0;
+  if(currentPhase===PHASE.STABLE) return 0.33;
+  if(currentPhase===PHASE.EVENT) return 0.66;
+  return 1.0; // AROUSAL
+}
+
+function syntaxPressure(){
+  const now=wallNow();
+  const winMs=60*1000;
+  const strongInWin = syntax.strongTimes.filter(t=>now-t<=winMs).length;
+  return clamp(strongInWin/STRONG_MAX_PER_MIN, 0, 1);
+}
+
+function makeCtx(phiS, phiM, phiL){
+  const cap = getCAP();
+  const b = budgetUsed();
+  const budgetNorm = clamp(b / Math.max(1e-9, (BUDGET_SEC * cap*cap * 0.25)), 0, 2); // allow >1 for stress
+  const du = duUsed();
+  const duNorm = clamp(du / 1.2, 0, 2); // heuristic
+
   return [
     1,
-    clamp(phi.Ymean/255,0,1),
-    clamp(phi.snoreRatio,0,1),
-    clamp(phi.perMean,0,1),
-    clamp(phi.flatMean,0,1),
-    centroidN,
-    clamp(phi.syntaxPressure,0,1),
-    clamp(phi.modeVal,0,1),
-    clamp(deltaNorm, -1, 1) * 0.5 + 0.5 // map to [0,1]
+    clamp(phiS.Ymean/255,0,1), clamp(phiS.snoreRatio,0,1),
+    clamp(phiM.Ymean/255,0,1), clamp(phiM.snoreRatio,0,1),
+    clamp(phiL.Ymean/255,0,1), clamp(phiL.snoreRatio,0,1),
+    syntaxPressure(),
+    clamp(budgetNorm/2,0,1),
+    clamp(duNorm/2,0,1),
+    phaseVal(),
+    modeVal()
   ];
 }
 
-const sleepBandit = new LinUCB("sleep", SLEEP_TEMPLATES, dCtx, STORE_SLEEP_BANDIT);
-const intBandit   = new LinUCB("intervention", buildInterventionActions(), dCtx, STORE_INT_BANDIT);
+/* ----------------------- Bandits (A/D) ----------------------- */
+const sleepBandit = new LinUCB(SLEEP_TEMPLATES, dCtx, STORE.SLEEP_BANDIT);
+const levelBandit = new LinUCB(LEVELS, dCtx, STORE.LEVEL_BANDIT);
 
-/* ----------------------- Snore detection features ----------------------- */
+// Low-level bandit will be re-instantiated per allowed action-set for simplicity.
+// But we still persist one global bandit for all actions and apply masking.
+const ALL_LOW_ACTIONS = buildLowActions(INT_TOKENS, RHO_SET);
+const lowBandit = new LinUCB(ALL_LOW_ACTIONS, dCtx, STORE.INT_BANDIT);
+
+/* ----------------------- Y* Functional (C) ----------------------- */
+let thetaY = loadJSON(STORE.THETA_Y, {
+  // baseline weights
+  b: 0.0,
+  wS_Y: 0.7, wS_R: 1.2,   // short
+  wM_Y: 0.5, wM_R: 1.0,   // mid
+  wL_Y: 0.25, wL_R: 0.6,  // long
+  wSyntax: 0.6,
+  wBudget: 0.8,
+  wDu: 0.9,
+  wPhase: 0.6,
+  wMode: 0.4,
+  tauMin: 0.7,
+  tauMax: 5.5,
+  lr: 0.010
+});
+function sigmoid(z){ return 1/(1+Math.exp(-z)); }
+
+function computeTau(phiS, phiM, phiL){
+  const cap=getCAP();
+  const budgetNorm = clamp(budgetUsed() / Math.max(1e-9,(BUDGET_SEC*cap*cap*0.25)),0,2);
+  const duNorm = clamp(duUsed()/1.2,0,2);
+
+  const z =
+    thetaY.b +
+    thetaY.wS_Y*clamp(phiS.Ymean/255,0,1) + thetaY.wS_R*clamp(phiS.snoreRatio,0,1) +
+    thetaY.wM_Y*clamp(phiM.Ymean/255,0,1) + thetaY.wM_R*clamp(phiM.snoreRatio,0,1) +
+    thetaY.wL_Y*clamp(phiL.Ymean/255,0,1) + thetaY.wL_R*clamp(phiL.snoreRatio,0,1) +
+    thetaY.wSyntax*syntaxPressure() +
+    thetaY.wBudget*clamp(budgetNorm/2,0,1) +
+    thetaY.wDu*clamp(duNorm/2,0,1) +
+    thetaY.wPhase*phaseVal() +
+    thetaY.wMode*modeVal();
+
+  const s = sigmoid(z);
+  // z越大 -> s越大 -> tau越小（更快压制）
+  let tau = thetaY.tauMin + (thetaY.tauMax - thetaY.tauMin) * (1 - s);
+
+  // Phase-aware adjustments (C): protect sleep quality
+  if(currentPhase===PHASE.ONSET) tau *= 1.35;     // gentler
+  if(currentPhase===PHASE.AROUSAL) tau *= 1.55;   // prioritize de-stimulation
+  if(currentPhase===PHASE.STABLE) tau *= 1.15;
+
+  // If strong event density high and still disturbed, allow tau smaller a bit
+  if(currentPhase===PHASE.EVENT && lastStage==="DISTURBED" && syntaxPressure()<0.6) tau *= 0.90;
+
+  return clamp(tau, thetaY.tauMin, thetaY.tauMax*1.6);
+}
+
+function computeYStar(elapsedSec, startY, phiS, phiM, phiL){
+  const tau = computeTau(phiS,phiM,phiL);
+  const k = 1/Math.max(0.25,tau);
+  const thr=getTHR();
+  let yStar = thr + (startY - thr)*Math.exp(-k*elapsedSec);
+  yStar = Math.max(thr, yStar);
+
+  // Additional constraint: do not chase too aggressively during AROUSAL/ONSET
+  if(currentPhase===PHASE.ONSET || currentPhase===PHASE.AROUSAL){
+    yStar = Math.max(thr, thr + 0.30*(startY-thr)); // cap aggressiveness
+  }
+  return { yStar, tau };
+}
+
+function updateThetaY(ctxVec, rewardNorm){
+  // rewardNorm higher means better; we want to be gentler => decrease z => g=-reward
+  const g = -clamp(rewardNorm,-1,1);
+  const lr = thetaY.lr;
+  // ctxVec is dCtx; map to theta update loosely: use some key dims only for stability
+  // We'll update bias + weights for S/M/L and stress terms.
+  thetaY.b += lr*g;
+  thetaY.wS_Y += lr*g*ctxVec[1];
+  thetaY.wS_R += lr*g*ctxVec[2];
+  thetaY.wM_Y += lr*g*ctxVec[3];
+  thetaY.wM_R += lr*g*ctxVec[4];
+  thetaY.wL_Y += lr*g*ctxVec[5];
+  thetaY.wL_R += lr*g*ctxVec[6];
+  thetaY.wSyntax += lr*g*ctxVec[7];
+  thetaY.wBudget += lr*g*ctxVec[8];
+  thetaY.wDu += lr*g*ctxVec[9];
+  thetaY.wPhase += lr*g*ctxVec[10];
+  thetaY.wMode += lr*g*ctxVec[11];
+  saveJSON(STORE.THETA_Y, thetaY);
+}
+
+/* ----------------------- Feature extraction ----------------------- */
 function computeSpectrumFeatures(){
-  // Needs analyser & fftData
   analyser.getFloatFrequencyData(fftData);
-  // Convert dB to linear power roughly
-  // Note: this is a heuristic; stable enough for RL signals.
   const sr = audioCtx.sampleRate;
   const nyq = sr/2;
   const N = fftData.length;
 
-  let sumP=0, sumF=0;
-  let geom=0, count=0;
-
-  // band energies
+  let sumP=0, sumF=0, geom=0, count=0;
   let eL=0,eM=0,eH=0;
-  let peakP=0; let peakIdx=0;
+  let peakP=0;
 
   for(let i=0;i<N;i++){
     const f = (i/N)*nyq;
-    // clamp floor to avoid -Inf
     const db = fftData[i];
-    const p = Math.pow(10, (db/10)); // power-ish
-    const pC = Math.max(1e-12, p);
+    const p = Math.pow(10, (db/10));
+    const pC = Math.max(1e-12,p);
 
     sumP += pC;
-    sumF += f * pC;
+    sumF += f*pC;
     geom += Math.log(pC);
     count++;
 
-    if(pC>peakP){ peakP=pC; peakIdx=i; }
+    if(pC>peakP) peakP=pC;
 
     if(f>=60 && f<200) eL += pC;
     else if(f>=200 && f<800) eM += pC;
     else if(f>=800 && f<2500) eH += pC;
   }
 
-  const centroid = sumP>0 ? (sumF/sumP) : 0;
+  const centroid = sumP>0 ? sumF/sumP : 0;
   const flatness = Math.exp(geom/count) / (sumP/count);
+  const meanP = sumP/Math.max(1,count);
+  const periodicity = clamp((peakP/Math.max(1e-12,meanP))/20,0,1);
 
-  // periodicity proxy via peak prominence in low-mid band:
-  // ratio of peak power to mean power (clamped)
-  const meanP = sumP / Math.max(1,count);
-  const periodicity = clamp(peakP / Math.max(1e-12, meanP) / 20, 0, 1); // scale
-
-  // normalize band energies to [0,1]
-  const norm = (x) => clamp(x / Math.max(1e-9, sumP), 0, 1);
-  const nl = norm(eL), nm = norm(eM), nh = norm(eH);
-
-  return { nl, nm, nh, centroid, flatness: clamp(flatness,0,1), periodicity };
+  const norm = (x)=> clamp(x/Math.max(1e-9,sumP),0,1);
+  return { nl:norm(eL), nm:norm(eM), nh:norm(eH), centroid, flatness:clamp(flatness,0,1), periodicity };
 }
-
-function computeY(features){
-  // Heuristic: snore-like tends to have energy in low/mid, plus periodicity, plus not too flat (but this is individual).
-  // We'll keep a stable monotonic score.
-  const {nl,nm,nh,flatness,periodicity} = features;
-
-  let y = 0;
+function computeY(f){
+  const {nl,nm,nh,flatness,periodicity}=f;
+  let y=0;
   y += 0.55*nl + 0.35*nm - 0.10*nh;
   y += 0.55*periodicity;
   y += 0.15*(1-flatness);
-
-  y = clamp(y, 0, 1);
-  return Math.round(y * 255);
+  y = clamp(y,0,1);
+  return Math.round(y*255);
 }
-
-function estimateStage(phi, Y){
-  // simplistic stage estimator for control logic
-  // CALM: low Ymean & low snoreRatio
-  // MIXED: moderate
-  // DISTURBED: high
-  const a = clamp(phi.Ymean/255,0,1);
-  const b = clamp(phi.snoreRatio,0,1);
-  const z = 0.7*a + 0.9*b + 0.3*clamp(Y/255,0,1);
-  if(z < 0.28) return "CALM";
-  if(z < 0.55) return "MIXED";
+function estimateStage(phiM, currentY){
+  const a = clamp(phiM.Ymean/255,0,1);
+  const b = clamp(phiM.snoreRatio,0,1);
+  const z = 0.7*a + 0.9*b + 0.3*clamp(currentY/255,0,1);
+  if(z<0.28) return "CALM";
+  if(z<0.55) return "MIXED";
   return "DISTURBED";
 }
 
-/* ----------------------- L2 Syntax & Safety DSL ----------------------- */
-const syntaxState = {
-  strongEventTimes: [], // wall time ms
-  strongWindowCount: 0,
-  lastU: 0
-};
-
-function applySafety(uEff, token){
-  // 1) absolute cap
-  const cap = getCAP();
-  let u = clamp(uEff, 0, cap);
-
-  // 2) du/dt cap (slew-rate limiter)
-  const maxDu = 0.015; // per tick
-  const du = u - syntaxState.lastU;
-  if(du > maxDu) u = syntaxState.lastU + maxDu;
-  if(du < -maxDu) u = syntaxState.lastU - maxDu;
-
-  // 3) energy budget: if budget used too high, scale down
-  const budget = budgetUsed();
-  // heuristic budget threshold proportional to window size: allow more if cap small
-  const budgetThr = 0.9 * BUDGET_SEC * (cap*cap) * 0.25; // conservative
-  if(budget > budgetThr){
-    const scale = clamp(budgetThr / Math.max(1e-9, budget), 0.25, 1.0);
-    u *= scale;
-  }
-
-  // 4) strong intervention frequency rule (only if u near cap)
-  const strong = u > (0.75*cap);
-  if(strong){
-    const t = wallNow();
-    syntaxState.strongEventTimes.push(t);
-    // trim last 60s
-    const winMs=60*1000;
-    syntaxState.strongEventTimes = syntaxState.strongEventTimes.filter(x=>t-x<=winMs);
-    if(syntaxState.strongEventTimes.length > STRONG_MAX_PER_MIN){
-      // degrade
-      u *= 0.65;
-    }
-  }
-
-  // 5) token compatibility rule: binaural only if calm-ish
-  if(token==="BINAURAL" && lastStage!=="CALM"){
-    // force degrade
-    u *= 0.5;
-  }
-
-  syntaxState.lastU = u;
-  return u;
-}
-
-/* ----------------------- Control core state ----------------------- */
-let running = false;
-let timer = null;
-let lastTick = 0;
-
-let pid = { integ: 0, integMax: 0.8 };
-let currentY = 0;
-let lastStage = "CALM";
-
-let selectedSleepTemplate = "PINK_SOFTGUIDE";
-let selectedIntToken = "MASK_PINK";
-let selectedRho = 0.0;
-let selectedActionKey = "MASK_PINK::0.00";
-
-let onset = {
-  active: false,
-  startT: 0,
-  sumY: 0,
-  sumT: 0,
-  snoreT: 0,
-  uEnergy: 0,
-  chosenTemplate: null,
-  ctxAtStart: null
-};
-
-let cieuEvent = null; // current event
-let lastSegmentT = 0;
-
-/* ----------------------- Get UI params ----------------------- */
+/* ----------------------- Params ----------------------- */
 function getTHR(){ return parseInt(ui.thr.value,10); }
 function getCAP(){ return parseFloat(ui.cap.value); }
 function getAlpha(){ return parseFloat(ui.alpha.value); }
+function getOptSec(){ return parseFloat(ui.optSec.value); }
+function getSQW(){ return parseFloat(ui.sqw.value); }
 function getMode(){
-  const v = ui.modeSel.value;
+  const v=ui.modeSel.value;
   if(v==="auto"){
-    // auto depends on stage
+    // auto depends on stage & phase
+    if(currentPhase===PHASE.ONSET || currentPhase===PHASE.AROUSAL) return "gentle";
     if(lastStage==="CALM") return "gentle";
     if(lastStage==="MIXED") return "standard";
     return "standard";
@@ -1178,489 +1089,636 @@ function getMode(){
   return v;
 }
 
-/* ----------------------- Sleep Template selection ----------------------- */
-function chooseSleepTemplate(phi){
-  const sel = ui.sleepTplSel.value;
-  if(sel !== "AUTO") return sel;
-  // choose via sleep bandit
-  sleepBandit.setAlpha(getAlpha());
-  const stageVal = (lastStage==="CALM")?0:((lastStage==="MIXED")?0.5:1.0);
-  const x = makeCtxVec(phi, stageVal, 0);
-  const tpl = sleepBandit.choose(x);
-  return tpl;
-}
+/* ----------------------- Global runtime state ----------------------- */
+let running=false, timer=null, lastTick=0;
+let lastT=0, dtLast=1/LOGIC_HZ;
 
+let pid={ integ:0, integMax:0.9 };
+let currentY=0;
+let lastStage="CALM";
+let currentPhase=PHASE.ONSET;
+
+let selectedSleepTpl="PINK_SOFTGUIDE";
+let selectedLevel="SOFT";
+let selectedActionKey="MASK_PINK::0.00";
+let selectedToken="MASK_PINK";
+let selectedRho=0.0;
+
+let option = {
+  active:false,
+  t0:0,
+  tEnd:0,
+  ctx:null,
+  levelAtStart:"SOFT",
+  actionKey:null,
+  stats:{ sumDelta:0, sumU:0, sumT:0, strongCount:0, uPeak:0 }
+};
+
+// Session summary (A)
+let session = null;
+
+// Current CIEU event (A + CIEU structure)
+let cieu=null;
+let eventBelowStart=null;
+
+/* ----------------------- Output control ----------------------- */
+function setMasterGain(on){
+  if(!audioCtx) return;
+  const t=audioCtx.currentTime;
+  outMaster.gain.cancelScheduledValues(t);
+  outMaster.gain.setValueAtTime(outMaster.gain.value, t);
+  outMaster.gain.linearRampToValueAtTime(on?1.0:0.0, t+(on?0.6:0.4));
+}
+function setSleepGain(g){
+  if(!audioCtx) return;
+  const t=audioCtx.currentTime;
+  outBusSleep.gain.cancelScheduledValues(t);
+  outBusSleep.gain.setValueAtTime(outBusSleep.gain.value, t);
+  outBusSleep.gain.linearRampToValueAtTime(g, t+0.6);
+}
+function setIntGain(g){
+  if(!audioCtx) return;
+  const t=audioCtx.currentTime;
+  outBusInt.gain.cancelScheduledValues(t);
+  outBusInt.gain.setValueAtTime(outBusInt.gain.value, t);
+  outBusInt.gain.linearRampToValueAtTime(g, t+0.08);
+}
 function applySleepTemplate(tpl){
   if(!audioCtx) return;
   stopGraph(currentSleepGraph);
   currentSleepGraph = buildSleepTemplate(audioCtx, tpl);
   currentSleepGraph.node.connect(outBusSleep);
-  selectedSleepTemplate = tpl;
+  selectedSleepTpl=tpl;
   setPill("tplNow", tpl, "ok");
 }
-
-/* ----------------------- Intervention selection ----------------------- */
-function chooseInterventionAction(phi, deltaNorm){
-  intBandit.setAlpha(getAlpha());
-  const stageVal = (lastStage==="CALM")?0:((lastStage==="MIXED")?0.5:1.0);
-  const x = makeCtxVec(phi, stageVal, deltaNorm);
-  const a = intBandit.choose(x);
-  return { actionKey:a, x };
-}
-
-function parseActionKey(a){
-  const [tok, r] = a.split("::");
-  return { token: tok, rho: parseFloat(r) };
-}
-
-function applyInterventionToken(token){
+function applyInterventionToken(tok){
   if(!audioCtx) return;
   stopGraph(currentIntGraph);
-  currentIntGraph = buildInterventionGraph(audioCtx, token);
+  currentIntGraph = buildInterventionGraph(audioCtx, tok);
   currentIntGraph.node.connect(outBusInt);
-  selectedIntToken = token;
-  setPill("tokenNow", token, "ok");
+  selectedToken=tok;
+  setPill("tokenNow", tok, "ok");
 }
 
-/* ----------------------- CIEU helpers ----------------------- */
-function startCIEU(t, Ystart){
-  const phi0 = buildFieldPhi();
-  const mode = getMode();
+/* ----------------------- Phase detection (A/C) ----------------------- */
+function updatePhase(phiS, phiM, phiL){
+  // AROUSAL proxy: high slew usage + not calm
+  const arousal = (duUsed() > 0.35) && (lastStage!=="CALM");
+  const onsetDone = session?.sleepLatencySec != null;
 
-  cieuEvent = {
-    id: `cieu_${Math.floor(Date.now())}_${Math.floor(Math.random()*1e6)}`,
+  if(!onsetDone){
+    currentPhase = PHASE.ONSET;
+    return;
+  }
+  if(arousal){
+    currentPhase = PHASE.AROUSAL;
+    return;
+  }
+  // EVENT if currently in event
+  if(cieu) { currentPhase = PHASE.EVENT; return; }
+  // STABLE if long snoreRatio low and calm
+  const stable = (phiL.snoreRatio < 0.12) && (phiM.snoreRatio < 0.20) && (lastStage==="CALM" || lastStage==="MIXED");
+  currentPhase = stable ? PHASE.STABLE : PHASE.EVENT; // idle but trending: treat as EVENT-ish
+}
+
+/* ----------------------- Sleep latency proxy (A) ----------------------- */
+let onsetStableAccum=0;
+function updateSleepLatencyProxy(phiM){
+  if(!session || session.sleepLatencySec!=null) return;
+  // Criteria for “asleep-ish”: mid-window calm + low snoreRatio + low intervention
+  const asleepish = (phiM.Ymean < getTHR()*0.95) && (phiM.snoreRatio < 0.12) && (outBusInt.gain.value < getCAP()*0.25);
+  if(asleepish) onsetStableAccum += dtLast;
+  else onsetStableAccum = Math.max(0, onsetStableAccum - 0.5*dtLast);
+
+  // need sustained calm for 180s
+  if(onsetStableAccum >= 180){
+    session.sleepLatencySec = Math.round((lastT - session.t0)*1.0);
+    logLine(`[A] SleepLatencyProxy=${session.sleepLatencySec}s (sustained calm 180s)`);
+    // after onset, keep sleep bed lower
+    setSleepGain(0.45);
+  }
+}
+
+/* ----------------------- Bandit decisions (D) ----------------------- */
+function chooseSleepTpl(ctx){
+  const sel=ui.sleepTplSel.value;
+  if(sel!=="AUTO") return sel;
+  sleepBandit.setAlpha(getAlpha());
+  return sleepBandit.choose(ctx);
+}
+function chooseLevel(ctx){
+  levelBandit.setAlpha(getAlpha());
+  // During ONSET/AROUSAL bias to SOFT by lowering alpha? (still learned)
+  return levelBandit.choose(ctx);
+}
+function allowedByLevel(level){
+  // Conservative mapping for “do no harm”
+  if(level==="SOFT"){
+    return {
+      capScale: 0.75,
+      tokens: ["MASK_PINK","MASK_MULTI"],
+      rhos: [-0.20,-0.10,0.00,+0.10],
+    };
+  }
+  if(level==="NORMAL"){
+    return {
+      capScale: 1.00,
+      tokens: ["MASK_PINK","MASK_MULTI","MASK_WHITE"],
+      rhos: [-0.20,-0.10,0.00,+0.10,+0.20],
+    };
+  }
+  return {
+    capScale: 1.05,
+    tokens: ["MASK_PINK","MASK_MULTI","MASK_WHITE","BINAURAL"],
+    rhos: [-0.10,0.00,+0.10,+0.20], // avoid too negative in ASSERTIVE to prevent oscillation
+  };
+}
+function chooseLowAction(ctx, level){
+  const allow = allowedByLevel(level);
+  const allowedSet = new Set(buildLowActions(allow.tokens, allow.rhos));
+  // Masked choose: evaluate score for allowed only
+  lowBandit.setAlpha(getAlpha());
+  let best=null, bestScore=-1e9;
+  for(const a of ALL_LOW_ACTIONS){
+    if(!allowedSet.has(a)) continue;
+    // replicate internal scoring
+    const m = lowBandit.models[a] || null;
+    if(!m){
+      // initialize lazily
+      lowBandit.models[a] = { Ainv: eye(dCtx), b: zeros(dCtx), n:0, rSum:0 };
+    }
+    const mm = lowBandit.models[a];
+    const theta = matVec(mm.Ainv, mm.b);
+    const mean = dot(theta, ctx);
+    const bonus = lowBandit.alpha * Math.sqrt(Math.max(0, quad(ctx, mm.Ainv)));
+    const score = mean + bonus;
+    if(score>bestScore){ bestScore=score; best=a; }
+  }
+  return best || "MASK_PINK::0.00";
+}
+
+/* ----------------------- Reward design (A/C/D) ----------------------- */
+// Sleep-quality penalty components
+function sleepQualityCost(optionStats){
+  // Encourage: low u, low strongCount, low slew (du), lower uPeak
+  const sqw = getSQW();
+  const cap = getCAP();
+  const uMean = optionStats.sumT>0 ? optionStats.sumU/optionStats.sumT : 0;
+  const uPeakN = cap>0 ? clamp(optionStats.uPeak/cap,0,2) : 0;
+
+  const strongPenalty = clamp(optionStats.strongCount/2,0,2); // 0..2
+  const duPenalty = clamp(duUsed()/0.8, 0, 2);              // 0..2
+
+  // weighted combination
+  const cost = sqw * (0.45*uMean + 0.35*uPeakN + 0.35*strongPenalty + 0.25*duPenalty);
+  return cost;
+}
+function suppressionBenefit(optionStats){
+  // Benefit: reduce delta (Y - Y*) -> want smaller
+  const meanDelta = optionStats.sumT>0 ? optionStats.sumDelta/optionStats.sumT : 0; // in [0,1]
+  // benefit higher when delta smaller
+  return (1 - clamp(meanDelta,0,1));
+}
+function optionReward(optionStats){
+  const benefit = suppressionBenefit(optionStats);
+  const cost = sleepQualityCost(optionStats);
+  const r = clamp(benefit - cost, -1, 1);
+  return r;
+}
+
+/* ----------------------- CIEU (A) ----------------------- */
+function startEvent(t, ctx, phiS, phiM, phiL){
+  cieu = {
+    id: `cieu_${Date.now()}_${Math.floor(Math.random()*1e6)}`,
     t0_wall: Date.now(),
     t0: t,
     x: {
-      fieldPhiAtStart: phi0,
-      startY: Ystart,
-      modeAtStart: mode,
-      sleepTemplateAtStart: selectedSleepTemplate
+      ctxAtStart: ctx,
+      phiS0: phiS,
+      phiM0: phiM,
+      phiL0: phiL,
+      mode0: getMode(),
+      phase0: currentPhase,
+      sleepTpl0: selectedSleepTpl
     },
     u: {
-      // will fill with action info
-      rl: {
-        segments: []
-      }
+      level: selectedLevel,
+      options: [] // option-level summarized actions & rewards
     },
-    yStar: {
-      E_cf: 0
-    },
+    yStar: { E_cf:0 },
     yOut: {
-      E_ctrl: 0,
-      uEnergy: 0,
-      syntaxPenalty: 0,
-      peakY: Ystart,
-      durationSec: 0
+      E_ctrl:0,
+      uEnergy:0,
+      uPeak:0,
+      strongCount:0,
+      degradedCount:0,
+      peakY: currentY,
+      durationSec:0,
+      fragmentationGapSec: null
     },
-    r: {
-      reward: 0,
-      rewardNorm: 0,
-      components: {}
-    }
+    sleepQuality: {
+      // event-local proxies
+      duSum30s: 0,
+      budgetNorm: 0
+    },
+    r: { reward:0, rewardNorm:0, components:{} }
   };
 
-  lastSegmentT = t;
+  // fragmentation proxy: gap since last event
+  if(session && session.lastEventEndT!=null){
+    cieu.yOut.fragmentationGapSec = Math.max(0, t - session.lastEventEndT);
+  }
 }
+function finishEvent(t){
+  if(!cieu) return;
 
-function finishCIEU(t){
-  if(!cieuEvent) return;
-  cieuEvent.yOut.durationSec = (t - cieuEvent.t0);
-  // reward = benefit - cost
-  const Ecf = cieuEvent.yStar.E_cf;
-  const Ectrl = cieuEvent.yOut.E_ctrl;
-  const uE = cieuEvent.yOut.uEnergy;
-  const syn = cieuEvent.yOut.syntaxPenalty;
+  cieu.yOut.durationSec = (t - cieu.t0);
+  cieu.yOut.degradedCount = syntax.degradedCountTotal;
 
-  const deltaE = Ecf - Ectrl;
-  const benefit = deltaE;
-  const cost = 0.35*uE + 0.80*syn;
-  const reward = benefit - cost;
+  const deltaE = cieu.yStar.E_cf - cieu.yOut.E_ctrl; // higher better
+  // Total sleep-quality cost at event-level: derive from uEnergy, uPeak, strongCount, du
+  const cap=getCAP();
+  const uMean = cieu.yOut.durationSec>0 ? (cieu.yOut.uEnergy/cieu.yOut.durationSec) : 0;
+  const uPeakN = cap>0 ? clamp(cieu.yOut.uPeak/cap,0,2) : 0;
+  const strongPenalty = clamp(cieu.yOut.strongCount/3,0,2);
+  const duPenalty = clamp(duUsed()/0.8,0,2);
 
-  // normalize for stable updates
-  const denom = Math.max(1e-6, Ecf + 0.5*uE + 1);
-  const rewardNorm = clamp(reward/denom, -1, 1);
+  const sqw=getSQW();
+  const cost = sqw * (0.45*uMean + 0.35*uPeakN + 0.35*strongPenalty + 0.25*duPenalty);
 
-  cieuEvent.r.reward = reward;
-  cieuEvent.r.rewardNorm = rewardNorm;
-  cieuEvent.r.components = { deltaE, benefit, cost, Ecf, Ectrl, uEnergy:uE, syntaxPenalty:syn };
+  // Benefit: deltaE normalized
+  const denom = Math.max(1e-6, cieu.yStar.E_cf + 0.5*cieu.yOut.uEnergy + 1);
+  const benefit = deltaE/denom;
 
-  // update thetaY (target functional) using field at start
-  updateThetaYFromReward(cieuEvent.x.fieldPhiAtStart, rewardNorm);
+  const rewardNorm = clamp(benefit - cost, -1, 1);
+  cieu.r.rewardNorm = rewardNorm;
+  cieu.r.reward = rewardNorm * denom;
+  cieu.r.components = { deltaE, benefit, cost, uMean, uPeakN, strongPenalty, duPenalty };
 
-  // also update bandit for segments (already updated online), but we can add a small end-of-event update for stability:
-  // (optional, keep it light)
-  // no extra.
+  // Update thetaY using ctxAtStart
+  updateThetaY(cieu.x.ctxAtStart, rewardNorm);
 
-  CIEU_DB.push(cieuEvent);
+  // session bookkeeping
+  if(session){
+    session.eventCount += 1;
+    session.totalEventSec += cieu.yOut.durationSec;
+    session.sumReward += rewardNorm;
+    session.sumUenergy += cieu.yOut.uEnergy;
+    session.strongCount += cieu.yOut.strongCount;
+    session.uPeak = Math.max(session.uPeak, cieu.yOut.uPeak);
+    session.lastEventEndT = t;
+
+    if(cieu.yOut.fragmentationGapSec!=null){
+      session.gaps.push(cieu.yOut.fragmentationGapSec);
+    }
+  }
+
+  CIEU_DB.push(cieu);
   persistCIEU();
+
   ui.lastCIEU.textContent = JSON.stringify({
-    id: cieuEvent.id,
-    durationSec: cieuEvent.yOut.durationSec,
-    peakY: cieuEvent.yOut.peakY,
-    rewardNorm: cieuEvent.r.rewardNorm,
-    deltaE: cieuEvent.r.components.deltaE,
-    actionLast: cieuEvent.u.rl.segments.slice(-1)[0]?.actionKey || "-"
+    id:cieu.id,
+    durSec: Math.round(cieu.yOut.durationSec),
+    peakY: cieu.yOut.peakY,
+    rewardNorm: fmt(cieu.r.rewardNorm,3),
+    level: cieu.u.level,
+    lastOpt: cieu.u.options.slice(-1)[0]?.actionKey || "-"
   }, null, 2);
 
-  cieuEvent = null;
+  cieu = null;
 }
 
-/* ----------------------- Onset (sleep template bandit reward) ----------------------- */
-function beginOnset(t){
-  onset.active = true;
-  onset.startT = t;
-  onset.sumY = 0;
-  onset.sumT = 0;
-  onset.snoreT = 0;
-  onset.uEnergy = 0;
-  onset.chosenTemplate = null;
+/* ----------------------- Option lifecycle (D) ----------------------- */
+function beginOption(t, ctx, level){
+  option.active=true;
+  option.t0=t;
+  option.tEnd=t + getOptSec();
+  option.ctx=ctx;
+  option.levelAtStart=level;
+  option.stats={ sumDelta:0, sumU:0, sumT:0, strongCount:0, uPeak:0 };
 
-  const phi = buildFieldPhi();
-  onset.ctxAtStart = makeCtxVec(phi, 0, 0);
-  onset.chosenTemplate = chooseSleepTemplate(phi);
-  applySleepTemplate(onset.chosenTemplate);
+  // choose low action under this level
+  const aKey = chooseLowAction(ctx, level);
+  option.actionKey = aKey;
+  const parsed=parseActionKey(aKey);
+  selectedActionKey=aKey;
+  selectedRho=parsed.rho;
+  if(parsed.token !== selectedToken) applyInterventionToken(parsed.token);
+}
+function endOption(t){
+  if(!option.active) return;
+  option.active=false;
 
-  // fade in sleep bus gently
-  outBusSleep.gain.cancelScheduledValues(audioCtx.currentTime);
-  outBusSleep.gain.setValueAtTime(outBusSleep.gain.value, audioCtx.currentTime);
-  outBusSleep.gain.linearRampToValueAtTime(0.85, audioCtx.currentTime + 6.0);
+  // compute option reward
+  const r = optionReward(option.stats);
+  // update low bandit
+  lowBandit.update(option.actionKey, option.ctx, r);
 
-  setPill("statusPill","ONSET","ok");
+  // record option into current CIEU if any
+  if(cieu){
+    cieu.u.options.push({
+      tEnd: t,
+      level: option.levelAtStart,
+      actionKey: option.actionKey,
+      token: selectedToken,
+      rho: selectedRho,
+      r,
+      stats: option.stats
+    });
+  }
+
+  // update session
+  if(session){
+    session.optionCount += 1;
+    session.sumOptReward += r;
+  }
 }
 
-function endOnset(t){
-  if(!onset.active) return;
-  onset.active = false;
+/* ----------------------- Session lifecycle (A) ----------------------- */
+function startSession(t){
+  session = {
+    id: `sess_${Date.now()}`,
+    t0_wall: Date.now(),
+    t0: t,
+    sleepLatencySec: null,
+    eventCount: 0,
+    optionCount: 0,
+    totalEventSec: 0,
+    sumReward: 0,
+    sumOptReward: 0,
+    sumUenergy: 0,
+    strongCount: 0,
+    uPeak: 0,
+    gaps: [],
+    lastEventEndT: null
+  };
+  onsetStableAccum=0;
+  updateSessionView();
+}
+function endSession(t){
+  if(!session) return;
+  const dur = t - session.t0;
+  const evPerHour = dur>0 ? (session.eventCount/(dur/3600)) : 0;
+  const avgGap = session.gaps.length ? (session.gaps.reduce((a,b)=>a+b,0)/session.gaps.length) : null;
+  const avgReward = session.eventCount>0 ? (session.sumReward/session.eventCount) : 0;
+  const avgOpt = session.optionCount>0 ? (session.sumOptReward/session.optionCount) : 0;
 
-  const thr = getTHR();
-  const snoreRatio = onset.sumT>0 ? onset.snoreT/onset.sumT : 0;
-  const Ymean = onset.sumT>0 ? onset.sumY/onset.sumT : 0;
+  const summary = {
+    id: session.id,
+    durationMin: Math.round(dur/60),
+    sleepLatencySec: session.sleepLatencySec,
+    eventCount: session.eventCount,
+    eventsPerHour: fmt(evPerHour,2),
+    totalEventMin: fmt(session.totalEventSec/60,2),
+    avgEventReward: fmt(avgReward,3),
+    avgOptionReward: fmt(avgOpt,3),
+    uPeak: fmt(session.uPeak,3),
+    strongCount: session.strongCount,
+    avgGapSec: (avgGap==null? null : fmt(avgGap,1))
+  };
+  updateSessionView(summary);
 
-  // reward: encourage calm & low snore ratio & low intervention energy during onset
-  // note: during onset we may still have intervention low or off depending on mode
-  const r = clamp( (1 - snoreRatio) * 0.75 + (1 - clamp(Ymean/255,0,1))*0.25 - 0.15*onset.uEnergy, -1, 1);
-
-  // update sleep bandit
-  sleepBandit.update(onset.chosenTemplate, onset.ctxAtStart, r);
-
-  // fade sleep bus down a bit after onset window (keep low bed if you want)
-  outBusSleep.gain.cancelScheduledValues(audioCtx.currentTime);
-  outBusSleep.gain.setValueAtTime(outBusSleep.gain.value, audioCtx.currentTime);
-  outBusSleep.gain.linearRampToValueAtTime(0.45, audioCtx.currentTime + 8.0);
-
-  logLine(`[SleepBandit] tpl=${onset.chosenTemplate} reward=${fmt(r,3)} snoreRatio=${fmt(snoreRatio,3)} Ymean=${fmt(Ymean,1)}`);
+  // store session summary as a pseudo CIEU asset record (optional)
+  CIEU_DB.push({ type:"SESSION_SUMMARY", ...summary, t0_wall: session.t0_wall, t1_wall: Date.now() });
+  persistCIEU();
+}
+function updateSessionView(finalObj=null){
+  const obj = finalObj || session;
+  ui.sessionView.textContent = JSON.stringify(obj, null, 2);
 }
 
-/* ----------------------- Main control loop ----------------------- */
-function setMasterGain(on){
-  if(!audioCtx) return;
-  const t = audioCtx.currentTime;
-  outMaster.gain.cancelScheduledValues(t);
-  outMaster.gain.setValueAtTime(outMaster.gain.value, t);
-  outMaster.gain.linearRampToValueAtTime(on ? 1.0 : 0.0, t + (on ? 0.6 : 0.4));
+/* ----------------------- Sleep template bandit (A/D) ----------------------- */
+function updateSleepTemplate(ctx){
+  const sel = ui.sleepTplSel.value;
+  if(sel==="OFF"){
+    setSleepGain(0.0);
+    setPill("tplNow","OFF","warn");
+    return;
+  }
+  if(sel!=="AUTO"){
+    applySleepTemplate(sel);
+    return;
+  }
+  // AUTO: choose
+  const tpl = chooseSleepTpl(ctx);
+  if(tpl !== selectedSleepTpl) applySleepTemplate(tpl);
 }
 
-function setInterventionGain(u){
-  if(!audioCtx) return;
-  const t = audioCtx.currentTime;
-  // We modulate intervention bus gain to implement u
-  outBusInt.gain.cancelScheduledValues(t);
-  outBusInt.gain.setValueAtTime(outBusInt.gain.value, t);
-  outBusInt.gain.linearRampToValueAtTime(u, t + 0.08);
-}
-
-function setSleepBaseGain(g){
-  if(!audioCtx) return;
-  const t = audioCtx.currentTime;
-  outBusSleep.gain.cancelScheduledValues(t);
-  outBusSleep.gain.setValueAtTime(outBusSleep.gain.value, t);
-  outBusSleep.gain.linearRampToValueAtTime(g, t + 0.4);
+/* ----------------------- Main loop ----------------------- */
+function setPhaseStatusUI(){
+  ui.phaseNow.textContent = currentPhase;
+  ui.levelNow.textContent = selectedLevel;
 }
 
 function controlTick(){
   if(!running) return;
+
   const tNow = nowMs()/1000;
   const dt = (lastTick>0) ? (tNow-lastTick) : (1/LOGIC_HZ);
-  lastTick = tNow;
+  lastTick=tNow;
+  lastT=tNow; dtLast=dt;
 
-  // features
-  const f = computeSpectrumFeatures();
-  currentY = computeY(f);
+  // Feature extraction
+  const feat = computeSpectrumFeatures();
+  currentY = computeY(feat);
 
-  // window sample
-  pushWindowSample({
-    t: tNow,
-    dt,
-    Y: currentY,
-    per: f.periodicity,
-    flat: f.flatness,
-    centroid: f.centroid
-  });
+  // push into multi buffers
+  const sample = { t:tNow, dt, Y:currentY, per:feat.periodicity, flat:feat.flatness, centroid:feat.centroid };
+  pushBuf(bufShort, PHI_SHORT_SEC, sample);
+  pushBuf(bufMid,   PHI_MID_SEC,   sample);
+  pushBuf(bufLong,  PHI_LONG_SEC,  sample);
 
-  const phi = buildFieldPhi();
-  lastStage = estimateStage(phi, currentY);
+  const thr=getTHR();
+  const phiS = buildPhiFrom(bufShort, PHI_SHORT_SEC, thr);
+  const phiM = buildPhiFrom(bufMid,   PHI_MID_SEC,   thr);
+  const phiL = buildPhiFrom(bufLong,  PHI_LONG_SEC,  thr);
 
-  // onset tracking
-  if(onset.active){
-    onset.sumY += currentY*dt;
-    onset.sumT += dt;
-    if(currentY > getTHR()) onset.snoreT += dt;
-    // during onset, intervention energy is usually small; track bus gain squared
-    onset.uEnergy += (outBusInt.gain.value*outBusInt.gain.value)*dt;
-    if((tNow - onset.startT) >= DEFAULT_ONSET_WINDOW_SEC){
-      endOnset(tNow);
-    }
+  lastStage = estimateStage(phiM, currentY);
+
+  // phase update
+  updatePhase(phiS,phiM,phiL);
+  setPhaseStatusUI();
+
+  // sleep latency proxy (A)
+  updateSleepLatencyProxy(phiM);
+
+  // build RL context
+  const ctx = makeCtx(phiS,phiM,phiL);
+
+  // Sleep template: during ONSET keep stronger bed; later reduce
+  if(currentPhase===PHASE.ONSET) setSleepGain(0.75);
+  else setSleepGain(0.45);
+  updateSleepTemplate(ctx);
+
+  // High-level level decision as Options schedule: choose at option boundaries only
+  if(!option.active){
+    // choose level with bias: during ONSET/AROUSAL prefer SOFT by nudging alpha down
+    levelBandit.setAlpha(getAlpha() * (currentPhase===PHASE.ONSET || currentPhase===PHASE.AROUSAL ? 0.7 : 1.0));
+    selectedLevel = chooseLevel(ctx);
+    ui.levelNow.textContent = selectedLevel;
+    beginOption(tNow, ctx, selectedLevel);
   }
 
-  // Determine Y*
-  let Ystar = getTHR();
-  let tau = null;
-  if(cieuEvent){
-    const res = computeYStar(tNow - cieuEvent.t0, cieuEvent.x.startY);
-    Ystar = res.Ystar;
-    tau = res.tau;
-    // store phi snapshot
-    cieuEvent.yStar.lastTau = tau;
-    cieuEvent.yStar.lastPhi = res.phi;
-  }else{
-    // still compute for display
-    const res = computeYStar(0.0, currentY);
-    Ystar = res.Ystar;
-    tau = res.tau;
+  // handle option end
+  if(option.active && tNow >= option.tEnd){
+    endOption(tNow);
+    // start new option immediately
+    levelBandit.setAlpha(getAlpha() * (currentPhase===PHASE.ONSET || currentPhase===PHASE.AROUSAL ? 0.7 : 1.0));
+    selectedLevel = chooseLevel(ctx);
+    beginOption(tNow, ctx, selectedLevel);
   }
 
-  // Decide whether we are in an event
-  const thr = getTHR();
-  const inEvent = !!cieuEvent;
+  // Determine if event starts/ends
   const wantEvent = (currentY > thr);
 
-  if(!inEvent && wantEvent){
-    startCIEU(tNow, currentY);
-    // choose initial action immediately
-    const deltaNorm0 = (currentY - Ystar)/255;
-    const chosen = chooseInterventionAction(phi, deltaNorm0);
-    selectedActionKey = chosen.actionKey;
-    const parsed = parseActionKey(selectedActionKey);
-    selectedRho = parsed.rho;
-    applyInterventionToken(parsed.token);
+  if(!cieu && wantEvent){
+    startEvent(tNow, ctx, phiS,phiM,phiL);
+    // fragmentation proxy
+    if(session && session.lastEventEndT!=null){
+      // stored at startEvent
+    }
   }
 
-  // End event if stable below threshold for some time (hysteresis)
-  if(inEvent && !wantEvent){
-    // simple hysteresis: require 2 seconds below thr
-    if(!cieuEvent._belowStart) cieuEvent._belowStart = tNow;
-    if(tNow - cieuEvent._belowStart > 2.0){
-      finishCIEU(tNow);
-      // gently reduce intervention
-      setInterventionGain(0.0);
-      // if user selected template OFF, keep it off, else keep low sleep bed
+  if(cieu && !wantEvent){
+    if(!eventBelowStart) eventBelowStart = tNow;
+    if(tNow - eventBelowStart > 2.0){
+      finishEvent(tNow);
+      eventBelowStart = null;
+      setIntGain(0.0);
     }
-  }else if(inEvent && wantEvent){
-    cieuEvent._belowStart = null;
+  }else{
+    eventBelowStart = null;
   }
 
   // Control output
-  let uPID = 0, uEff = 0, rho = selectedRho;
-  const mode = getMode();
-
-  // Sleep template management: if user forces OFF, enforce
-  const selTpl = ui.sleepTplSel.value;
-  if(selTpl==="OFF"){
-    setSleepBaseGain(0.0);
-  }else{
-    // keep some sleep bed always, but if event strong, slightly down
-    if(inEvent && lastStage==="DISTURBED") setSleepBaseGain(0.28);
-    else setSleepBaseGain(0.45);
-  }
+  let uPID=0, uEff=0;
+  const mode=getMode();
 
   if(mode==="monitor"){
-    // no anti-snore
-    uEff = 0;
-    setInterventionGain(0);
+    setIntGain(0.0);
+    uEff=0; uPID=0;
   }else{
-    // compute delta
-    const delta = (currentY - Ystar); // 0..255
-    const deltaNorm = clamp(delta/255, -1, 1);
+    // compute Y*
+    let yStar = thr;
+    let tau=null;
+    if(cieu){
+      const elapsed = tNow - cieu.t0;
+      const res = computeYStar(elapsed, cieu.x.phiS0.Ymean || currentY, phiS,phiM,phiL);
+      yStar=res.yStar; tau=res.tau;
+    }else{
+      const res = computeYStar(0, currentY, phiS,phiM,phiL);
+      yStar=res.yStar; tau=res.tau;
+    }
 
-    // PID scaffold: only reacts when delta positive
+    const delta = (currentY - yStar);
+    const deltaNorm = clamp(delta/255, -1, 1);
     const e = Math.max(0, deltaNorm);
+
     const kp = parseFloat(ui.kp.value);
     const ki = parseFloat(ui.ki.value);
 
     pid.integ = clamp(pid.integ + e*dt, 0, pid.integMax);
     uPID = clamp(kp*e + ki*pid.integ, 0, 1);
 
-    // RL residual: u = uPID * (1 + rho)
-    uEff = uPID * (1 + rho);
+    // RL residual with level cap scaling
+    const allow = allowedByLevel(selectedLevel);
+    const cap = getCAP() * allow.capScale;
 
-    // L2 safety + syntax constraints
-    uEff = applySafety(uEff, selectedIntToken);
+    uEff = uPID * (1 + selectedRho);
 
-    // apply output
-    setInterventionGain(uEff);
+    // Safety + DSL
+    uEff = applySafety(uEff, selectedToken, cap, selectedLevel);
 
-    // budget tracking
-    pushBudgetSample(tNow, dt, uEff);
+    // Apply output
+    setIntGain(uEff);
 
-    // Event bookkeeping
-    if(cieuEvent){
-      cieuEvent.yOut.peakY = Math.max(cieuEvent.yOut.peakY, currentY);
+    // bookkeeping (budget)
+    pushBudget(tNow, dt, uEff);
 
-      // Counterfactual energy (E_cf): integrate positive deviation from Y*
-      const dPos = Math.max(0, currentY - Ystar);
-      cieuEvent.yStar.E_cf += (dPos*dPos) * dt;
+    // Option stats accumulation (D)
+    if(option.active){
+      option.stats.sumT += dt;
+      option.stats.sumDelta += clamp(Math.max(0, delta)/255, 0, 1)*dt;
+      option.stats.sumU += (uEff/cap)*dt; // normalized by cap
+      option.stats.uPeak = Math.max(option.stats.uPeak, uEff);
 
-      // Control energy (E_ctrl): integrate u^2
-      cieuEvent.yOut.E_ctrl += (uEff*uEff) * dt;
-
-      cieuEvent.yOut.uEnergy += (uEff*uEff) * dt;
-
-      // syntaxPenalty: count when we degrade or near cap (proxy)
-      if(uEff > 0.75*getCAP()) cieuEvent.yOut.syntaxPenalty += 0.02*dt;
-
-      // Segment update: every SEGMENT_SEC
-      if(tNow - lastSegmentT >= SEGMENT_SEC){
-        const segEnd = tNow;
-        const segStart = lastSegmentT;
-        lastSegmentT = tNow;
-
-        // define segment reward:
-        // benefit: reduction in Y relative to Y* (we use negative delta energy proxy)
-        // cost: uEnergy
-        // Here, approximate with current delta and uEff over segment window.
-        const segDelta = Math.max(0, (currentY - Ystar))/255; // [0,1]
-        // Encourage lower delta & lower u:
-        const rSeg = clamp((1 - segDelta) - 0.40*(uEff/getCAP()), -1, 1);
-
-        const segPhi = buildFieldPhi();
-        const xSeg = makeCtxVec(segPhi, (lastStage==="CALM")?0:((lastStage==="MIXED")?0.5:1), (currentY-Ystar)/255);
-
-        // Update bandit with previous action
-        intBandit.update(selectedActionKey, xSeg, rSeg);
-
-        // Optionally re-choose action mid-event (adaptive)
-        // Only if not too frequent and if stage changed
-        const chosen2 = chooseInterventionAction(segPhi, (currentY-Ystar)/255);
-        selectedActionKey = chosen2.actionKey;
-        const parsed2 = parseActionKey(selectedActionKey);
-        selectedRho = parsed2.rho;
-
-        // Switch token only if changed (avoid clicks)
-        if(parsed2.token !== selectedIntToken){
-          applyInterventionToken(parsed2.token);
-        }
-
-        // record segment into CIEU
-        cieuEvent.u.rl.segments.push({
-          t: segEnd,
-          actionKey: selectedActionKey,
-          token: selectedIntToken,
-          rho: selectedRho,
-          stage: lastStage,
-          Y: currentY,
-          Ystar,
-          uPID,
-          uEff,
-          rewardSeg: rSeg,
-          phi: segPhi
-        });
-      }
+      if(uEff > 0.75*cap) option.stats.strongCount += 1;
     }
+
+    // CIEU event accumulation (A)
+    if(cieu){
+      cieu.yOut.peakY = Math.max(cieu.yOut.peakY, currentY);
+      cieu.yOut.uPeak = Math.max(cieu.yOut.uPeak, uEff);
+      if(uEff > 0.75*cap) cieu.yOut.strongCount += 1;
+
+      const dPos = Math.max(0, currentY - yStar);
+      cieu.yStar.E_cf += (dPos*dPos)*dt;
+      cieu.yOut.E_ctrl += (uEff*uEff)*dt;
+      cieu.yOut.uEnergy += (uEff*uEff)*dt;
+
+      // store sleep-quality stress proxies
+      cieu.sleepQuality.duSum30s = duUsed();
+      const budgetNorm = clamp(budgetUsed() / Math.max(1e-9,(BUDGET_SEC*cap*cap*0.25)),0,2);
+      cieu.sleepQuality.budgetNorm = budgetNorm;
+    }
+
+    // UI Y* & tau
+    ui.yStar.textContent = String(Math.round(yStar));
+    ui.tauNow.textContent = tau ? fmt(tau,2) : "-";
   }
 
-  // UI update
+  // Update UI
   ui.yNow.textContent = String(currentY);
-  ui.yStar.textContent = String(Math.round(Ystar));
-  ui.tauNow.textContent = tau ? fmt(tau,2) : "-";
   ui.uPid.textContent = fmt(uPID,3);
   ui.rhoNow.textContent = fmt(selectedRho,2);
   ui.uEff.textContent = fmt(uEff,3);
   ui.stageNow.textContent = lastStage;
 
-  // UI pills
-  const st = (running ? (cieuEvent ? "EVENT" : (onset.active ? "ONSET":"RUN")) : "IDLE");
+  // status pill
+  const st = cieu ? "EVENT" : (session?.sleepLatencySec==null ? "ONSET" : "RUN");
   if(st==="EVENT") setPill("statusPill","EVENT","bad");
   else if(st==="ONSET") setPill("statusPill","ONSET","ok");
-  else if(st==="RUN") setPill("statusPill","RUN","warn");
-  else setPill("statusPill","IDLE","warn");
+  else setPill("statusPill","RUN","warn");
 
-  // update bandit views (lightweight)
-  if(Math.random()<0.08){
+  // update views occasionally
+  if(Math.random()<0.10){
     ui.sleepBanditView.textContent = JSON.stringify(sleepBandit.summary(10), null, 2);
-    ui.intBanditView.textContent = JSON.stringify(intBandit.summary(12), null, 2);
+    ui.levelBanditView.textContent = JSON.stringify(levelBandit.summary(10), null, 2);
+    ui.intBanditView.textContent = JSON.stringify(lowBandit.summary(14), null, 2);
+    updateSessionView();
   }
 }
 
-/* ----------------------- Session start/stop ----------------------- */
-async function start(){
-  try{
-    ensureAudio();
-    await audioCtx.resume();
-    setPill("audioState", audioCtx.state, "ok");
+/* ----------------------- Sleep bandit training (A) ----------------------- */
+function rewardSleepTemplateAtStop(t){
+  // compute an onset reward if sleepLatencySec exists; else mild penalty
+  if(!session) return;
+  const tpl = selectedSleepTpl;
+  // If user forced a template, skip training in AUTO mode? Here we train only if AUTO selected.
+  if(ui.sleepTplSel.value!=="AUTO") return;
 
-    await ensureMic();
+  const latency = session.sleepLatencySec;
+  // prefer shorter latency, fewer strong interventions, fewer events in first 30 min
+  const dur = t - session.t0;
+  const firstWindow = Math.min(dur, 30*60);
+  const evRate = firstWindow>0 ? session.eventCount/(firstWindow/3600) : 0;
 
-    // initialize default graphs
-    applySleepTemplate("PINK_SOFTGUIDE");
-    applyInterventionToken("MASK_PINK");
-
-    // RL alpha
-    sleepBandit.setAlpha(getAlpha());
-    intBandit.setAlpha(getAlpha());
-
-    // master fade in
-    setMasterGain(true);
-
-    // begin onset
-    beginOnset(nowMs()/1000);
-
-    // run
-    running = true;
-    lastTick = 0;
-    timer = setInterval(controlTick, 1000/LOGIC_HZ);
-
-    logLine("Started. Mic on. Audio running.");
-  }catch(e){
-    console.error(e);
-    logLine("Start failed: " + (e?.message || e));
-    alert("启动失败：请确认浏览器支持麦克风权限，并在 iOS 上确保由用户手势触发音频。");
+  let r=0;
+  if(latency==null){
+    r = -0.2;
+  }else{
+    // normalized: <=10min good, >=30min bad
+    const latScore = clamp(1 - (latency-600)/1200, 0, 1); // 10min->1, 30min->0
+    const strongScore = clamp(1 - session.strongCount/12, 0, 1);
+    const evScore = clamp(1 - evRate/18, 0, 1);
+    r = clamp(0.55*latScore + 0.25*strongScore + 0.20*evScore, -1, 1);
   }
+  sleepBandit.update(tpl, makeCtx(buildPhiFrom(bufShort,PHI_SHORT_SEC,getTHR()), buildPhiFrom(bufMid,PHI_MID_SEC,getTHR()), buildPhiFrom(bufLong,PHI_LONG_SEC,getTHR())), r);
+  logLine(`[SleepBandit] tpl=${tpl} reward=${fmt(r,3)} latency=${latency}`);
 }
 
-function stop(){
-  running = false;
-  if(timer){ clearInterval(timer); timer=null; }
-  // end onset if active
-  endOnset(nowMs()/1000);
-
-  // finish any open event
-  if(cieuEvent){
-    finishCIEU(nowMs()/1000);
-  }
-
-  // fade out
-  if(audioCtx){
-    setInterventionGain(0);
-    setSleepBaseGain(0);
-    setMasterGain(false);
-  }
-
-  logLine("Stopped.");
-  setPill("statusPill","IDLE","warn");
-}
-
-function resetRL(){
-  // clear bandits & thetaY
-  localStorage.removeItem(STORE_SLEEP_BANDIT);
-  localStorage.removeItem(STORE_INT_BANDIT);
-  localStorage.removeItem(STORE_THETA_YSTAR);
-
-  // re-init in memory
-  location.reload();
-}
-
-function exportCIEU(){
+/* ----------------------- Start/Stop ----------------------- */
+function autoBackupExport(){
   const blob = new Blob([JSON.stringify(CIEU_DB, null, 2)], {type:"application/json"});
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
@@ -1670,67 +1728,143 @@ function exportCIEU(){
   URL.revokeObjectURL(url);
 }
 
+async function start(){
+  try{
+    ensureAudio();
+    await audioCtx.resume();
+    setPill("audioState", audioCtx.state, "ok");
+
+    await ensureMic();
+
+    // init graphs
+    applySleepTemplate("PINK_SOFTGUIDE");
+    applyInterventionToken("MASK_PINK");
+
+    // alpha
+    sleepBandit.setAlpha(getAlpha());
+    levelBandit.setAlpha(getAlpha());
+    lowBandit.setAlpha(getAlpha());
+
+    // outputs
+    setMasterGain(true);
+    setSleepGain(0.75);
+    setIntGain(0.0);
+
+    // reset runtime state
+    running=true; lastTick=0;
+    pid.integ=0;
+    option.active=false;
+    cieu=null;
+    eventBelowStart=null;
+    syntax.lastU=0;
+    syntax.strongTimes=[];
+    syntax.strongCountTotal=0;
+    syntax.degradedCountTotal=0;
+    bufShort=[]; bufMid=[]; bufLong=[];
+    budgetBuf=[]; duBuf=[];
+    selectedLevel="SOFT"; selectedRho=0.0; selectedActionKey="MASK_PINK::0.00";
+    currentPhase=PHASE.ONSET;
+    lastStage="CALM";
+
+    startSession(nowMs()/1000);
+
+    timer=setInterval(controlTick, 1000/LOGIC_HZ);
+
+    logLine("Started. Mic on. Audio running. A/B/C/D enabled.");
+  }catch(e){
+    console.error(e);
+    logLine("Start failed: " + (e?.message || e));
+    alert("启动失败：请确认浏览器支持麦克风权限，并在 iOS 上确保由用户手势触发音频。");
+  }
+}
+
+function stop(){
+  const t = nowMs()/1000;
+  running=false;
+  if(timer){ clearInterval(timer); timer=null; }
+
+  // finalize option & event
+  endOption(t);
+  if(cieu) finishEvent(t);
+
+  rewardSleepTemplateAtStop(t);
+  endSession(t);
+
+  // fade out
+  if(audioCtx){
+    setIntGain(0.0);
+    setSleepGain(0.0);
+    setMasterGain(false);
+  }
+
+  // auto-backup
+  if(ui.autoBackup.checked){
+    autoBackupExport();
+  }
+
+  logLine("Stopped.");
+  setPill("statusPill","IDLE","warn");
+}
+
+function resetAll(){
+  localStorage.removeItem(STORE.SLEEP_BANDIT);
+  localStorage.removeItem(STORE.LEVEL_BANDIT);
+  localStorage.removeItem(STORE.INT_BANDIT);
+  localStorage.removeItem(STORE.THETA_Y);
+  location.reload();
+}
+
+function exportCIEU(){
+  autoBackupExport();
+}
+
 function clearCIEU(){
   if(!confirm("确定清空本地 CIEU 吗？（不可撤销）")) return;
-  CIEU_DB = [];
+  CIEU_DB=[];
   persistCIEU();
-  ui.lastCIEU.textContent = "";
+  ui.lastCIEU.textContent="";
   logLine("Local CIEU cleared.");
 }
 
-/* ----------------------- UI handlers ----------------------- */
+/* ----------------------- UI events ----------------------- */
 ui.btnStart.addEventListener("click", start);
 ui.btnStop.addEventListener("click", stop);
-ui.btnResetRL.addEventListener("click", resetRL);
+ui.btnReset.addEventListener("click", resetAll);
 ui.btnExport.addEventListener("click", exportCIEU);
 ui.btnClear.addEventListener("click", clearCIEU);
 
-ui.sleepTplSel.addEventListener("change", () => {
+ui.sleepTplSel.addEventListener("change", ()=>{
   if(!audioCtx) return;
-  const sel = ui.sleepTplSel.value;
+  const sel=ui.sleepTplSel.value;
   if(sel==="OFF"){
-    setSleepBaseGain(0.0);
+    setSleepGain(0.0);
     setPill("tplNow","OFF","warn");
     return;
   }
   if(sel!=="AUTO"){
     applySleepTemplate(sel);
-    outBusSleep.gain.linearRampToValueAtTime(0.65, audioCtx.currentTime + 1.5);
-  }else{
-    // AUTO will be applied at onset start; if running now, choose immediately
-    const phi = buildFieldPhi();
-    const tpl = chooseSleepTemplate(phi);
-    applySleepTemplate(tpl);
   }
 });
-
-ui.alpha.addEventListener("input", () => {
+ui.alpha.addEventListener("input", ()=>{
   sleepBandit.setAlpha(getAlpha());
-  intBandit.setAlpha(getAlpha());
+  levelBandit.setAlpha(getAlpha());
+  lowBandit.setAlpha(getAlpha());
 });
 
 /* ----------------------- Init display ----------------------- */
-ui.cieuCount.textContent = String(CIEU_DB.length);
+persistCIEU();
 ui.sleepBanditView.textContent = JSON.stringify(sleepBandit.summary(10), null, 2);
-ui.intBanditView.textContent = JSON.stringify(intBandit.summary(12), null, 2);
+ui.levelBanditView.textContent = JSON.stringify(levelBandit.summary(10), null, 2);
+ui.intBanditView.textContent = JSON.stringify(lowBandit.summary(14), null, 2);
 ui.lastCIEU.textContent = CIEU_DB.length ? JSON.stringify(CIEU_DB[CIEU_DB.length-1], null, 2) : "";
-
-ui.thrVal.textContent = ui.thr.value;
-ui.capVal.textContent = ui.cap.value;
-ui.alphaVal.textContent = ui.alpha.value;
+ui.sessionView.textContent = "{}";
 
 setPill("audioState","suspended","warn");
 setPill("micState","off","warn");
 setPill("tplNow","-","warn");
 setPill("tokenNow","-","warn");
+setPill("statusPill","IDLE","warn");
 
-/* ----------------------- Helpful notes -----------------------
-  你可以在 GitHub Pages 直接跑：
-  - iOS Safari 必须由按钮触发 AudioContext.resume()（本代码已满足）
-  - 耳机输出更可靠：手机麦克风负责输入，耳机负责输出
-  - 若你想更强的 RL（IQL/CQL）：
-    - 建议把 CIEU JSON 导出到本地，再离线训练，最后回灌策略参数
--------------------------------------------------------------- */
 </script>
 </body>
 </html>
