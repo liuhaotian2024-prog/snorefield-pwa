@@ -3,448 +3,355 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no" />
-  <title>SnoreField — Real Ear Active</title>
+  <title>SnoreField — Visual Truth</title>
   <style>
-    :root{ --bg:#000000; --surface:#1c1c1e; --surface-2:#2c2c2e; --txt:#ffffff; --muted:#8e8e93; --accent:#0a84ff; --accent-glow:rgba(10,132,255,0.4); --danger:#ff453a; --success:#32d74b; --warn:#ff9f0a; }
+    :root{ --bg:#050505; --surface:#111; --txt:#eee; --accent:#0a84ff; --snore:#00f2ff; --target:#ff9f0a; --intv:#ff3b30; }
     html,body{height:100%; overflow:hidden;}
-    body{ margin:0; font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, sans-serif; background:var(--bg); color:var(--txt); display:flex; flex-direction:column; -webkit-font-smoothing: antialiased; }
+    body{ margin:0; font-family: -apple-system, BlinkMacSystemFont, monospace; background:var(--bg); color:var(--txt); display:flex; flex-direction:column; }
     
-    .stage{ flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; position:relative; z-index:10; }
-    .orb-container{ position:relative; width:220px; height:220px; margin-bottom:40px; display:flex; align-items:center; justify-content:center; }
-    
-    .orb{ 
-      width:140px; height:140px; border-radius:50%; 
-      background: linear-gradient(145deg, #2c2c2e, #1c1c1e); 
-      box-shadow: 0 10px 30px rgba(0,0,0,0.5), inset 0 1px 2px rgba(255,255,255,0.1); 
-      border: 1px solid #3a3a3c; 
-      display:flex; align-items:center; justify-content:center; 
-      cursor:pointer; position:relative; z-index:10; 
-      transition: transform 0.1s;
+    /* SCOPE AREA */
+    .scope-container {
+      width: 100%; height: 220px; background: #000;
+      position: relative; border-bottom: 1px solid #333;
     }
-    .orb:active { transform: scale(0.95); }
-    .orb svg{ width:50px; height:50px; fill:var(--txt); }
-    .orb.active{ background: var(--accent); border-color: var(--accent); box-shadow: 0 0 60px var(--accent-glow); }
-    .orb.active svg{ fill:white; }
+    canvas { width: 100%; height: 100%; display: block; }
+    .scope-legend {
+      position: absolute; top: 10px; left: 10px; font-size: 10px; display: flex; gap: 15px; pointer-events: none;
+    }
+    .legend-item { display: flex; align-items: center; gap: 4px; font-weight: bold; }
+    .dot { width: 8px; height: 8px; border-radius: 50%; }
+    
+    /* MAIN CONTROLS */
+    .main-area { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px; gap: 20px; }
+    
+    .status-box { text-align: center; }
+    .status-main { font-size: 24px; font-weight: 800; letter-spacing: 1px; color: var(--txt); }
+    .status-sub { font-size: 12px; color: #666; margin-top: 5px; }
+    
+    .controls { width: 100%; max-width: 320px; display: flex; flex-direction: column; gap: 15px; }
+    
+    .btn-big {
+      width: 100%; padding: 18px; border-radius: 12px; border: none;
+      background: var(--surface); color: var(--txt); font-size: 16px; font-weight: bold;
+      border: 1px solid #333; cursor: pointer; transition: all 0.2s;
+      display: flex; justify-content: center; align-items: center; gap: 10px;
+    }
+    .btn-big.active { background: var(--accent); color: white; border-color: var(--accent); box-shadow: 0 0 20px rgba(10,132,255,0.3); }
+    
+    .slider-group { background: var(--surface); padding: 15px; border-radius: 12px; border: 1px solid #333; }
+    .slider-header { display: flex; justify-content: space-between; font-size: 12px; color: #888; margin-bottom: 10px; }
+    input[type=range] { width: 100%; }
+    
+    /* TEST BUTTON */
+    .btn-test {
+      background: #222; border: 1px solid #444; color: #888; padding: 12px; border-radius: 8px; font-size: 12px; width: 100%; cursor: pointer;
+    }
+    .btn-test:active { background: var(--snore); color: #000; }
 
-    /* RIPPLE SYSTEM */
-    .ripple {
-      position:absolute; top:50%; left:50%; transform: translate(-50%, -50%);
-      width:140px; height:140px; border-radius:50%; 
-      border: 2px solid var(--accent);
-      opacity: 0; pointer-events:none; z-index: 1;
+    /* DEBUG PANEL */
+    .debug-panel {
+      font-family: monospace; font-size: 10px; color: #555; padding: 10px; text-align: center; border-top: 1px solid #222;
     }
-    .orb.active ~ .ripple.r1 { animation: breathe 6s ease-in-out infinite; }
-    .orb.active ~ .ripple.r2 { animation: breathe 6s ease-in-out infinite 0.2s; }
-    
-    @keyframes breathe {
-      0% { width:140px; height:140px; opacity:0; border-color:var(--accent); }
-      50% { width:200px; height:200px; opacity:0.2; } 
-      100% { width:140px; height:140px; opacity:0; }
-    }
-
-    /* INTERVENTION ANIMATION (Aggressive Pulse) */
-    .orb.intervening ~ .ripple.r1 { animation: ping 0.6s cubic-bezier(0, 0.2, 0.8, 1) infinite; border-color: var(--warn); border-width: 6px; opacity: 0.9; }
-    .orb.intervening ~ .ripple.r2 { animation: ping 0.6s cubic-bezier(0, 0.2, 0.8, 1) infinite 0.2s; border-color: var(--warn); opacity: 0.7;}
-    
-    @keyframes ping {
-      0% { width:140px; height:140px; opacity:0.9; }
-      100% { width:340px; height:340px; opacity:0; }
-    }
-    
-    .status-text{ font-size:16px; color:var(--txt); font-weight:600; margin-top:20px; text-align:center; height:24px;}
-    .sub-status { font-size: 12px; color: var(--muted); margin-top: 6px; font-family: monospace; }
-    
-    .controls{ width:100%; max-width:340px; padding:0 24px; box-sizing:border-box; display:flex; flex-direction:column; gap:24px; }
-    .control-group label{ display:flex; justify-content:space-between; font-size:13px; color:var(--muted); margin-bottom:10px; font-weight:600;}
-    .control-group label span.val{ color:var(--txt); font-family:monospace; }
-    
-    input[type=range] { -webkit-appearance:none; width:100%; background:transparent; }
-    input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; height: 24px; width: 24px; border-radius: 50%; background: #fff; cursor: pointer; margin-top: -10px; box-shadow: 0 2px 5px rgba(0,0,0,0.3); }
-    input[type=range]::-webkit-slider-runnable-track { width: 100%; height: 4px; cursor: pointer; background: var(--surface-2); border-radius: 2px; }
-    
-    .select-wrap{ position:relative; }
-    select{ width:100%; -webkit-appearance:none; background:var(--surface); border:none; color:var(--txt); padding:16px; border-radius:14px; font-size:16px; outline:none; }
-    .select-wrap::after{ content:"▼"; position:absolute; right:16px; top:18px; font-size:10px; color:var(--muted); pointer-events:none; }
-    
-    .footer-bar{ padding:30px; display:flex; justify-content:center; gap:30px; background:var(--bg); z-index:20; }
-    .icon-btn{ background:var(--surface); border:none; color:var(--muted); cursor:pointer; padding:12px; border-radius:50%; }
-    .icon-btn:hover{ background:var(--surface-2); color:var(--txt); }
-    
-    .advanced-panel{ position:fixed; top:0; left:0; width:100%; height:100%; background:var(--bg); z-index:30; transform:translateY(100%); transition:transform 0.35s cubic-bezier(0.16, 1, 0.3, 1); display:flex; flex-direction:column; }
-    .advanced-panel.open{ transform:translateY(0); }
-    .adv-header{ padding:20px; display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--surface-2); background:var(--surface); }
-    .adv-content{ flex:1; overflow-y:auto; padding:20px; display:grid; gap:20px; align-content:start; }
-    .card{ background:var(--surface); border-radius:16px; padding:18px; }
-    .grid-row{ display:grid; grid-template-columns:1fr 1fr; gap:12px; }
-    .kpi-box{ background:rgba(255,255,255,0.05); border-radius:10px; padding:10px; text-align:center; }
-    .kpi-box .l{ font-size:10px; color:var(--muted); display:block; margin-bottom:4px;}
-    .kpi-box .v{ font-size:15px; font-weight:700; font-family:monospace; color:#fff; }
-    .btn{ width:100%; padding:14px; border-radius:12px; border:none; background:var(--surface-2); color:var(--txt); font-weight:600; cursor:pointer; font-size:15px; }
-    .btn.danger{ background:rgba(255, 69, 58, 0.15); color:var(--danger); }
-    input[type=checkbox] { transform: scale(1.3); accent-color: var(--accent); }
-    .demo-tag { position: absolute; top: 12px; left: 50%; transform: translateX(-50%); background: #ff9f0a; color: black; font-size: 10px; font-weight: 800; padding: 2px 8px; border-radius: 4px; display: none; z-index: 100; }
-    
-    /* Mic Meter */
-    .mic-meter { height: 6px; background: #333; border-radius: 3px; overflow: hidden; margin-top: 10px; }
-    .mic-fill { height: 100%; width: 0%; background: var(--success); transition: width 0.1s; }
   </style>
 </head>
 <body>
 
-<div class="demo-tag" id="demoTag">DEMO MODE</div>
-
-<div class="stage" id="stage">
-  <div class="orb-container">
-    <div class="orb" id="btnMain">
-      <svg id="iconPlay" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
-      <svg id="iconStop" viewBox="0 0 24 24" style="display:none; transform:scale(0.85);"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>
-    </div>
-    <div class="ripple r1"></div>
-    <div class="ripple r2"></div>
+<div class="scope-container">
+  <div class="scope-legend">
+    <div class="legend-item"><div class="dot" style="background:var(--snore)"></div>SNORE (Input)</div>
+    <div class="legend-item"><div class="dot" style="background:var(--target)"></div>Y* (Field)</div>
+    <div class="legend-item"><div class="dot" style="background:var(--intv)"></div>STIM (Output)</div>
   </div>
+  <canvas id="scope"></canvas>
+</div>
+
+<div class="main-area">
   
-  <div class="status-text" id="mainStatus">System Ready</div>
-  <div class="sub-status" id="subStatus">--</div>
-  
+  <div class="status-box">
+    <div class="status-main" id="stMain">SYSTEM READY</div>
+    <div class="status-sub" id="stSub">Waiting for Mic Input...</div>
+  </div>
+
   <div class="controls">
-    <div class="control-group">
-      <label>Soundscape Mode</label>
-      <div class="select-wrap">
-        <select id="sleepSel">
-          <option value="AUTO">Adaptive Ocean</option>
-          <option value="OCEAN_DEEP">Deep Ocean (Delta)</option>
-          <option value="RAIN_SOFT">Cozy Rain (SMR)</option>
-          <option value="SILENT">Silent Mode (Intervention Only)</option>
-        </select>
+    <button class="btn-big" id="btnPower">
+      <svg width="24" height="24" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg>
+      ACTIVATE
+    </button>
+
+    <div class="slider-group">
+      <div class="slider-header">
+        <span>INTERVENTION STRENGTH</span>
+        <span id="volVal">70%</span>
       </div>
+      <input type="range" id="volRange" min="0" max="1" step="0.05" value="0.7">
     </div>
 
-    <div class="control-group">
-      <label>Max Volume <span class="val" id="volDisplay">70%</span></label>
-      <input id="sleepVol" type="range" min="0" max="1" step="0.05" value="0.7">
-    </div>
+    <button class="btn-test" id="btnTest">HOLD TO SIMULATE SNORE (FORCE)</button>
   </div>
 </div>
 
-<div class="footer-bar">
-  <button class="icon-btn" id="btnSettings">
-    <svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
-  </button>
-  <button class="icon-btn" id="btnQuickExport">
-    <svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-  </button>
-</div>
-
-<div class="advanced-panel" id="advPanel">
-  <div class="adv-header">
-    <div class="adv-title">Lab Console</div>
-    <button class="icon-btn" id="btnCloseAdv">✕</button>
-  </div>
-  <div class="adv-content">
-    <div class="card" style="border:1px solid var(--accent);">
-      <h3 style="color:var(--accent);">Microphone Input</h3>
-      <div class="mic-meter"><div class="mic-fill" id="micFill"></div></div>
-      <div class="kpi-box" style="margin-top:8px;"><span class="l">Raw Level</span><span class="v" id="kRaw">0</span></div>
-      
-      <div class="switch-row" style="margin-top:12px;">
-        <span>Demo Simulation</span>
-        <input type="checkbox" id="demoMode">
-      </div>
-    </div>
-    
-    <div class="card">
-      <h3>Ducking Mixer</h3>
-      <div class="grid-row">
-        <div class="kpi-box"><span class="l">Nature</span><span class="v" id="kNature">0%</span></div>
-        <div class="kpi-box"><span class="l">Beats</span><span class="v" id="kBeats">0%</span></div>
-      </div>
-    </div>
-
-    <div class="card">
-      <h3>Logic</h3>
-      <div class="grid-row">
-        <div class="kpi-box"><span class="l">Snore dB</span><span class="v" id="kY">0</span></div>
-        <div class="kpi-box"><span class="l">Status</span><span class="v" id="kStatus">IDLE</span></div>
-      </div>
-    </div>
-
-    <div class="card">
-      <h3>Data</h3>
-      <div class="grid-row">
-        <button class="btn" id="btnExport">Export Data</button>
-        <button class="btn danger" id="btnReset">Reset</button>
-      </div>
-    </div>
-    <div style="height:60px;"></div>
-  </div>
-</div>
+<div class="debug-panel" id="debugTxt">Initializing...</div>
 
 <script>
 /* =========================================
-   SnoreField v4.0 (Real-Ear Activated)
-   - CRITICAL FIX: Implemented real FFT analysis in controlTick.
-   - SENSITIVITY: Boosted Mic input by 3.0x for easy testing.
-   - VISUALS: Added Mic Meter to prove it's listening.
+   SnoreField v4.1 (Visual Truth)
+   - Scope: Real-time Canvas drawing of Snore(Blue), Target(Orange), Output(Red).
+   - Mic: 5.0x Gain Boost for sensitivity.
+   - Ducking: Extreme compression (100% -> 20%) to make Intervention audible.
    ========================================= */
 
-const $=(id)=>document.getElementById(id);
-const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
-const nowMs=()=>performance.now();
+const $ = (id) => document.getElementById(id);
+const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
 
-/* --- Config --- */
-const CONFIG = {
-  FADE_FLOOR: 0.30,   // Nature floor
-  NATURE_DUCKED: 0.2, // Nature when snoring
-  BEATS_BASE: 0.05,   // Beats when quiet
-  BEATS_BOOST: 0.40,  // Beats when snoring
-  SNORE_THRESH: 35,   // Low threshold for testing
-  SOFT_START: 2.0
+// --- CONFIG ---
+const CFG = {
+  SNORE_THRESH: 35,    // Sensitivity threshold
+  MIC_GAIN: 5.0,       // Digital Pre-amp
+  NATURE_DUCK: 0.20,   // Nature volume when snoring (20%)
+  BEATS_BOOST: 0.80,   // Intervention volume when snoring (80%!)
+  FIELD_TAU: 0.1       // Field stiffness (Y* lag)
 };
 
-/* --- Global State --- */
-let running = false;
-let audioCtx = null, micStream = null, analyser = null, fftData = null;
-let masterGain = null, neuroNode = null;
-let isDemoMode = false;
-let simT = 0;
-let volState = { natureCurrent: 0, beatsCurrent: 0 };
+// --- STATE ---
+let active = false;
+let ctx = null, mic = null, analyser = null, dataArray = null;
+let masterGain = null, neuroGain = null, natureGain = null;
+let oscL = null, oscR = null, lfo = null; // Audio Nodes
 
-/* --- UI Logic --- */
-const ui = {
-  btnMain: $("btnMain"), iconPlay: $("iconPlay"), iconStop: $("iconStop"),
-  status: $("mainStatus"), sub: $("subStatus"), orb: document.querySelector(".orb"),
-  sleepSel: $("sleepSel"), vol: $("sleepVol"), volDisp: $("volDisplay"),
-  btnSettings: $("btnSettings"), btnQuickExport: $("btnQuickExport"),
-  advPanel: $("advPanel"), btnCloseAdv: $("btnCloseAdv"),
-  demoMode: $("demoMode"), micFill: $("micFill"),
-  kpis: { nature: $("kNature"), beats: $("kBeats"), raw: $("kRaw"), y: $("kY"), status: $("kStatus") }
-};
+// DATA BUFFERS FOR SCOPE
+const HISTORY = 300;
+let bufSnore = new Array(HISTORY).fill(0);
+let bufYStar = new Array(HISTORY).fill(0);
+let bufStim  = new Array(HISTORY).fill(0);
 
-ui.btnSettings.addEventListener("click", ()=> ui.advPanel.classList.add("open"));
-ui.btnCloseAdv.addEventListener("click", ()=> ui.advPanel.classList.remove("open"));
-ui.demoMode.addEventListener("change", ()=>{ isDemoMode=ui.demoMode.checked; $("demoTag").style.display=isDemoMode?"block":"none"; });
-ui.vol.addEventListener("input", ()=> ui.volDisp.textContent=Math.round(ui.vol.value*100)+"%");
+// DYNAMICS
+let valSnore = 0;
+let valYStar = 0; // The Field Target
+let valStim = 0;  // The Red Line
+let volNature = 1.0; // The Ducking Envelope
 
-function setUIState(active){
-  if(active){
-    ui.btnMain.classList.add("active");
-    ui.iconPlay.style.display="none"; ui.iconStop.style.display="block";
-    ui.status.textContent="Listening...";
-  }else{
-    ui.btnMain.classList.remove("active");
-    ui.iconPlay.style.display="block"; ui.iconStop.style.display="none";
-    ui.orb.classList.remove("intervening"); 
-    ui.status.textContent="System Ready";
-    ui.sub.textContent="--";
-  }
-}
+// UI
+const canvas = $("scope");
+const cCtx = canvas.getContext("2d");
+const debug = $("debugTxt");
 
-/* --- AUDIO ENGINE --- */
+// --- AUDIO GRAPH ---
+async function startAudio() {
+  if (!ctx) ctx = new (window.AudioContext || window.webkitAudioContext)();
+  if (ctx.state === 'suspended') await ctx.resume();
 
-async function initAudio(){
-  if(!audioCtx) audioCtx = new (window.AudioContext||window.webkitAudioContext)({latencyHint:"interactive"});
-  if(audioCtx.state === "suspended") await audioCtx.resume();
-  
-  if(!masterGain){
-    masterGain = audioCtx.createGain();
-    masterGain.gain.value = 1.0; 
-    masterGain.connect(audioCtx.destination);
-  }
-}
-
-async function startMic(){
-  if(isDemoMode) return;
-  if(micStream) return;
+  // 1. Microphone (The Ear)
   try {
-    micStream = await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:false, noiseSuppression:false, autoGainControl:false}});
-    const src = audioCtx.createMediaStreamSource(micStream);
-    analyser = audioCtx.createAnalyser();
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    mic = ctx.createMediaStreamSource(stream);
+    analyser = ctx.createAnalyser();
     analyser.fftSize = 512;
-    analyser.smoothingTimeConstant = 0.5; // Smooth out jitter
-    src.connect(analyser);
-    fftData = new Uint8Array(analyser.frequencyBinCount);
-  } catch(e) {
-    alert("Microphone Error: " + e.message);
-  }
-}
-
-// Nature Node
-function createOceanNode(ctx) {
-    const bSize = 2 * ctx.sampleRate;
-    const b = ctx.createBuffer(1, bSize, ctx.sampleRate);
-    const d = b.getChannelData(0);
-    let lastOut = 0;
-    for (let i=0; i<bSize; i++) {
-        const w = Math.random()*2-1;
-        lastOut = (lastOut + (0.02 * w)) / 1.02;
-        d[i] = lastOut * 3.5; 
-    }
-    const noise = ctx.createBufferSource(); noise.buffer = b; noise.loop = true;
-    const lpf = ctx.createBiquadFilter(); lpf.type = "lowpass"; lpf.frequency.value = 400; 
-    const lfo = ctx.createOscillator(); lfo.frequency.value = 0.12;
-    const lfoGain = ctx.createGain(); lfoGain.gain.value = 0.3;
-    const baseGain = ctx.createGain(); baseGain.gain.value = 1.5; 
-    lfo.connect(lfoGain); lfoGain.connect(baseGain.gain);
-    noise.connect(lpf); lpf.connect(baseGain);
-    return { output: baseGain, start: ()=>{ noise.start(); lfo.start(); }, stop: ()=>{ noise.stop(); lfo.stop(); } };
-}
-
-// Neuro Graph
-function createNeuroGraph(ctx, carrier, beat, type) {
-    const merger = ctx.createChannelMerger(2);
-    let oscL=null, oscR=null;
-    const beatsGainL = ctx.createGain(); beatsGainL.gain.value = 0; 
-    const beatsGainR = ctx.createGain(); beatsGainR.gain.value = 0;
-    
-    // Always load oscillator
-    const c = (carrier === 0) ? 200 : carrier;
-    const b = (beat === 0) ? 6 : beat;
-    oscL = ctx.createOscillator(); oscL.frequency.value = c;
-    oscR = ctx.createOscillator(); oscR.frequency.value = c + b;
-    oscL.connect(beatsGainL); beatsGainL.connect(merger, 0, 0);
-    oscR.connect(beatsGainR); beatsGainR.connect(merger, 0, 1);
-    
-    let nature = null;
-    const natureGain = ctx.createGain(); 
-    natureGain.gain.value = 0.5; 
-    
-    if(type !== "SILENT") {
-      nature = createOceanNode(ctx);
-      nature.output.connect(natureGain);
-      natureGain.connect(merger, 0, 0); 
-      natureGain.connect(merger, 0, 1);
-    }
-
-    merger.connect(masterGain);
-    
-    return {
-      beatsL: beatsGainL, beatsR: beatsGainR, natureGain: natureGain,
-      start: () => { if(oscL){oscL.start(); oscR.start();} if(nature) nature.start(); },
-      stop: () => { if(oscL){oscL.stop(); oscR.stop();} if(nature) nature.stop(); }
-    };
-}
-
-async function startAudio(mode){
-  await initAudio();
-  await startMic(); // CRITICAL: Start Mic
-  
-  if(neuroNode) { neuroNode.stop(); neuroNode = null; }
-
-  let carrier=200, beat=6; 
-  if(mode === "OCEAN_DEEP") { carrier=150; beat=2; }
-  if(mode === "RAIN_SOFT") { carrier=250; beat=14; }
-  
-  neuroNode = createNeuroGraph(audioCtx, carrier, beat, mode);
-  neuroNode.start();
-  
-  const isSilent = mode === "SILENT";
-  volState.natureCurrent = isSilent ? 0 : 0.5;
-  volState.beatsCurrent = 0;
-  
-  const t = audioCtx.currentTime;
-  masterGain.gain.cancelScheduledValues(t);
-  masterGain.gain.setValueAtTime(0, t);
-  masterGain.gain.linearRampToValueAtTime(parseFloat(ui.vol.value), t + CONFIG.SOFT_START);
-}
-
-/* --- LOGIC LOOP --- */
-
-function controlTick(){
-  if(!running) return;
-  
-  let y = 0;
-  
-  // --- REAL INPUT LOGIC ---
-  if(isDemoMode){
-    simT += 0.1;
-    y = 30 + (simT > 5 ? 50 * (Math.sin(simT)+1)/2 : Math.random()*5); 
-  } else if(analyser && fftData) {
-    // CRITICAL: Actually Read Data
-    analyser.getByteFrequencyData(fftData);
-    let sum = 0;
-    // Only check low freq (first 20 bins)
-    for(let i=0; i<20; i++) sum += fftData[i];
-    y = sum / 20; 
-    
-    // BOOST SENSITIVITY FOR DEMO
-    y = y * 3.0; 
-  }
-  
-  y = clamp(y, 0, 255);
-  
-  // UI Mic Meter
-  ui.micFill.style.width = Math.min(100, y/1.5) + "%";
-  ui.kpis.raw.textContent = Math.round(y);
-  
-  const isSnoring = y > CONFIG.SNORE_THRESH;
-  const isSilentMode = ui.sleepSel.value === "SILENT";
-  
-  // --- VISUAL ---
-  if(isSnoring) ui.orb.classList.add("intervening");
-  else ui.orb.classList.remove("intervening");
-
-  // --- DUCKING (Nature) ---
-  let natureTarget = isSilentMode ? 0.0 : CONFIG.FADE_FLOOR;
-  if(isSnoring && !isSilentMode) natureTarget = CONFIG.NATURE_DUCKED; // Duck down
-  else if(!isSilentMode && !isSnoring) natureTarget = 1.0; // Restore full volume
-  
-  if(volState.natureCurrent < natureTarget) volState.natureCurrent += 0.02; 
-  else volState.natureCurrent -= 0.05; // Duck fast
-  volState.natureCurrent = clamp(volState.natureCurrent, 0, 1.0);
-
-  // --- BOOST (Beats) ---
-  let beatsTarget = isSilentMode ? 0.0 : CONFIG.BEATS_BASE;
-  if(isSnoring) beatsTarget = CONFIG.BEATS_BOOST;
-  
-  if(volState.beatsCurrent < beatsTarget) volState.beatsCurrent += 0.05; // Attack fast
-  else volState.beatsCurrent -= 0.02; // Release slow
-  
-  // --- OUTPUT ---
-  if(neuroNode && audioCtx) {
-     const userVol = parseFloat(ui.vol.value);
-     neuroNode.natureGain.gain.setTargetAtTime(volState.natureCurrent * userVol, audioCtx.currentTime, 0.1);
-     neuroNode.beatsL.gain.setTargetAtTime(volState.beatsCurrent * userVol, audioCtx.currentTime, 0.1);
-     neuroNode.beatsR.gain.setTargetAtTime(volState.beatsCurrent * userVol, audioCtx.currentTime, 0.1);
+    analyser.smoothingTimeConstant = 0.3; // Fast reaction
+    mic.connect(analyser);
+    dataArray = new Uint8Array(analyser.frequencyBinCount);
+  } catch (e) {
+    alert("Mic Error: " + e.message);
+    return;
   }
 
-  // --- UI ---
-  ui.kpis.nature.textContent = Math.round(volState.natureCurrent*100)+"%";
-  ui.kpis.beats.textContent = Math.round(volState.beatsCurrent*100)+"%";
-  ui.kpis.y.textContent = Math.round(y);
-  ui.kpis.status.textContent = isSnoring ? "INTERVENING!" : "MONITORING";
-  ui.kpis.status.style.color = isSnoring ? "var(--warn)" : "var(--txt)";
+  // 2. Output Graph
+  masterGain = ctx.createGain();
+  masterGain.connect(ctx.destination);
+  masterGain.gain.value = parseFloat($("volRange").value);
+
+  // 3. Nature Track (Pink Noise + LPF) -> Ocean
+  // We use simple noise here to ensure browser compatibility and speed
+  const bSize = 2 * ctx.sampleRate;
+  const b = ctx.createBuffer(1, bSize, ctx.sampleRate);
+  const d = b.getChannelData(0);
+  for (let i = 0; i < bSize; i++) d[i] = (Math.random() * 2 - 1) * 0.5;
+  
+  const noise = ctx.createBufferSource();
+  noise.buffer = b; noise.loop = true;
+  const lpf = ctx.createBiquadFilter();
+  lpf.type = "lowpass"; lpf.frequency.value = 400; // Deep Ocean
+  natureGain = ctx.createGain();
+  natureGain.gain.value = 0.5; // Start volume
+
+  noise.connect(lpf);
+  lpf.connect(natureGain);
+  natureGain.connect(masterGain);
+  noise.start();
+
+  // 4. Neuro-Intervention (Binaural Beats)
+  // Left: 200Hz, Right: 206Hz (Theta 6Hz)
+  // We use a Merger to force stereo separation
+  const merger = ctx.createChannelMerger(2);
+  oscL = ctx.createOscillator(); oscL.frequency.value = 200;
+  oscR = ctx.createOscillator(); oscR.frequency.value = 206;
+  
+  // Connect Oscillators to Merger
+  const gL = ctx.createGain(); gL.gain.value = 1.0;
+  const gR = ctx.createGain(); gR.gain.value = 1.0;
+  oscL.connect(gL); gL.connect(merger, 0, 0);
+  oscR.connect(gR); gR.connect(merger, 0, 1);
+
+  // Neuro Control Gain
+  neuroGain = ctx.createGain();
+  neuroGain.gain.value = 0.0; // Start Silent
+  merger.connect(neuroGain);
+  neuroGain.connect(masterGain);
+
+  oscL.start(); oscR.start();
+  
+  active = true;
+  loop();
+  updateUIState();
+}
+
+function stopAudio() {
+  if (ctx) ctx.close();
+  ctx = null;
+  active = false;
+  updateUIState();
+}
+
+// --- CORE LOGIC LOOP (60fps) ---
+function loop() {
+  if (!active) return;
+  requestAnimationFrame(loop);
+
+  // 1. READ SENSOR (The Blue Line)
+  analyser.getByteFrequencyData(dataArray);
+  let sum = 0;
+  // Focus on low freq (Snore range)
+  for (let i = 0; i < 30; i++) sum += dataArray[i];
+  let rawAvg = sum / 30;
+  
+  // FORCE BUTTON OVERRIDE
+  if($("btnTest").matches(':active')) rawAvg = 100;
+
+  // APPLY DIGITAL GAIN
+  valSnore = Math.min(255, rawAvg * CFG.MIC_GAIN);
+
+  // 2. CALCULATE Y* FIELD (The Orange Line)
+  // Simple dynamics: Y* follows Snore but with lag
+  // dy = (target - y) * tau
+  valYStar += (valSnore - valYStar) * CFG.FIELD_TAU;
+
+  // 3. DECISION LOGIC (The Brain)
+  const isSnoring = valSnore > CFG.SNORE_THRESH;
+
+  // Target Volumes
+  let targetNature = 1.0;
+  let targetStim = 0.0; // Default: No intervention
+
+  if (isSnoring) {
+    // INTERVENTION MODE
+    targetNature = CFG.NATURE_DUCK; // Duck the ocean
+    
+    // Dynamic Stimulation: Proportional to how much we exceed Y*
+    // Stim = (Snore - Threshold) scaled up
+    let severity = (valSnore - CFG.SNORE_THRESH) / 100;
+    targetStim = clamp(severity * 2.0, 0.1, CFG.BEATS_BOOST); 
+  }
+
+  // 4. APPLY ENVELOPES (Smooth Transitions)
+  // Nature moves slow (Attack 0.01)
+  if(volNature < targetNature) volNature += 0.01; else volNature -= 0.05;
+  
+  // Stim moves fast (Attack 0.1)
+  if(valStim < targetStim) valStim += 0.1; else valStim -= 0.02;
+
+  // Clamp
+  volNature = clamp(volNature, 0, 1);
+  valStim = clamp(valStim, 0, 1);
+
+  // 5. UPDATE HARDWARE
+  if(natureGain) natureGain.gain.setTargetAtTime(volNature, ctx.currentTime, 0.05);
+  if(neuroGain) neuroGain.gain.setTargetAtTime(valStim, ctx.currentTime, 0.05);
+
+  // 6. UPDATE BUFFERS (For Chart)
+  bufSnore.push(valSnore); bufSnore.shift();
+  bufYStar.push(valYStar); bufYStar.shift();
+  bufStim.push(valStim * 255); bufStim.shift(); // Scale 0-1 to 0-255 for chart
+
+  // 7. DRAW SCOPE
+  drawScope();
+  
+  // 8. TEXT UPDATE
+  debug.textContent = `IN:${Math.round(valSnore)} | Y*:${Math.round(valYStar)} | OUT:${Math.round(valStim*100)}% | DUCK:${Math.round(volNature*100)}%`;
   
   if(isSnoring) {
-    ui.status.textContent = "Intervention Active";
-    ui.status.style.color = "var(--warn)";
+    $("stMain").textContent = "INTERVENTION ACTIVE";
+    $("stMain").style.color = "var(--intv)";
+    $("stSub").textContent = "Neuro-Modulation Injected";
   } else {
-    ui.status.textContent = isSilentMode ? "Silent Watch" : "Induction Phase";
-    ui.status.style.color = "var(--txt)";
+    $("stMain").textContent = "MONITORING";
+    $("stMain").style.color = "var(--txt)";
+    $("stSub").textContent = "Induction Phase (Ocean)";
   }
-  ui.sub.textContent = ui.sleepSel.value;
 }
 
-/* --- Lifecycle --- */
-let timer = null;
+// --- VISUALIZATION ---
+function drawScope() {
+  const w = canvas.width = canvas.offsetWidth;
+  const h = canvas.height = canvas.offsetHeight;
+  cCtx.clearRect(0, 0, w, h);
+  cCtx.lineWidth = 2;
 
-async function toggleApp(){
-  if(running) {
-    running = false; clearInterval(timer); setUIState(false);
-    if(masterGain && audioCtx) {
-      masterGain.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 1);
-      setTimeout(()=>{ if(neuroNode) neuroNode.stop(); }, 1000);
+  function drawLine(data, color, dash=[]) {
+    cCtx.beginPath();
+    cCtx.strokeStyle = color;
+    cCtx.setLineDash(dash);
+    for (let i = 0; i < data.length; i++) {
+      const x = (i / (data.length - 1)) * w;
+      const y = h - (data[i] / 255) * h;
+      if (i === 0) cCtx.moveTo(x, y); else cCtx.lineTo(x, y);
     }
+    cCtx.stroke();
+  }
+
+  // Draw Order matters: Stim on top
+  drawLine(bufYStar, '#ff9f0a', [5, 5]); // Orange Dashed
+  drawLine(bufSnore, '#00f2ff');         // Blue Solid
+  
+  // Fill Red area when active
+  if(valStim > 0.01) {
+    cCtx.fillStyle = 'rgba(255, 59, 48, 0.2)';
+    cCtx.beginPath();
+    cCtx.moveTo(0, h);
+    for(let i=0; i<bufStim.length; i++){
+       const x = (i / (HISTORY - 1)) * w;
+       const y = h - (bufStim[i] / 255) * h;
+       cCtx.lineTo(x, y);
+    }
+    cCtx.lineTo(w, h);
+    cCtx.fill();
+  }
+  drawLine(bufStim, '#ff3b30');          // Red Solid
+}
+
+// --- UI HANDLERS ---
+function updateUIState() {
+  const btn = $("btnPower");
+  if(active) {
+    btn.innerHTML = "STOP SYSTEM";
+    btn.classList.add("active");
   } else {
-    running = true; setUIState(true); simT = 0;
-    await startAudio(ui.sleepSel.value);
-    timer = setInterval(controlTick, 60); // Faster tick for smoother meter
+    btn.innerHTML = "ACTIVATE BAT-MIND";
+    btn.classList.remove("active");
+    $("stMain").textContent = "SYSTEM OFF";
+    $("stSub").textContent = "Press Activate to Start";
   }
 }
 
-ui.btnMain.addEventListener("click", toggleApp);
-ui.sleepSel.addEventListener("change", ()=>{ if(running) startAudio(ui.sleepSel.value); });
-$("btnReset").addEventListener("click", ()=>location.reload());
-$("btnQuickExport").addEventListener("click", ()=> alert("Data Exported."));
+$("btnPower").addEventListener("click", () => {
+  if (active) stopAudio(); else startAudio();
+});
+
+$("volRange").addEventListener("input", (e) => {
+  $("volVal").textContent = Math.round(e.target.value * 100) + "%";
+  if(masterGain) masterGain.gain.value = parseFloat(e.target.value);
+});
+
+// Init
+updateUIState();
 
 </script>
 </body>
