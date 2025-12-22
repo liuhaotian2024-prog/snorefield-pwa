@@ -11,19 +11,34 @@
       --ok:#31c48d; --warn:#f6ad55; --bad:#fc8181;
       --y:#00f2ff; --ystar:#ff9f0a; --u:#ff3b30;
     }
-    html,body{height:100%; margin:0; background:var(--bg); color:var(--txt); font-family:ui-monospace, Menlo, Monaco, Consolas, monospace;}
+    html,body{
+      height:100%; margin:0; background:var(--bg); color:var(--txt);
+      font-family:ui-monospace, Menlo, Monaco, Consolas, monospace;
+    }
     body{overflow:auto; -webkit-overflow-scrolling:touch;}
 
     .scope-wrap{width:100%; height:260px; background:#000; border-bottom:1px solid #222; position:relative;}
     canvas{width:100%; height:100%; display:block;}
 
-    .legend{position:absolute; top:10px; left:10px; font-size:10px; display:flex; gap:14px; pointer-events:none; opacity:.95;}
+    .legend{
+      position:absolute; top:10px; left:10px; font-size:10px;
+      display:flex; gap:14px; pointer-events:none; opacity:.95;
+    }
     .dot{width:8px; height:8px; border-radius:50%; display:inline-block; margin-right:4px;}
-    .overlay{position:absolute; top:34px; left:10px; font-size:10px; color:#b5b5b5; line-height:1.55; pointer-events:none;}
+    .overlay{
+      position:absolute; top:34px; left:10px; font-size:10px;
+      color:#b5b5b5; line-height:1.55; pointer-events:none;
+    }
     .hi{color:var(--accent); font-weight:800;}
 
-    .top-right{position:absolute; top:10px; right:10px; display:flex; flex-direction:column; gap:6px; align-items:flex-end;}
-    .pill{padding:4px 9px; border:1px solid #333; border-radius:999px; font-size:10px; color:#bbb; background:rgba(0,0,0,.35);}
+    .top-right{
+      position:absolute; top:10px; right:10px;
+      display:flex; flex-direction:column; gap:6px; align-items:flex-end;
+    }
+    .pill{
+      padding:4px 9px; border:1px solid #333; border-radius:999px;
+      font-size:10px; color:#bbb; background:rgba(0,0,0,.35);
+    }
     .pill.ok{border-color:rgba(49,196,141,.6); color:rgba(49,196,141,.95);}
     .pill.warn{border-color:rgba(246,173,85,.6); color:rgba(246,173,85,.95);}
     .pill.bad{border-color:rgba(252,129,129,.6); color:rgba(252,129,129,.95);}
@@ -48,9 +63,14 @@
     .btn.blue{border-color:#59f; color:#def;}
     .btn.amber{border-color:#fa3; color:#ffe;}
 
-    .grid{display:grid; gap:10px; grid-template-columns: 1fr 1fr; margin:0 12px;}
+    .grid{
+      display:grid; gap:10px; grid-template-columns: 1fr 1fr; margin:0 12px;
+    }
     .card{background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:10px;}
-    .label{font-size:11px; color:var(--muted); display:flex; justify-content:space-between; margin-bottom:6px;}
+    .label{
+      font-size:11px; color:var(--muted);
+      display:flex; justify-content:space-between; margin-bottom:6px;
+    }
     select, input[type="range"]{
       width:100%;
       background:#0c0c0c; border:1px solid #333; border-radius:12px;
@@ -63,7 +83,11 @@
 
     details{margin:12px; border:1px solid var(--line); border-radius:14px; background:#0a0a0a; padding:10px;}
     summary{cursor:pointer; color:#9a9a9a; font-size:11px; font-weight:800;}
-    pre{margin:8px 0 0; padding:10px; border-radius:12px; background:#050505; border:1px solid #222; max-height:280px; overflow:auto; font-size:10px; color:#9aa; white-space:pre-wrap;}
+    pre{
+      margin:8px 0 0; padding:10px; border-radius:12px; background:#050505;
+      border:1px solid #222; max-height:280px; overflow:auto;
+      font-size:10px; color:#9aa; white-space:pre-wrap;
+    }
     .hidden{display:none;}
   </style>
 </head>
@@ -143,7 +167,6 @@
 
   <div class="card">
     <div class="label"><span>THR</span><span id="vThr">80</span></div>
-    <!-- 默认阈值改成 80，更容易触发事件 -->
     <input type="range" id="thr" min="30" max="210" step="1" value="80">
   </div>
 
@@ -308,7 +331,7 @@ function pushDB(item){
   saveJSON(STORE.DB, DB);
 }
 
-/* ================ L0 Audio / Mic ================== */
+/* ============ L0 Audio / Mic ============ */
 let ctx=null, mic=null, analyser=null, fftData=null;
 let outMaster=null, busSleep=null, busNudge=null;
 let sleepGraph=null, currentSleep="OFF";
@@ -358,7 +381,7 @@ function setNudgeBus(level){
   busNudge.gain.linearRampToValueAtTime(level, t+0.05);
 }
 
-/* Sleep sounds (略，与之前一致，保留) */
+/* Sleep sounds */
 function whiteNoise(){
   const n=2*ctx.sampleRate;
   const b=ctx.createBuffer(1,n,ctx.sampleRate);
@@ -450,7 +473,7 @@ function applySleep(name){
   currentSleep=name;
 }
 
-/* ============ DeviceMotion L0（保留） ============ */
+/* ============ DeviceMotion L0 ============ */
 let motion={enabled:false, permitted:false, tiltLR:0, rms:0, moved:false, turnEvent:false, _prevTilt:0};
 function computeTiltLR(gx,gy,gz){
   const denom=Math.max(1e-6, Math.sqrt(gx*gx+gy*gy+gz*gz));
@@ -495,7 +518,7 @@ async function requestMotionPerm(){
   }
 }
 
-/* ============ L1: Features -> Y（简化版，更容易识别打呼噜） ============ */
+/* ============ L1: Features -> Y（保持简化版逻辑） ============ */
 function computeFeatures(){
   analyser.getFloatFrequencyData(fftData);
   const sr=ctx.sampleRate, nyq=sr/2, N=fftData.length;
@@ -508,7 +531,7 @@ function computeFeatures(){
     const pC=Math.max(1e-12,p);
     sumP+=pC; geom+=Math.log(pC); count++;
     if(pC>peakP) peakP=pC;
-    if(f>=60 && f<250) eL+=pC;       // 更宽的低频
+    if(f>=60 && f<250) eL+=pC;
     else if(f>=250 && f<800) eM+=pC;
     else if(f>=800 && f<2500) eH+=pC;
   }
@@ -520,16 +543,15 @@ function computeFeatures(){
 }
 
 function computeY(f){
-  // 直观一点：低频能量 + 周期性 作为主贡献
   let y=0;
-  const lowBand = f.nl + 0.5*f.nm;      // 打呼噜时应该大幅上升
-  const snoreShape = 0.7*f.periodicity + 0.3*(1-f.flatness); // 有节奏 + 非平坦
+  const lowBand = f.nl + 0.5*f.nm;
+  const snoreShape = 0.7*f.periodicity + 0.3*(1-f.flatness);
   y = 0.6*lowBand + 0.4*snoreShape;
   y = clamp(y,0,1);
   return Math.round(y*255);
 }
 
-/* ============ Φ / Phase / Y*（保持原有结构） ============ */
+/* ============ Φ / Phase / Y* ============ */
 let bufS=[],bufM=[],bufL=[],budgetBuf=[],duBuf=[];
 function pushBuf(buf,win,s){buf.push(s); const tt=s.t; while(buf.length && (tt-buf[0].t)>win) buf.shift();}
 function phiFrom(buf,thr){
@@ -542,6 +564,7 @@ function budgetUsed(){let s=0; for(const x of budgetBuf) s+=x.u2; return s;}
 function pushDu(t,dt,absDu){duBuf.push({t,dt,val:absDu*dt}); while(duBuf.length && (t-duBuf[0].t)>CFG.DU_WIN) duBuf.shift();}
 function duUsed(){let s=0; for(const x of duBuf) s+=x.val; return s;}
 
+let phase="IDLE", stage="CALM";
 function estimateStage(phiM,y){
   const a=clamp(phiM.Ymean/255,0,1);
   const b=clamp(phiM.snoreRatio,0,1);
@@ -559,8 +582,6 @@ function updateSleepLatency(phiM,t,dt){
   onsetStable = asleepish ? (onsetStable+dt) : Math.max(0,onsetStable-0.5*dt);
   if(onsetStable>=180) sleepLatencySec=Math.round(t-session.t0);
 }
-
-let phase="IDLE", stage="CALM";
 function updatePhase(phiM,phiL){
   if(!running){ phase="IDLE"; return; }
   if(session && session.inEvent){ phase="EVENT"; return; }
@@ -620,7 +641,7 @@ function applySafety(uEff, cap, t, dt){
   return u;
 }
 
-/* ============ Nudge 调制（保留） ============ */
+/* ============ Nudge actuator ============ */
 function scheduleNudge(pattern,intensity){
   const t0=ctx.currentTime+0.01;
   let freq = 180, attack = 0.03, release = 0.18;
@@ -648,7 +669,7 @@ function scheduleNudge(pattern,intensity){
   nz.start(t0); nz.stop(t0+release);
 }
 
-/* ============ RL（LinUCB 等，原样保留） ============ */
+/* ============ RL: Options + Hierarchical LinUCB ============ */
 function zeros(n){return Array.from({length:n},()=>0);}
 function eye(n){const m=[]; for(let i=0;i<n;i++){const r=zeros(n); r[i]=1; m.push(r);} return m;}
 function dot(a,b){let s=0; for(let i=0;i<a.length;i++) s+=a[i]*b[i]; return s;}
@@ -732,7 +753,7 @@ function chooseMaskedLow(x,level){
 }
 function parseActionKey(a){const [tok,r]=a.split("::"); return {tok, rho:parseFloat(r)};}
 
-/* ============ IF Probe & CIEU （原样保留） ============ */
+/* ============ IF Probe / CIEU（保留） ============ */
 let probe={enabled:false, perHour:0, hourStart:0, inProbe:false, tEnd:0, key:null, accE:0, accD:0, accT:0, abort:0};
 const motifTable=new Map();
 function resetProbeHour(){
@@ -802,11 +823,11 @@ function finishCIEU(t){
   currentCIEU=null;
 }
 
-/* ============ 示波器：Y / Y* / u ============ */
+/* ============ 趋势演示器：Y / Y* / u ============ */
 const cCtx=ui.cvs.getContext("2d");
-let bY=new Array(CFG.SCOPE_N).fill(0);
-let bYs=new Array(CFG.SCOPE_N).fill(0);
-let bU=new Array(CFG.SCOPE_N).fill(0);
+let bY  = new Array(CFG.SCOPE_N).fill(0);
+let bYs = new Array(CFG.SCOPE_N).fill(0);
+let bU  = new Array(CFG.SCOPE_N).fill(0);
 
 function resizeCanvas(){
   const dpr=Math.max(1, window.devicePixelRatio||1);
@@ -819,14 +840,20 @@ function resizeCanvas(){
 window.addEventListener("resize", resizeCanvas);
 resizeCanvas();
 
-function drawScope(Y,Ys,u,thr){
+/**
+ * 这里的 Y / Ys 是 0–255，u 是 0–1
+ * 没有事件时传 0,0,0，三条线趴在底部
+ */
+function drawScope(Y, Ys, u, thr){
   const w=ui.cvs.clientWidth;
   const h=ui.cvs.clientHeight;
   cCtx.clearRect(0,0,w,h);
-  bY.push(Y); bY.shift();
-  bYs.push(Ys); bYs.shift();
-  bU.push(u*255); bU.shift();
 
+  bY.push(Y);  bY.shift();
+  bYs.push(Ys); bYs.shift();
+  bU.push(u);  bU.shift();
+
+  // 阈值虚线，只做背景参考
   const yT=h-(thr/255)*h;
   cCtx.save();
   cCtx.strokeStyle="rgba(255,255,255,0.18)";
@@ -835,20 +862,7 @@ function drawScope(Y,Ys,u,thr){
   cCtx.beginPath(); cCtx.moveTo(0,yT); cCtx.lineTo(w,yT); cCtx.stroke();
   cCtx.restore();
 
-  if(Math.max(...bU)>1){
-    cCtx.fillStyle="rgba(255,59,48,0.18)";
-    cCtx.beginPath();
-    cCtx.moveTo(0,h);
-    for(let i=0;i<bU.length;i++){
-      const xx=i/(bU.length-1)*w;
-      const yy=h-(bU[i]/255)*h;
-      cCtx.lineTo(xx,yy);
-    }
-    cCtx.lineTo(w,h);
-    cCtx.closePath();
-    cCtx.fill();
-  }
-
+  // 蓝线：Y 趋势
   cCtx.strokeStyle="#00f2ff";
   cCtx.lineWidth=1.5;
   cCtx.beginPath();
@@ -859,8 +873,9 @@ function drawScope(Y,Ys,u,thr){
   }
   cCtx.stroke();
 
+  // 橙线：Y* 趋势
   cCtx.strokeStyle="#ff9f0a";
-  cCtx.lineWidth=2.0;
+  cCtx.lineWidth=1.6;
   cCtx.beginPath();
   for(let i=0;i<bYs.length;i++){
     const xx=i/(bYs.length-1)*w;
@@ -869,18 +884,19 @@ function drawScope(Y,Ys,u,thr){
   }
   cCtx.stroke();
 
+  // 红线：u 趋势（0–1）
   cCtx.strokeStyle="#ff3b30";
   cCtx.lineWidth=1.2;
   cCtx.beginPath();
   for(let i=0;i<bU.length;i++){
     const xx=i/(bU.length-1)*w;
-    const yy=h-(bU[i]/255)*h;
+    const yy=h-(bU[i])*h;
     if(i===0) cCtx.moveTo(xx,yy); else cCtx.lineTo(xx,yy);
   }
   cCtx.stroke();
 }
 
-/* ============ Runtime Loop ============ */
+/* ============ Runtime loop ============ */
 let running=false;
 let lastTick=0, t=0, dt=1/CFG.LOGIC_HZ;
 let ambient=0, ambientN=0, dynThr=null, state="IDLE";
@@ -958,7 +974,7 @@ function loop(){
     ambientN++;
     ambient += (Y-ambient)/Math.max(1,ambientN);
     if(nowMs()-session.calibStart>CFG.CALIB_MS){
-      dynThr=thr;          // 阈值完全由滑块决定
+      dynThr=thr;            // 阈值直接由滑块决定
       session.dynThr=dynThr;
       session.ambientYmean=ambient;
       state="RUN";
@@ -995,7 +1011,7 @@ function loop(){
     action._optActive=false;
   }
 
-  const useThr=thr;     // 关键：阈值只由滑块控制
+  const useThr=thr;
   const detectThr=useThr;
 
   if(simulate){ Y=Math.max(Y, detectThr+50); }
@@ -1056,8 +1072,7 @@ function loop(){
   const mode=getMode(phase, stage);
 
   if(probe.inProbe){
-    u=0;
-    setNudgeBus(0);
+    u=0; setNudgeBus(0);
     probe.accE += (exceed*exceed)*dt;
     probe.accD += exceed*dt;
     probe.accT += (Y>useThr)?dt:0;
@@ -1119,9 +1134,7 @@ function loop(){
     setSleepBus(Math.min(sleepBase(),0.25));
   }
 
-  // 示波器门控：只在事件/接近事件时显示真实 Y，否则贴着阈值
-  let Yvis = (!session.inEvent && !wantEvent) ? useThr : Y;
-
+  // === Overlay ===
   ui.oPhase.textContent=phase;
   ui.oStage.textContent=stage;
   ui.oLevel.textContent=action.level;
@@ -1129,12 +1142,23 @@ function loop(){
   ui.oDE.textContent=session.deltaE_if.toFixed(1);
   ui.oTurns.textContent=String(session.turns||0);
   ui.oMotion.textContent=(motion.enabled && motion.permitted)?"ON":"OFF";
-
   session.probePerHour = probe.perHour;
-  session.probeAbort = probe.abort;
-  session.motifs = motifTable.size;
+  session.probeAbort   = probe.abort;
+  session.motifs       = motifTable.size;
 
-  drawScope(Yvis,Ystar,u,useThr);
+  // === 趋势演示器 gating ===
+  // 没有事件，也没有接近阈值的 wantEvent -> 三条线都传 0（贴底）
+  // 有事件/接近阈值 -> 传真实的 Y, Y*, u
+  let trendY  = 0;
+  let trendYs = 0;
+  let trendU  = 0;
+  if (session.inEvent || wantEvent) {
+    trendY  = Y;
+    trendYs = Ystar;
+    trendU  = clamp(u,0,1);
+  }
+  drawScope(trendY, trendYs, trendU, useThr);
+
   setTimeout(loop, 1000/CFG.LOGIC_HZ);
 }
 
@@ -1251,7 +1275,7 @@ ui.btnActivate.addEventListener("click", ()=> running ? stopSystem() : startSyst
 setPill(ui.pillAudio,"warn","audio: suspended");
 setPill(ui.pillMic,"warn","mic: off");
 setPill(ui.pillMotion,"warn","motion: off");
-log("Loaded v8.0 full core (simplified detection). Debug hidden by default.");
+log("Loaded v8.0 full core (trend scope gated). Debug hidden by default.");
 </script>
 </body>
 </html>
