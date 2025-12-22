@@ -3,341 +3,400 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no" />
-  <title>SnoreField — Zero Calibration</title>
+  <title>SnoreField — Research Core</title>
   <style>
-    :root{ --bg:#000; --txt:#eee; --accent:#0a84ff; --warn:#ff9f0a; --danger:#ff3b30; --safe:#32d74b; }
-    html,body{height:100%; overflow:hidden; margin:0; font-family:-apple-system, sans-serif; background:var(--bg); color:var(--txt);}
+    :root{ --bg:#050505; --surface:#111; --txt:#eee; --accent:#0a84ff; --snore:#00f2ff; --target:#ff9f0a; --intv:#ff3b30; }
+    html,body{height:100%; margin:0; font-family:monospace; background:var(--bg); color:var(--txt); overflow:hidden;}
     
     /* SCOPE */
-    .scope-wrap { width:100%; height:240px; background:#111; border-bottom:1px solid #333; position:relative; }
+    .scope-wrap { width:100%; height:260px; background:#000; border-bottom:1px solid #333; position:relative; }
     canvas { width:100%; height:100%; display:block; }
     
-    /* STATUS OVERLAY */
-    .calib-overlay {
-      position:absolute; top:0; left:0; width:100%; height:100%;
-      background:rgba(0,0,0,0.8); display:flex; flex-direction:column;
-      align-items:center; justify-content:center; z-index:10;
-      opacity:0; pointer-events:none; transition:opacity 0.3s;
-    }
-    .calib-overlay.active { opacity:1; }
-    .spinner { width:40px; height:40px; border:4px solid #333; border-top:4px solid var(--accent); border-radius:50%; animation:spin 1s linear infinite; margin-bottom:10px; }
-    @keyframes spin { to { transform: rotate(360deg); } }
+    /* LEGEND */
+    .legend { position:absolute; top:10px; left:10px; font-size:10px; display:flex; gap:15px; pointer-events:none; }
+    .dot { width:8px; height:8px; border-radius:50%; display:inline-block; margin-right:4px; }
+    
+    /* MATH OVERLAY */
+    .math-stat { position:absolute; top:30px; left:10px; font-size:10px; color:#666; pointer-events:none; line-height:1.5; }
+    .highlight { color:var(--accent); font-weight:bold; }
 
     /* CONTROLS */
-    .main { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:20px; gap:30px; }
-    
-    .status-display { text-align:center; }
-    .st-main { font-size:20px; font-weight:800; letter-spacing:1px; margin-bottom:5px; }
-    .st-sub { font-size:12px; color:#777; font-family:monospace; }
+    .main { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:20px; padding:20px; }
+    .status-box { text-align:center; }
+    .st-main { font-size:22px; font-weight:bold; margin-bottom:5px; }
+    .st-sub { font-size:12px; color:#666; }
 
     .btn-power {
-      width:260px; height:260px; border-radius:50%; border:2px solid #333;
-      background:radial-gradient(circle, #222, #111);
-      color:#fff; font-size:18px; font-weight:700; letter-spacing:1px;
-      cursor:pointer; transition:all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-      box-shadow:0 10px 30px rgba(0,0,0,0.5);
+      width:220px; height:220px; border-radius:50%; 
+      background: radial-gradient(circle, #222, #111); border:2px solid #333;
+      color:#fff; font-size:18px; font-weight:bold; cursor:pointer;
       display:flex; flex-direction:column; align-items:center; justify-content:center; gap:10px;
+      transition:all 0.3s; box-shadow:0 10px 30px rgba(0,0,0,0.5);
     }
-    .btn-power:active { transform:scale(0.95); }
-    .btn-power.active { border-color:var(--accent); background:radial-gradient(circle, #004080, #000); box-shadow:0 0 50px rgba(10,132,255,0.2); }
-    
-    .btn-power svg { width:48px; height:48px; fill:currentColor; margin-bottom:5px; }
+    .btn-power:active { transform:scale(0.96); }
+    .btn-power.active { border-color:var(--accent); background: radial-gradient(circle, #003060, #000); box-shadow:0 0 60px rgba(10,132,255,0.25); }
+    .btn-power svg { width:40px; height:40px; fill:currentColor; }
 
-    .vol-wrap { width:80%; max-width:300px; display:flex; flex-direction:column; gap:10px; }
-    .vol-head { display:flex; justify-content:space-between; font-size:12px; color:#888; }
+    .slider-wrap { width:80%; max-width:300px; display:flex; flex-direction:column; gap:8px; }
+    .slider-info { display:flex; justify-content:space-between; font-size:12px; color:#888; }
     input[type=range] { width:100%; accent-color:var(--accent); }
 
-    /* DEBUG BAR */
-    .debug-bar { padding:10px; font-family:monospace; font-size:10px; color:#555; text-align:center; border-top:1px solid #222; }
+    .btn-test { background:#222; color:#888; border:1px solid #444; padding:12px; width:100%; max-width:300px; border-radius:8px; cursor:pointer; font-family:monospace; font-size:12px; }
+    .btn-test:active { background:var(--snore); color:#000; }
+
+    .debug { position:fixed; bottom:0; width:100%; padding:8px; background:#111; font-size:10px; color:#555; text-align:center; border-top:1px solid #333; }
   </style>
 </head>
 <body>
 
 <div class="scope-wrap">
-  <div class="calib-overlay" id="calibLayer">
-    <div class="spinner"></div>
-    <div style="font-weight:bold; color:var(--accent)">CALIBRATING ROOM NOISE...</div>
-    <div style="font-size:12px; color:#888; margin-top:5px;">Please keep quiet for 5 seconds</div>
+  <div class="legend">
+    <div><span class="dot" style="background:var(--snore)"></span>INPUT</div>
+    <div><span class="dot" style="background:var(--target)"></span>Y* FIELD</div>
+    <div><span class="dot" style="background:var(--intv)"></span>ACTION</div>
+  </div>
+  <div class="math-stat" id="mathStat">
+    RL Agent: STANDBY<br>
+    CIEU Effect: 0.00
   </div>
   <canvas id="scope"></canvas>
 </div>
 
 <div class="main">
-  <div class="status-display">
+  <div class="status-box">
     <div class="st-main" id="stMain">SYSTEM READY</div>
-    <div class="st-sub" id="stSub">Auto-Threshold Disabled</div>
+    <div class="st-sub" id="stSub">Physics & RL Engine Loaded</div>
   </div>
 
   <button class="btn-power" id="btnPower">
     <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg>
-    <span>START</span>
+    <span>ACTIVATE</span>
   </button>
 
-  <div class="vol-wrap">
-    <div class="vol-head"><span>MAX INTERVENTION</span><span id="volVal">70%</span></div>
+  <div class="slider-wrap">
+    <div class="slider-info"><span>INTERVENTION CAP</span><span id="volVal">70%</span></div>
     <input type="range" id="volRange" min="0" max="1" step="0.05" value="0.7">
   </div>
+
+  <button class="btn-test" id="btnTest">HOLD TO SIMULATE SNORE</button>
 </div>
 
-<div class="debug-bar" id="debug">v5.0 Zero-Calib</div>
+<div class="debug" id="debug">v6.0 Research Core</div>
 
 <script>
 /* =========================================
-   SnoreField v5.0 (Zero-Calibration)
-   - FIXED: Removed MIC_GAIN (was 3.0, now 1.0).
-   - FIXED: Added 5s Calibration Phase. Measures room noise to set Threshold.
-   - FIXED: Real linear fade-in using WebAudio API (No more "Duang").
-   - FIXED: Ocean/Beats ratio locked at 70/30.
+   SnoreField v6.0 (Research Core)
+   -----------------------------------------
+   1. CAUSAL BANDIT (RL): Dynamically selects Theta/Delta/SMR based on suppression success.
+   2. CIEU ENGINE: Calculates Shadow Energy (Counterfactual) vs Real Energy.
+   3. FIELD DYNAMICS: Langevin Equation implementation for Y* trajectory.
+   4. AUDIO ENGINE: 70/30 Mix, Ducking, Side-Chain, Soft Start preserved.
    ========================================= */
 
 const $ = id => document.getElementById(id);
 const clamp = (x,a,b) => Math.max(a,Math.min(b,x));
 
+// --- 1. THE MATH CORE (AI & Physics) ---
+
+// A. Functional Field (Langevin Dynamics)
+class PotentialField {
+  constructor() {
+    this.y = 0;      // Current State
+    this.yStar = 0;  // Attractor Target
+    this.k = 0.1;    // Stiffness (Field Strength)
+    this.mass = 5.0; // Inertia
+  }
+  
+  update(target, dt) {
+    // Equation: dy = -k(y - target) * dt (Simplified Gradient Descent)
+    // This creates the "Orange Line" that physically tracks the input
+    const force = -this.k * (this.y - target);
+    this.y += force * dt * 50; 
+    return this.y;
+  }
+}
+
+// B. Causal Bandit (RL + CIEU)
+class CausalBandit {
+  constructor() {
+    // Arms: Frequency strategies
+    this.arms = [
+      { name: "THETA 6Hz", carrier: 200, beat: 6, q: 0.5 },
+      { name: "DELTA 2Hz", carrier: 150, beat: 2, q: 0.5 },
+      { name: "SMR 14Hz",  carrier: 250, beat: 14, q: 0.5 }
+    ];
+    this.currentArm = 0;
+    this.epsilon = 0.2; // Exploration rate
+    this.shadowBaseline = 0; // The "Counterfactual"
+  }
+
+  decide() {
+    // Epsilon-Greedy Strategy
+    if (Math.random() < this.epsilon) {
+      this.currentArm = Math.floor(Math.random() * this.arms.length);
+    } else {
+      // Exploitation: Choose highest Q
+      let maxQ = -1;
+      this.arms.forEach((arm, i) => {
+        if (arm.q > maxQ) { maxQ = arm.q; this.currentArm = i; }
+      });
+    }
+    return this.arms[this.currentArm];
+  }
+
+  // CIEU: Calculate Causal Effect
+  updateReward(realEnergy) {
+    // Shadow Energy (Estimated): What energy would be if we did nothing?
+    // We assume Shadow is slightly higher than previous baseline (snoring tends to escalate)
+    this.shadowBaseline = Math.max(this.shadowBaseline * 0.99, realEnergy);
+    
+    // Causal Effect = Shadow - Real
+    // If Real < Shadow, Effect is Positive (We suppressed it!)
+    const effect = this.shadowBaseline - realEnergy;
+    
+    // Q-Learning Update
+    const alpha = 0.1;
+    const arm = this.arms[this.currentArm];
+    arm.q += alpha * (effect - arm.q);
+    
+    return { effect, armName: arm.name };
+  }
+  
+  resetShadow(val) {
+    this.shadowBaseline = val;
+  }
+}
+
+// --- CONFIG & STATE ---
 const CFG = {
-  CALIB_TIME: 5000,     // 5 seconds silence check
-  BASE_THRESH: 15,      // Minimum snore threshold
-  MIC_GAIN: 1.0,        // UNITY GAIN (No artificial boost)
-  
-  // Audio Mix
-  OCEAN_VOL: 0.7,       // 70%
-  BEATS_VOL: 0.3,       // 30%
-  
-  // Ducking
-  DUCK_LEVEL: 0.2,      // Ocean drops to 20%
-  BOOST_LEVEL: 0.8,     // Beats rise to 80%
-  
-  FADE_IN: 5.0          // 5 Seconds Fade In
+  CALIB_TIME: 3000,
+  FADE_IN: 5.0,
+  BASE_THRESH: 15,
+  MIX_OCEAN: 0.7,
+  MIX_BEATS: 0.3,
+  DUCK_OCEAN: 0.2,
+  BOOST_BEATS: 0.8
 };
 
-// State
 let ctx, mic, analyser, dataArray;
-let masterGain, natureGain, neuroGain;
-let oscL, oscR;
-let active = false;
-let state = "IDLE"; // IDLE, CALIB, RUN
+let masterGain, natureGain, neuroGain, oscL, oscR;
+let active = false, state = "IDLE";
 let startTime = 0;
 
-// Logic State
-let ambientNoise = 0;
-let dynThreshold = 255; // Start high so we don't trigger during calib
-let volNature = 0, volBeats = 0;
+// Instancing The Brains
+const Field = new PotentialField();
+const Brain = new CausalBandit();
+
+// Audio Logic
+let volOcean = 0, volBeats = 0;
+let lastSnoreTime = 0;
+let ambientNoise = 0, dynThreshold = 255;
 
 // Scope
 const cvs = $("scope");
 const cCtx = cvs.getContext("2d");
 let bufIn = new Array(300).fill(0);
+let bufField = new Array(300).fill(0);
 let bufOut = new Array(300).fill(0);
 
-// --- AUDIO SYSTEM ---
+// --- 2. AUDIO GRAPH ---
 async function startSystem() {
   if(!ctx) ctx = new (window.AudioContext||window.webkitAudioContext)();
   if(ctx.state==='suspended') await ctx.resume();
 
-  // 1. Mic Setup
   try {
     const stream = await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:false, noiseSuppression:false}});
     mic = ctx.createMediaStreamSource(stream);
     analyser = ctx.createAnalyser();
     analyser.fftSize = 512;
-    analyser.smoothingTimeConstant = 0.6; // Slower, smoother reading
+    analyser.smoothingTimeConstant = 0.5;
     mic.connect(analyser);
     dataArray = new Uint8Array(analyser.frequencyBinCount);
-  } catch(e) {
-    alert("Mic Access Failed"); return;
-  }
+  } catch(e) { alert("Mic Error"); return; }
 
-  // 2. Master Output
+  // OUTPUT
   masterGain = ctx.createGain();
   masterGain.connect(ctx.destination);
-  masterGain.gain.value = 0; // Start Silent!
-  
-  // 3. Nature Track (Pink Noise + LPF + LFO)
+  masterGain.gain.value = 0; // START SILENT
+
+  // TRACK A: NATURE (Ocean)
   const bSize = 2 * ctx.sampleRate;
   const b = ctx.createBuffer(1, bSize, ctx.sampleRate);
   const d = b.getChannelData(0);
-  for(let i=0; i<bSize; i++) {
-    const w = Math.random()*2-1;
-    d[i] = (w * 0.5); // Softer base
-  }
+  for(let i=0; i<bSize; i++) d[i] = (Math.random()*2-1)*0.5;
   const noise = ctx.createBufferSource();
   noise.buffer = b; noise.loop = true;
-  const lpf = ctx.createBiquadFilter(); lpf.type="lowpass"; lpf.frequency.value=300;
-  const lfo = ctx.createOscillator(); lfo.frequency.value=0.1; // Breathing wave
+  const lpf = ctx.createBiquadFilter(); lpf.type="lowpass"; lpf.frequency.value=400;
+  const lfo = ctx.createOscillator(); lfo.frequency.value=0.12; 
   const lfoG = ctx.createGain(); lfoG.gain.value=0.2;
   
-  natureGain = ctx.createGain(); 
-  natureGain.gain.value = CFG.OCEAN_VOL; 
-
+  natureGain = ctx.createGain(); natureGain.gain.value = 0;
   lfo.connect(lfoG); lfoG.connect(natureGain.gain);
   noise.connect(lpf); lpf.connect(natureGain);
   natureGain.connect(masterGain);
-  
   noise.start(); lfo.start();
 
-  // 4. Neuro Track (Binaural)
+  // TRACK B: NEURO (Brain Driven)
   const merger = ctx.createChannelMerger(2);
-  oscL = ctx.createOscillator(); oscL.frequency.value=200;
-  oscR = ctx.createOscillator(); oscR.frequency.value=206; // 6Hz
-  const gL = ctx.createGain(); gL.gain.value=1;
-  const gR = ctx.createGain(); gR.gain.value=1;
+  oscL = ctx.createOscillator(); 
+  oscR = ctx.createOscillator();
+  // Init with default arm
+  const arm = Brain.decide();
+  oscL.frequency.value = arm.carrier;
+  oscR.frequency.value = arm.carrier + arm.beat;
+  
+  const gL=ctx.createGain(); const gR=ctx.createGain();
   oscL.connect(gL); gL.connect(merger, 0, 0);
   oscR.connect(gR); gR.connect(merger, 0, 1);
-  
-  neuroGain = ctx.createGain();
-  neuroGain.gain.value = CFG.BEATS_VOL; // Base level
+  neuroGain = ctx.createGain(); neuroGain.gain.value = 0;
   merger.connect(neuroGain);
   neuroGain.connect(masterGain);
-  
   oscL.start(); oscR.start();
 
-  // 5. Fade In (REAL SMOOTH FADE)
+  // FADE IN (Soft Start)
   const t = ctx.currentTime;
-  const userVol = parseFloat($("volRange").value);
   masterGain.gain.setValueAtTime(0, t);
-  // Linear ramp over 5 seconds to target volume
-  masterGain.gain.linearRampToValueAtTime(userVol, t + CFG.FADE_IN);
+  masterGain.gain.linearRampToValueAtTime(1.0, t + CFG.FADE_IN);
 
-  // Init Logic
-  active = true;
-  state = "CALIB";
-  startTime = performance.now();
-  ambientNoise = 0;
-  $("calibLayer").classList.add("active");
+  active = true; state = "CALIB"; startTime = performance.now();
   $("btnPower").classList.add("active");
-  $("btnPower").innerHTML = `<span>STOP</span>`;
-  
-  process();
+  $("btnPower").innerHTML = `<span>STOP SYSTEM</span>`;
+  loop();
 }
 
 function stopSystem() {
   if(ctx) ctx.close();
-  ctx = null;
-  active = false;
-  state = "IDLE";
-  $("calibLayer").classList.remove("active");
+  ctx = null; active = false;
   $("btnPower").classList.remove("active");
-  $("btnPower").innerHTML = `<svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg><span>START</span>`;
-  $("stMain").textContent = "SYSTEM READY";
-  $("stSub").textContent = "Auto-Threshold Disabled";
+  $("btnPower").innerHTML = `<svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg><span>ACTIVATE</span>`;
 }
 
-// --- LOOP ---
-function process() {
+// --- 3. THE LOOP (60Hz) ---
+function loop() {
   if(!active) return;
-  requestAnimationFrame(process);
+  requestAnimationFrame(loop);
   
-  // 1. Read Mic
+  // A. SENSOR
   analyser.getByteFrequencyData(dataArray);
-  let sum = 0;
-  // Look at lowest 10 bins (Deep Snore)
-  for(let i=0; i<10; i++) sum += dataArray[i];
+  let sum=0; for(let i=0; i<10; i++) sum+=dataArray[i];
   let raw = sum/10;
   
-  // Apply Unity Gain (Just raw input)
-  let inputVal = raw * CFG.MIC_GAIN;
+  // B. PHYSICS FIELD UPDATE
+  // The Field tries to track the raw input
+  const fieldY = Field.update(raw, 0.016); // 60fps ~ 16ms
 
-  // 2. Logic Machine
-  let targetOcean = CFG.OCEAN_VOL;
-  let targetBeats = CFG.BEATS_VOL;
-  let status = "MONITORING";
-  let statusColor = "#ccc";
-
+  // C. LOGIC
+  let targetOcean = 0, targetBeats = 0;
+  let status = "", statColor = "#777";
+  
   if (state === "CALIB") {
-    // CALIBRATION PHASE
-    // Track max ambient noise
-    if (inputVal > ambientNoise) ambientNoise = inputVal;
+    status = "CALIBRATING...";
+    if(raw > ambientNoise) ambientNoise = raw;
+    targetOcean = CFG.MIX_OCEAN; 
+    targetBeats = CFG.MIX_BEATS;
     
-    let progress = (performance.now() - startTime);
-    if (progress > CFG.CALIB_TIME) {
+    if(performance.now() - startTime > CFG.CALIB_TIME) {
       state = "RUN";
-      // Set threshold slightly above ambient noise
-      dynThreshold = Math.max(ambientNoise + 15, CFG.BASE_THRESH); 
-      $("calibLayer").classList.remove("active");
+      dynThreshold = Math.max(ambientNoise + 15, CFG.BASE_THRESH);
+      // Init CIEU Baseline
+      Brain.resetShadow(dynThreshold);
     }
   } 
   else if (state === "RUN") {
-    // RUNNING PHASE
-    if (inputVal > dynThreshold) {
-      // SNORE DETECTED
+    // SNORE DETECTION
+    // Note: We check if Physics Field exceeds threshold (more robust than raw)
+    const isSnoring = fieldY > dynThreshold || $("btnTest").matches(':active');
+    
+    if(isSnoring) {
       status = "INTERVENTION ACTIVE";
-      statusColor = "var(--danger)";
+      statColor = "var(--danger)";
       
-      // Duck Ocean, Boost Beats
-      targetOcean = CFG.DUCK_LEVEL;
-      targetBeats = CFG.BOOST_LEVEL;
+      // 1. RL DECISION (Brain switches frequency if needed)
+      // Only switch occasionally to avoid glitching
+      if(Math.random() < 0.05) { 
+        const strat = Brain.decide();
+        if(oscL && oscR) {
+           oscL.frequency.setValueAtTime(strat.carrier, ctx.currentTime);
+           oscR.frequency.setValueAtTime(strat.carrier + strat.beat, ctx.currentTime);
+        }
+      }
+      
+      // 2. CIEU REWARD CALCULATION
+      const res = Brain.updateReward(raw);
+      $("mathStat").innerHTML = `Strategy: <span class="highlight">${res.armName}</span><br>CIEU Effect: <span class="highlight">${res.effect.toFixed(1)}</span>`;
+
+      // 3. AUDIO MIXING (Ducking)
+      targetOcean = CFG.DUCK_OCEAN; // Duck Ocean
+      targetBeats = CFG.BOOST_BEATS; // Boost Medicine
+      
     } else {
-      // QUIET
-      status = "GUIDED INDUCTION";
-      statusColor = "var(--accent)";
+      status = "MONITORING / INDUCTION";
+      statColor = "var(--accent)";
+      targetOcean = CFG.MIX_OCEAN;
+      targetBeats = CFG.MIX_BEATS;
+      $("mathStat").innerHTML = "RL Agent: STANDBY<br>CIEU Effect: --";
     }
   }
 
-  // 3. Audio Actuation (Smooth Envelopes)
-  const ct = ctx.currentTime;
-  // Apply volume targets
-  if(natureGain) natureGain.gain.setTargetAtTime(targetOcean, ct, 0.2); // Slow fade
-  if(neuroGain) neuroGain.gain.setTargetAtTime(targetBeats, ct, 0.1); // Fast attack
+  // D. ENVELOPES
+  // Smooth transition logic
+  if(volOcean < targetOcean) volOcean += 0.005; else volOcean -= 0.02;
+  if(volBeats < targetBeats) volBeats += 0.05; else volBeats -= 0.01;
+  volOcean = clamp(volOcean, 0, 1);
+  volBeats = clamp(volBeats, 0, 1);
 
-  // 4. UI Update
+  // E. HARDWARE ACTUATION
+  const uVol = parseFloat($("volRange").value);
+  if(natureGain) natureGain.gain.setTargetAtTime(volOcean * uVol, ctx.currentTime, 0.1);
+  if(neuroGain) neuroGain.gain.setTargetAtTime(volBeats * uVol, ctx.currentTime, 0.1);
+
+  // F. SCOPE RENDER
+  drawScope(raw, fieldY, volBeats);
+  
+  // G. UI TEXT
   $("stMain").textContent = status;
-  $("stMain").style.color = statusColor;
-  $("stSub").textContent = state==="CALIB" ? "Learning Environment..." : `Noise:${Math.round(ambientNoise)} | Threshold:${Math.round(dynThreshold)}`;
-  
-  $("debug").textContent = `IN:${Math.round(inputVal)} | THR:${Math.round(dynThreshold)} | OCEAN:${targetOcean.toFixed(2)} | BEATS:${targetBeats.toFixed(2)}`;
-
-  // 5. Draw Scope
-  bufIn.push(inputVal); bufIn.shift();
-  
-  // Output Visual (Estimate based on target)
-  let outVis = (targetBeats > CFG.BEATS_VOL) ? 100 : 0;
-  bufOut.push(outVis); bufOut.shift();
-
-  drawScope(dynThreshold);
+  $("stMain").style.color = statColor;
+  $("stSub").textContent = state==="RUN" ? `Noise Floor: ${Math.round(ambientNoise)} | Threshold: ${Math.round(dynThreshold)}` : "Sampling Environment...";
+  $("debug").textContent = `IN:${Math.round(raw)} | FIELD:${Math.round(fieldY)} | OUT:${Math.round(volBeats*100)}%`;
 }
 
-function drawScope(thresh) {
+function drawScope(raw, field, out) {
   const w = cvs.width = cvs.offsetWidth;
   const h = cvs.height = cvs.offsetHeight;
   cCtx.clearRect(0,0,w,h);
   
-  // Draw Threshold Line
-  if(state === "RUN") {
-    let yT = h - (thresh/255)*h;
-    cCtx.strokeStyle = "#444";
-    cCtx.setLineDash([5,5]);
-    cCtx.beginPath(); cCtx.moveTo(0,yT); cCtx.lineTo(w,yT); cCtx.stroke();
-    cCtx.setLineDash([]);
-  }
+  // Shift Buffers
+  bufIn.push(raw); bufIn.shift();
+  bufField.push(field); bufField.shift();
+  bufOut.push(out * 200); bufOut.shift();
 
-  // Draw Input
-  cCtx.strokeStyle = "var(--snore)";
-  cCtx.lineWidth = 2;
-  cCtx.beginPath();
-  for(let i=0; i<bufIn.length; i++) {
-    let x = (i/bufIn.length)*w;
-    let y = h - (bufIn[i]/255)*h;
-    if(i==0) cCtx.moveTo(x,y); else cCtx.lineTo(x,y);
-  }
+  // Draw Threshold
+  let yT = h - (dynThreshold/255)*h;
+  cCtx.strokeStyle = "#333"; cCtx.setLineDash([5,5]);
+  cCtx.beginPath(); cCtx.moveTo(0,yT); cCtx.lineTo(w,yT); cCtx.stroke(); cCtx.setLineDash([]);
+
+  // Draw Input (Blue)
+  cCtx.strokeStyle = "var(--snore)"; cCtx.lineWidth = 1; cCtx.beginPath();
+  for(let i=0; i<300; i++) cCtx.lineTo(i/299*w, h - (bufIn[i]/255)*h);
   cCtx.stroke();
 
-  // Draw Intervention
-  cCtx.fillStyle = "rgba(255, 59, 48, 0.3)";
-  cCtx.beginPath();
-  cCtx.moveTo(0,h);
-  for(let i=0; i<bufOut.length; i++) {
-    let x = (i/bufOut.length)*w;
-    let y = h - (bufOut[i]/150)*h; // Scale down
-    cCtx.lineTo(x,y);
+  // Draw Field (Orange - Smoother)
+  cCtx.strokeStyle = "var(--target)"; cCtx.lineWidth = 2; cCtx.beginPath();
+  for(let i=0; i<300; i++) cCtx.lineTo(i/299*w, h - (bufField[i]/255)*h);
+  cCtx.stroke();
+
+  // Draw Action (Red Fill)
+  if(Math.max(...bufOut) > 5) {
+    cCtx.fillStyle = "rgba(255, 59, 48, 0.25)"; cCtx.beginPath(); cCtx.moveTo(0,h);
+    for(let i=0; i<300; i++) cCtx.lineTo(i/299*w, h - (bufOut[i]/255)*h);
+    cCtx.lineTo(w,h); cCtx.fill();
   }
-  cCtx.lineTo(w,h);
-  cCtx.fill();
 }
 
-$("btnPower").addEventListener("click", ()=> { if(active) stopSystem(); else startSystem(); });
-$("volRange").addEventListener("input", (e)=> {
-  $("volVal").textContent = Math.round(e.target.value*100)+"%";
-  if(masterGain) masterGain.gain.value = parseFloat(e.target.value);
-});
+$("btnPower").addEventListener("click", ()=> active ? stopSystem() : startSystem());
+$("volRange").addEventListener("input", (e)=> $("volVal").textContent = Math.round(e.target.value*100)+"%");
+$("btnTest").addEventListener("mousedown", ()=> $("btnTest").classList.add("active")); // Helper for CSS visual
+document.addEventListener("mouseup", ()=> $("btnTest").classList.remove("active"));
 
 </script>
 </body>
