@@ -142,8 +142,9 @@
   </div>
 
   <div class="card">
-    <div class="label"><span>THR</span><span id="vThr">120</span></div>
-    <input type="range" id="thr" min="45" max="210" step="1" value="120">
+    <div class="label"><span>THR</span><span id="vThr">80</span></div>
+    <!-- 默认阈值改成 80，更容易触发事件 -->
+    <input type="range" id="thr" min="30" max="210" step="1" value="80">
   </div>
 
   <div class="card">
@@ -176,17 +177,7 @@
 </details>
 
 <script>
-/* ==========================================================
-   v8.0 FULL CORE — DO NOT DELETE:
-   - CIEU event-level five-tuple
-   - Options + Hierarchical LinUCB
-   - Dynamic Y* (functional τ(Φ))
-   - IF Probe Level 1 + motif parallel world
-   - Positional nudge pulses (directional ear cues)
-   - Optional DeviceMotion L0 feedback
-   ========================================================== */
-
-/* ---------------- CFG (MUST exist first) ---------------- */
+/* ================= CFG / Helpers / UI ==================== */
 const CFG = {
   LOGIC_HZ: 20,
   SCOPE_N: 360,
@@ -208,18 +199,15 @@ const CFG = {
   PROBE_ABORT_MARGIN: 35
 };
 
-/* ---------------- Helpers / Debug ---------------- */
 const $ = (id)=>document.getElementById(id);
 const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
 const nowMs=()=>performance.now();
 const wallNow=()=>Date.now();
-const fmt=(x,d=3)=> (typeof x==="number"? x.toFixed(d): String(x));
 
 const debugEl=$("debug");
 const log=(s)=>{ debugEl.textContent = String(s)+"\n\n"+debugEl.textContent; };
 window.addEventListener("error",(e)=>{ log(`[JS ERROR] ${e.message} @ ${e.filename}:${e.lineno}:${e.colno}`); });
 
-/* ---------------- UI ---------------- */
 const ui={
   btnActivate:$("btnActivate"),
   btnSelfTest:$("btnSelfTest"),
@@ -309,7 +297,7 @@ function getMode(phase, stage){
   return "standard";
 }
 
-/* ---------------- Storage ---------------- */
+/* Storage */
 const STORE={DB:"snorefield_v8_db"};
 function loadJSON(key,fallback){ try{const raw=localStorage.getItem(key); return raw?JSON.parse(raw):fallback;}catch(e){return fallback;} }
 function saveJSON(key,obj){ try{localStorage.setItem(key,JSON.stringify(obj));}catch(e){} }
@@ -320,9 +308,7 @@ function pushDB(item){
   saveJSON(STORE.DB, DB);
 }
 
-/* =========================================================
-   L0: Audio + Mic
-   ========================================================= */
+/* ================ L0 Audio / Mic ================== */
 let ctx=null, mic=null, analyser=null, fftData=null;
 let outMaster=null, busSleep=null, busNudge=null;
 let sleepGraph=null, currentSleep="OFF";
@@ -371,9 +357,8 @@ function setNudgeBus(level){
   busNudge.gain.setValueAtTime(busNudge.gain.value,t);
   busNudge.gain.linearRampToValueAtTime(level, t+0.05);
 }
-function stopGraph(g){ if(!g) return; try{g.stop();}catch(e){} }
 
-/* Sleep noises */
+/* Sleep sounds (略，与之前一致，保留) */
 function whiteNoise(){
   const n=2*ctx.sampleRate;
   const b=ctx.createBuffer(1,n,ctx.sampleRate);
@@ -434,7 +419,6 @@ function buildSleep(name){
   swellAmp.connect(main);
 
   const sources=[]; let pad=null;
-
   if(name==="OCEAN_SOFT" || name==="OCEAN_PAD"){
     const b=brownNoise(); const p=pinkNoise();
     b.connect(swellAmp); p.connect(swellAmp);
@@ -450,7 +434,6 @@ function buildSleep(name){
   } else if(name==="PINK_SOFT"){
     const p=pinkNoise(); p.connect(swellAmp); sources.push(p);
   }
-
   return {
     node: out,
     start: ()=>{ swell.start(); sources.forEach(s=>s.start()); if(pad) pad.start(); },
@@ -467,9 +450,7 @@ function applySleep(name){
   currentSleep=name;
 }
 
-/* =========================================================
-   DeviceMotion L0
-   ========================================================= */
+/* ============ DeviceMotion L0（保留） ============ */
 let motion={enabled:false, permitted:false, tiltLR:0, rms:0, moved:false, turnEvent:false, _prevTilt:0};
 function computeTiltLR(gx,gy,gz){
   const denom=Math.max(1e-6, Math.sqrt(gx*gx+gy*gy+gz*gz));
@@ -514,44 +495,41 @@ async function requestMotionPerm(){
   }
 }
 
-/* =========================================================
-   L1: Features -> Y
-   ========================================================= */
+/* ============ L1: Features -> Y（简化版，更容易识别打呼噜） ============ */
 function computeFeatures(){
   analyser.getFloatFrequencyData(fftData);
   const sr=ctx.sampleRate, nyq=sr/2, N=fftData.length;
-  let sumP=0,sumF=0,geom=0,count=0;
+  let sumP=0, geom=0, count=0;
   let eL=0,eM=0,eH=0,peakP=0;
   for(let i=0;i<N;i++){
     const f=(i/N)*nyq;
     const db=fftData[i];
     const p=Math.pow(10,(db/10));
     const pC=Math.max(1e-12,p);
-    sumP+=pC; sumF+=f*pC; geom+=Math.log(pC); count++;
+    sumP+=pC; geom+=Math.log(pC); count++;
     if(pC>peakP) peakP=pC;
-    if(f>=60 && f<200) eL+=pC;
-    else if(f>=200 && f<800) eM+=pC;
+    if(f>=60 && f<250) eL+=pC;       // 更宽的低频
+    else if(f>=250 && f<800) eM+=pC;
     else if(f>=800 && f<2500) eH+=pC;
   }
-  const centroid=sumP>0?sumF/sumP:0;
   const flatness=Math.exp(geom/count)/(sumP/count);
   const meanP=sumP/Math.max(1,count);
-  const periodicity=clamp((peakP/Math.max(1e-12,meanP))/20,0,1);
+  const periodicity=clamp((peakP/Math.max(1e-12,meanP))/15,0,1);
   const norm=(x)=>clamp(x/Math.max(1e-9,sumP),0,1);
-  return {nl:norm(eL), nm:norm(eM), nh:norm(eH), centroid, flatness:clamp(flatness,0,1), periodicity};
-}
-function computeY(f){
-  let y=0;
-  // 更偏向低频 / 周期性，弱化宽带噪声（引导音乐）
-  y += 0.60*f.nl + 0.30*f.nm - 0.15*f.nh;
-  y += 0.65*f.periodicity;
-  y += 0.10*(1-f.flatness); // 宽带粉噪 flatness ~1，这一项几乎为 0
-  return Math.round(clamp(y,0,1)*255);
+  return {nl:norm(eL), nm:norm(eM), nh:norm(eH), flatness:clamp(flatness,0,1), periodicity};
 }
 
-/* =========================================================
-   Φ / Phase / Y*
-   ========================================================= */
+function computeY(f){
+  // 直观一点：低频能量 + 周期性 作为主贡献
+  let y=0;
+  const lowBand = f.nl + 0.5*f.nm;      // 打呼噜时应该大幅上升
+  const snoreShape = 0.7*f.periodicity + 0.3*(1-f.flatness); // 有节奏 + 非平坦
+  y = 0.6*lowBand + 0.4*snoreShape;
+  y = clamp(y,0,1);
+  return Math.round(y*255);
+}
+
+/* ============ Φ / Phase / Y*（保持原有结构） ============ */
 let bufS=[],bufM=[],bufL=[],budgetBuf=[],duBuf=[];
 function pushBuf(buf,win,s){buf.push(s); const tt=s.t; while(buf.length && (tt-buf[0].t)>win) buf.shift();}
 function phiFrom(buf,thr){
@@ -582,6 +560,7 @@ function updateSleepLatency(phiM,t,dt){
   if(onsetStable>=180) sleepLatencySec=Math.round(t-session.t0);
 }
 
+let phase="IDLE", stage="CALM";
 function updatePhase(phiM,phiL){
   if(!running){ phase="IDLE"; return; }
   if(session && session.inEvent){ phase="EVENT"; return; }
@@ -617,9 +596,7 @@ function computeYStar(elapsed,startY,phiS,phiM,phiL){
   return {ys,tau};
 }
 
-/* =========================================================
-   Safety DSL
-   ========================================================= */
+/* ============ Safety DSL ============ */
 let lastU=0;
 let strongTimes=[];
 function applySafety(uEff, cap, t, dt){
@@ -643,30 +620,19 @@ function applySafety(uEff, cap, t, dt){
   return u;
 }
 
-/* =========================================================
-   Nudge actuator
-   ========================================================= */
+/* ============ Nudge 调制（保留） ============ */
 function scheduleNudge(pattern,intensity){
   const t0=ctx.currentTime+0.01;
-
-  let freq = 180;
-  let attack = 0.03;
-  let release = 0.18;
-
+  let freq = 180, attack = 0.03, release = 0.18;
   if(pattern === "NUDGE_BREATH"){
-    freq = 90;
-    attack = 0.08;
-    release = 0.32;
+    freq = 90; attack = 0.08; release = 0.32;
   }
-
   const osc=ctx.createOscillator(); osc.type="sine"; osc.frequency.value=freq;
-
   const gain=ctx.createGain();
   gain.gain.setValueAtTime(0.0,t0);
   const A=clamp(0.08+0.32*intensity,0.06,0.40);
   gain.gain.linearRampToValueAtTime(A,t0+attack);
   gain.gain.linearRampToValueAtTime(0.0,t0+release);
-
   const pan=ctx.createStereoPanner();
   let p=0;
   if(pattern==="NUDGE_LEFT") p=-0.85;
@@ -674,24 +640,15 @@ function scheduleNudge(pattern,intensity){
   else if(pattern==="NUDGE_ALT") p=((Math.floor(ctx.currentTime*2)%2)===0)?-0.85:+0.85;
   else p=0;
   pan.pan.setValueAtTime(p,t0);
-
   const nz=pinkNoise();
   const nzG=ctx.createGain(); nzG.gain.value=0.035*intensity;
-
-  osc.connect(gain);
-  gain.connect(pan);
-  pan.connect(busNudge);
-
-  nz.connect(nzG);
-  nzG.connect(busNudge);
-
+  osc.connect(gain); gain.connect(pan); pan.connect(busNudge);
+  nz.connect(nzG); nzG.connect(busNudge);
   osc.start(t0); osc.stop(t0+release);
   nz.start(t0); nz.stop(t0+release);
 }
 
-/* =========================================================
-   RL: Options + Hierarchical LinUCB
-   ========================================================= */
+/* ============ RL（LinUCB 等，原样保留） ============ */
 function zeros(n){return Array.from({length:n},()=>0);}
 function eye(n){const m=[]; for(let i=0;i<n;i++){const r=zeros(n); r[i]=1; m.push(r);} return m;}
 function dot(a,b){let s=0; for(let i=0;i<a.length;i++) s+=a[i]*b[i]; return s;}
@@ -736,7 +693,6 @@ const TOKENS=["NUDGE_LEFT","NUDGE_RIGHT","NUDGE_ALT","NUDGE_BREATH"];
 const RHOS=[-0.20,-0.10,0.00,+0.10,+0.20];
 function buildActs(tokens,rhos){const a=[]; tokens.forEach(t=>rhos.forEach(r=>a.push(`${t}::${r.toFixed(2)}`))); return a;}
 const LOW_ACTS=buildActs(TOKENS,RHOS);
-
 const banditLevel=new LinUCB(LEVELS,8);
 const banditLow=new LinUCB(LOW_ACTS,8);
 
@@ -776,9 +732,7 @@ function chooseMaskedLow(x,level){
 }
 function parseActionKey(a){const [tok,r]=a.split("::"); return {tok, rho:parseFloat(r)};}
 
-/* =========================================================
-   IF Probe L1
-   ========================================================= */
+/* ============ IF Probe & CIEU （原样保留） ============ */
 let probe={enabled:false, perHour:0, hourStart:0, inProbe:false, tEnd:0, key:null, accE:0, accD:0, accT:0, abort:0};
 const motifTable=new Map();
 function resetProbeHour(){
@@ -796,13 +750,8 @@ function canProbe(){
   return true;
 }
 function motifKeyFrom(feat, phiM){
-  const c=clamp(feat.centroid,0,4000);
-  const cBin=Math.round(c/250)*250;
-  const pBin=Math.round(feat.periodicity*10)/10;
-  const lBin=Math.round(feat.nl*10)/10;
-  const mBin=Math.round(feat.nm*10)/10;
   const srBin=Math.round(clamp(phiM.snoreRatio,0,1)*10)/10;
-  return `c${cBin}_p${pBin}_l${lBin}_m${mBin}_sr${srBin}_st${stage}`;
+  return `sr${srBin}_st${stage}`;
 }
 function estimateCycleSec(feat){
   const p=clamp(feat.periodicity,0,1);
@@ -815,18 +764,9 @@ function startProbe(key,cycleSec,t){
   probe.accE=0; probe.accD=0; probe.accT=0;
   probe.perHour++;
 }
-function abortProbe(){
-  probe.inProbe=false;
-  probe.abort++;
-}
-function finishProbe(){
-  motifTable.set(probe.key, {eCycle:probe.accE, dCycle:probe.accD, tCycle:probe.accT});
-  probe.inProbe=false;
-}
+function abortProbe(){ probe.inProbe=false; probe.abort++; }
+function finishProbe(){ motifTable.set(probe.key, {eCycle:probe.accE, dCycle:probe.accD, tCycle:probe.accT}); probe.inProbe=false; }
 
-/* =========================================================
-   CIEU
-   ========================================================= */
 let currentCIEU=null;
 function startCIEU(t, x, phiS, phiM, phiL, action, yStart, yStarStart){
   currentCIEU = {
@@ -834,75 +774,35 @@ function startCIEU(t, x, phiS, phiM, phiL, action, yStart, yStarStart){
     id:`cieu_${Date.now()}_${Math.floor(Math.random()*1e6)}`,
     t0: t,
     t0Wall: Date.now(),
-    x_t: {
-      ctx: x,
-      phiS0: phiS,
-      phiM0: phiM,
-      phiL0: phiL,
-      phase0: phase,
-      stage0: stage
-    },
-    u_t: {
-      level: action.level,
-      actionKey: action.actionKey,
-      token: action.token,
-      rho: action.rho
-    },
-    yStar_t: {
-      startY: yStart,
-      startYStar: yStarStart
-    },
-    y_out: {
-      peakY: yStart,
-      E_exceed: 0,
-      E_delta: 0,
-      uEnergy: 0,
-      uPeak: 0,
-      duration: 0
-    },
-    if_t: {
-      motifKnownSec: 0
-    },
-    motion_t: {
-      enabled: (motion.enabled && motion.permitted),
-      turnDetected: false
-    },
-    r_t: {
-      rewardNorm: 0,
-      components: {}
-    }
+    x_t:{ctx:x, phiS0:phiS, phiM0:phiM, phiL0:phiL, phase0:phase, stage0:stage},
+    u_t:{level:action.level, actionKey:action.actionKey, token:action.token, rho:action.rho},
+    yStar_t:{startY:yStart, startYStar:yStarStart},
+    y_out:{peakY:yStart, E_exceed:0, E_delta:0, uEnergy:0, uPeak:0, duration:0},
+    if_t:{motifKnownSec:0},
+    motion_t:{enabled:(motion.enabled&&motion.permitted), turnDetected:false},
+    r_t:{rewardNorm:0, components:{}}
   };
 }
 function finishCIEU(t){
   if(!currentCIEU) return;
-
   currentCIEU.y_out.duration = t - currentCIEU.t0;
-
   const sqw=getSQW();
   const dur=Math.max(1e-6, currentCIEU.y_out.duration);
-
   const meanEdelta = currentCIEU.y_out.E_delta / dur;
   const benefit = clamp(1 - (meanEdelta / 2500), 0, 1);
-
   const uMean = currentCIEU.y_out.uEnergy / dur;
   const uPeakN = getCap()>0 ? clamp(currentCIEU.y_out.uPeak / getCap(), 0, 2) : 0;
   const duPenalty = clamp(duUsed()/0.8,0,2);
-
   const turnBonus = currentCIEU.motion_t.turnDetected ? 0.08 : 0.0;
-
   const cost = sqw*(0.42*uMean + 0.35*uPeakN + 0.23*duPenalty);
   const r = clamp((benefit + turnBonus) - cost, -1, 1);
-
   currentCIEU.r_t.rewardNorm = r;
   currentCIEU.r_t.components = {benefit, turnBonus, cost, uMean, uPeakN, duPenalty, meanEdelta};
-
   pushDB(currentCIEU);
   currentCIEU=null;
 }
 
-/* =========================================================
-   Scope — Y / Y* / u
-   ========================================================= */
+/* ============ 示波器：Y / Y* / u ============ */
 const cCtx=ui.cvs.getContext("2d");
 let bY=new Array(CFG.SCOPE_N).fill(0);
 let bYs=new Array(CFG.SCOPE_N).fill(0);
@@ -923,7 +823,6 @@ function drawScope(Y,Ys,u,thr){
   const w=ui.cvs.clientWidth;
   const h=ui.cvs.clientHeight;
   cCtx.clearRect(0,0,w,h);
-
   bY.push(Y); bY.shift();
   bYs.push(Ys); bYs.shift();
   bU.push(u*255); bU.shift();
@@ -936,7 +835,6 @@ function drawScope(Y,Ys,u,thr){
   cCtx.beginPath(); cCtx.moveTo(0,yT); cCtx.lineTo(w,yT); cCtx.stroke();
   cCtx.restore();
 
-  // u 填充
   if(Math.max(...bU)>1){
     cCtx.fillStyle="rgba(255,59,48,0.18)";
     cCtx.beginPath();
@@ -951,8 +849,7 @@ function drawScope(Y,Ys,u,thr){
     cCtx.fill();
   }
 
-  // Y 线（蓝）
-  cCtx.strokeStyle= getComputedStyle(document.documentElement).getPropertyValue('--y') || "#00f2ff";
+  cCtx.strokeStyle="#00f2ff";
   cCtx.lineWidth=1.5;
   cCtx.beginPath();
   for(let i=0;i<bY.length;i++){
@@ -962,8 +859,7 @@ function drawScope(Y,Ys,u,thr){
   }
   cCtx.stroke();
 
-  // Y* 线（橙）
-  cCtx.strokeStyle=getComputedStyle(document.documentElement).getPropertyValue('--ystar') || "#ff9f0a";
+  cCtx.strokeStyle="#ff9f0a";
   cCtx.lineWidth=2.0;
   cCtx.beginPath();
   for(let i=0;i<bYs.length;i++){
@@ -973,8 +869,7 @@ function drawScope(Y,Ys,u,thr){
   }
   cCtx.stroke();
 
-  // u 线（红）
-  cCtx.strokeStyle=getComputedStyle(document.documentElement).getPropertyValue('--u') || "#ff3b30";
+  cCtx.strokeStyle="#ff3b30";
   cCtx.lineWidth=1.2;
   cCtx.beginPath();
   for(let i=0;i<bU.length;i++){
@@ -985,17 +880,13 @@ function drawScope(Y,Ys,u,thr){
   cCtx.stroke();
 }
 
-/* =========================================================
-   Runtime loop
-   ========================================================= */
+/* ============ Runtime Loop ============ */
 let running=false;
-let phase="IDLE", stage="CALM";
 let lastTick=0, t=0, dt=1/CFG.LOGIC_HZ;
 let ambient=0, ambientN=0, dynThr=null, state="IDLE";
 let pidI=0;
 let simulate=false;
 let nudgeNext=0;
-
 let action={level:"SOFT", actionKey:"NUDGE_ALT::0.00", token:"NUDGE_ALT", rho:0.0};
 
 function newSession(t0){
@@ -1043,7 +934,6 @@ function decideSleep(){
 
 function loop(){
   if(!running) return;
-
   const tNow=nowMs()/1000;
   dt=(lastTick>0)?(tNow-lastTick):(1/CFG.LOGIC_HZ);
   lastTick=tNow;
@@ -1056,7 +946,6 @@ function loop(){
   pushBuf(bufS,CFG.PHI_S,{t,dt,Y});
   pushBuf(bufM,CFG.PHI_M,{t,dt,Y});
   pushBuf(bufL,CFG.PHI_L,{t,dt,Y});
-
   const phiS=phiFrom(bufS,thr);
   const phiM=phiFrom(bufM,thr);
   const phiL=phiFrom(bufL,thr);
@@ -1069,7 +958,7 @@ function loop(){
     ambientN++;
     ambient += (Y-ambient)/Math.max(1,ambientN);
     if(nowMs()-session.calibStart>CFG.CALIB_MS){
-      dynThr=Math.max(thr, Math.round(ambient+CFG.THR_MARGIN));
+      dynThr=thr;          // 阈值完全由滑块决定
       session.dynThr=dynThr;
       session.ambientYmean=ambient;
       state="RUN";
@@ -1084,17 +973,14 @@ function loop(){
   if(!action._optActive){
     action._optActive=true;
     action._optEnd=t+getOptSec();
-
     banditLevel.alpha=getAlpha();
     banditLow.alpha=getAlpha();
-
     action.level = banditLevel.choose(x);
     const a = chooseMaskedLow(x, action.level);
     action.actionKey = a;
     const p = parseActionKey(a);
     action.token = p.tok;
     action.rho = p.rho;
-
     action._x = x;
     action._stats = {sumT:0, E_delta_norm:0, uMean:0, uPeakN:0, strong:0, duNorm:0, turnBonus:0};
   }
@@ -1104,16 +990,13 @@ function loop(){
     const benefit = clamp(1 - (meanE/0.04), 0, 1);
     const cost = getSQW()*(0.42*stats.uMean + 0.35*stats.uPeakN + 0.23*stats.duNorm + 0.12*clamp(stats.strong/2,0,2));
     const r = clamp((benefit + stats.turnBonus) - cost, -1, 1);
-
     banditLow.update(action.actionKey, action._x, r);
     banditLevel.update(action.level, action._x, r);
-
     action._optActive=false;
   }
 
-  const useThr=(state==="RUN" && dynThr!=null)?dynThr:thr;
-  const onsetDetect=Math.max(thr*0.85, (session.ambientYmean ?? ambient)+10);
-  const detectThr=(phase==="ONSET") ? Math.min(useThr,onsetDetect) : useThr;
+  const useThr=thr;     // 关键：阈值只由滑块控制
+  const detectThr=useThr;
 
   if(simulate){ Y=Math.max(Y, detectThr+50); }
 
@@ -1125,7 +1008,6 @@ function loop(){
     session.eventStartY=Y;
     phase="EVENT";
     nudgeNext=ctx.currentTime;
-
     const yStar0 = computeYStar(0, Y, phiS,phiM,phiL).ys;
     startCIEU(t, x, phiS,phiM,phiL, action, Y, yStar0);
   }
@@ -1141,7 +1023,6 @@ function loop(){
     session.below=null;
   }
 
-  // Y*：事件期间随 τ(Φ) 衰减；非事件时贴着阈值线
   let Ystar;
   if(session.inEvent){
     const yStarObj = computeYStar(t-session.eventT0, session.eventStartY, phiS,phiM,phiL);
@@ -1150,10 +1031,8 @@ function loop(){
     Ystar = useThr;
   }
 
-  // 能量指标（仍用真实 Y，不受可视化门控影响）
   const exceed=Math.max(0,Y-useThr);
   session.E_real += (exceed*exceed)*dt;
-
   const deltaPlus=Math.max(0,Y-Ystar);
   session.E_delta += (deltaPlus*deltaPlus)*dt;
 
@@ -1182,27 +1061,22 @@ function loop(){
     probe.accE += (exceed*exceed)*dt;
     probe.accD += exceed*dt;
     probe.accT += (Y>useThr)?dt:0;
-
     if(Y>useThr+CFG.PROBE_ABORT_MARGIN) abortProbe();
     else if(!(phase==="STABLE" && stage==="CALM")) abortProbe();
     else if(t>=probe.tEnd) finishProbe();
 
   } else if(mode==="monitor"){
-    u=0;
-    setNudgeBus(0);
+    u=0; setNudgeBus(0);
 
   } else {
     const e=Math.max(0, clamp((Y-Ystar)/255, -1, 1));
     const kp=0.40, ki=0.04;
     pidI=clamp(pidI + e*dt, 0, 0.9);
     const uPID=clamp(kp*e + ki*pidI, 0, 1);
-
     const cap=getCap()*allowed(action.level).capScale;
     u=applySafety(uPID*(1+action.rho), cap, t, dt);
-
     setNudgeBus(Math.min(u,0.35));
     pushBudget(t,dt,u);
-
     session.uEnergy += (u*u)*dt;
     session.uPeak = Math.max(session.uPeak, u);
 
@@ -1233,7 +1107,6 @@ function loop(){
       currentCIEU.y_out.E_delta += (deltaPlus*deltaPlus)*dt;
       currentCIEU.y_out.uEnergy += (u*u)*dt;
       currentCIEU.y_out.uPeak = Math.max(currentCIEU.y_out.uPeak, u);
-
       if(motion.enabled && motion.permitted && motion.turnEvent){
         currentCIEU.motion_t.turnDetected = true;
         session.turns += 1;
@@ -1246,11 +1119,8 @@ function loop(){
     setSleepBus(Math.min(sleepBase(),0.25));
   }
 
-  // 为了不让示波器“听引导音乐”，非事件阶段把 Y 压到阈值附近
-  let Yvis = Y;
-  if(!session.inEvent && !wantEvent){
-    Yvis = useThr; // 蓝线基本贴着虚线
-  }
+  // 示波器门控：只在事件/接近事件时显示真实 Y，否则贴着阈值
+  let Yvis = (!session.inEvent && !wantEvent) ? useThr : Y;
 
   ui.oPhase.textContent=phase;
   ui.oStage.textContent=stage;
@@ -1265,17 +1135,10 @@ function loop(){
   session.motifs = motifTable.size;
 
   drawScope(Yvis,Ystar,u,useThr);
-
   setTimeout(loop, 1000/CFG.LOGIC_HZ);
 }
 
-/* =========================================================
-   原第二份 Scope 代码（保留但注释）略
-   ========================================================= */
-
-/* =========================================================
-   Buttons / UX
-   ========================================================= */
+/* ============ Buttons / Start / Stop ============ */
 ui.showDebug.checked=false;
 ui.debugPanel.classList.add("hidden");
 
@@ -1332,23 +1195,17 @@ ui.btnClearLocal.addEventListener("click", ()=>{
   alert("Local cleared");
 });
 
-/* =========================================================
-   Start / Stop
-   ========================================================= */
 async function startSystem(){
   if(running) return;
   try{
     ensureAudio();
     await ctx.resume();
     setPill(ui.pillAudio, ctx.state==="running"?"ok":"warn", "audio: "+ctx.state);
-
     await ensureMic();
-
     motion.enabled = ui.useMotion.checked;
     if(motion.enabled && motion.permitted) setPill(ui.pillMotion,"ok","motion: on");
     else if(motion.enabled) setPill(ui.pillMotion,"warn","motion: need perm");
     else setPill(ui.pillMotion,"warn","motion: off");
-
     applySleep("OCEAN_SOFT");
     masterOn(true);
     setSleepBus(0.78);
@@ -1361,16 +1218,11 @@ async function startSystem(){
     pidI=0; lastU=0; strongTimes=[];
     bufS=[];bufM=[];bufL=[];budgetBuf=[];duBuf=[];
     sleepLatencySec=null; onsetStable=0;
-
     probe={enabled:false, perHour:0, hourStart:0, inProbe:false, tEnd:0, key:null, accE:0, accD:0, accT:0, abort:0};
     motifTable.clear();
-
     session=newSession(nowMs()/1000);
-
     action={level:"SOFT", actionKey:"NUDGE_ALT::0.00", token:"NUDGE_ALT", rho:0.0, _optActive:false};
-
     ui.btnActivate.textContent="STOP";
-
     loop();
   }catch(e){
     log("START FAIL: "+(e?.name||"")+" "+(e?.message||e));
@@ -1381,15 +1233,10 @@ async function startSystem(){
 function stopSystem(){
   if(!running) return;
   running=false;
-
   finishCIEU(t);
-
   pushDB({type:"SESSION_SUMMARY", ...session, motifs: motifTable.size, savedAt:Date.now()});
-
   try{ setNudgeBus(0); setSleepBus(0); masterOn(false); }catch(e){}
-
   ui.btnActivate.textContent="ACTIVATE";
-
   if(ui.autoBackup.checked){
     const payload={type:"REPORT", session, motifs:[...motifTable.entries()], savedAt:Date.now()};
     const blob=new Blob([JSON.stringify(payload,null,2)],{type:"application/json"});
@@ -1404,7 +1251,7 @@ ui.btnActivate.addEventListener("click", ()=> running ? stopSystem() : startSyst
 setPill(ui.pillAudio,"warn","audio: suspended");
 setPill(ui.pillMic,"warn","mic: off");
 setPill(ui.pillMotion,"warn","motion: off");
-log("Loaded v8.0 full core (visual-gated). Debug hidden by default.");
+log("Loaded v8.0 full core (simplified detection). Debug hidden by default.");
 </script>
 </body>
 </html>
