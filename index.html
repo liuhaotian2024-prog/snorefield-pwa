@@ -3,401 +3,1515 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no" />
-  <title>SnoreField — Research Core</title>
+  <title>SnoreField — WaveFrame Research Core (Full Stack)</title>
   <style>
-    :root{ --bg:#050505; --surface:#111; --txt:#eee; --accent:#0a84ff; --snore:#00f2ff; --target:#ff9f0a; --intv:#ff3b30; }
+    :root{
+      --bg:#050505; --surface:#111; --txt:#eee; --accent:#0a84ff;
+      --snore:#00f2ff; --target:#ff9f0a; --intv:#ff3b30;
+      --ok:#31c48d; --warn:#f6ad55; --bad:#fc8181;
+    }
     html,body{height:100%; margin:0; font-family:monospace; background:var(--bg); color:var(--txt); overflow:hidden;}
-    
-    /* SCOPE */
+
     .scope-wrap { width:100%; height:260px; background:#000; border-bottom:1px solid #333; position:relative; }
     canvas { width:100%; height:100%; display:block; }
-    
-    /* LEGEND */
-    .legend { position:absolute; top:10px; left:10px; font-size:10px; display:flex; gap:15px; pointer-events:none; }
+
+    .legend { position:absolute; top:10px; left:10px; font-size:10px; display:flex; gap:15px; pointer-events:none; opacity:0.9;}
     .dot { width:8px; height:8px; border-radius:50%; display:inline-block; margin-right:4px; }
-    
-    /* MATH OVERLAY */
-    .math-stat { position:absolute; top:30px; left:10px; font-size:10px; color:#666; pointer-events:none; line-height:1.5; }
+
+    .math-stat { position:absolute; top:30px; left:10px; font-size:10px; color:#8a8a8a; pointer-events:none; line-height:1.55; }
     .highlight { color:var(--accent); font-weight:bold; }
 
-    /* CONTROLS */
-    .main { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:20px; padding:20px; }
+    .top-right { position:absolute; top:10px; right:10px; display:flex; flex-direction:column; gap:6px; align-items:flex-end; }
+    .pill { padding:4px 8px; border:1px solid #333; border-radius:999px; font-size:10px; color:#bbb; background:rgba(0,0,0,.35); }
+    .pill.ok { border-color:rgba(49,196,141,.6); color:rgba(49,196,141,.95); }
+    .pill.warn{ border-color:rgba(246,173,85,.6); color:rgba(246,173,85,.95); }
+    .pill.bad{ border-color:rgba(252,129,129,.6); color:rgba(252,129,129,.95); }
+
+    .main { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:16px; padding:20px; }
     .status-box { text-align:center; }
     .st-main { font-size:22px; font-weight:bold; margin-bottom:5px; }
-    .st-sub { font-size:12px; color:#666; }
+    .st-sub { font-size:12px; color:#777; }
 
-    .btn-power {
-      width:220px; height:220px; border-radius:50%; 
+    .btn-power{
+      width:220px; height:220px; border-radius:50%;
       background: radial-gradient(circle, #222, #111); border:2px solid #333;
       color:#fff; font-size:18px; font-weight:bold; cursor:pointer;
       display:flex; flex-direction:column; align-items:center; justify-content:center; gap:10px;
-      transition:all 0.3s; box-shadow:0 10px 30px rgba(0,0,0,0.5);
+      transition:all 0.25s; box-shadow:0 10px 30px rgba(0,0,0,0.5);
+      user-select:none;
     }
     .btn-power:active { transform:scale(0.96); }
     .btn-power.active { border-color:var(--accent); background: radial-gradient(circle, #003060, #000); box-shadow:0 0 60px rgba(10,132,255,0.25); }
     .btn-power svg { width:40px; height:40px; fill:currentColor; }
 
-    .slider-wrap { width:80%; max-width:300px; display:flex; flex-direction:column; gap:8px; }
-    .slider-info { display:flex; justify-content:space-between; font-size:12px; color:#888; }
-    input[type=range] { width:100%; accent-color:var(--accent); }
-
-    .btn-test { background:#222; color:#888; border:1px solid #444; padding:12px; width:100%; max-width:300px; border-radius:8px; cursor:pointer; font-family:monospace; font-size:12px; }
+    .controls { width:min(460px, 92vw); display:flex; flex-direction:column; gap:10px; }
+    .row { display:flex; gap:10px; }
+    .col { flex:1; display:flex; flex-direction:column; gap:6px; }
+    .label { font-size:11px; color:#888; display:flex; justify-content:space-between; align-items:center; }
+    select, input[type=range]{
+      width:100%;
+      background:#0c0c0c;
+      border:1px solid #333;
+      border-radius:10px;
+      padding:10px;
+      color:#ddd;
+      outline:none;
+    }
+    input[type=range]{ padding:0; height:36px; }
+    .btn-test {
+      background:#111; color:#bbb; border:1px solid #333; padding:12px; width:100%;
+      border-radius:10px; cursor:pointer; font-family:monospace; font-size:12px;
+      user-select:none;
+    }
     .btn-test:active { background:var(--snore); color:#000; }
+    .toggles { display:flex; justify-content:space-between; gap:10px; }
+    .toggle { display:flex; gap:8px; align-items:center; color:#aaa; font-size:11px; }
+    .toggle input{ transform:scale(1.1); }
 
-    .debug { position:fixed; bottom:0; width:100%; padding:8px; background:#111; font-size:10px; color:#555; text-align:center; border-top:1px solid #333; }
+    details { width:min(720px, 92vw); border:1px solid #333; border-radius:10px; padding:10px; background:#0a0a0a; }
+    summary { cursor:pointer; color:#888; font-size:11px; }
+    pre { margin:8px 0 0; padding:10px; border-radius:10px; background:#060606; border:1px solid #222; max-height:200px; overflow:auto; font-size:10px; color:#9aa; }
+
+    .debug { position:fixed; bottom:0; width:100%; padding:8px; background:#0a0a0a; font-size:10px; color:#666; text-align:center; border-top:1px solid #222; }
+    .debug a{ color:#8bb; text-decoration:none; margin-left:12px; }
   </style>
 </head>
 <body>
 
 <div class="scope-wrap">
   <div class="legend">
-    <div><span class="dot" style="background:var(--snore)"></span>INPUT</div>
-    <div><span class="dot" style="background:var(--target)"></span>Y* FIELD</div>
-    <div><span class="dot" style="background:var(--intv)"></span>ACTION</div>
+    <div><span class="dot" style="background:var(--snore)"></span>Y (INPUT)</div>
+    <div><span class="dot" style="background:var(--target)"></span>Y* (TARGET FIELD)</div>
+    <div><span class="dot" style="background:var(--intv)"></span>u (ACTION)</div>
   </div>
+
   <div class="math-stat" id="mathStat">
-    RL Agent: STANDBY<br>
-    CIEU Effect: 0.00
+    Phase: <span class="highlight">IDLE</span><br>
+    RL(Level): -- | RL(Action): --<br>
+    CIEU: 0 | IF ΔE: --
   </div>
+
+  <div class="top-right">
+    <div class="pill warn" id="pillAudio">audio: suspended</div>
+    <div class="pill warn" id="pillMic">mic: off</div>
+  </div>
+
   <canvas id="scope"></canvas>
 </div>
 
 <div class="main">
   <div class="status-box">
     <div class="st-main" id="stMain">SYSTEM READY</div>
-    <div class="st-sub" id="stSub">Physics & RL Engine Loaded</div>
+    <div class="st-sub" id="stSub">WaveFrame Kernel Loaded (CIEU + RL + Field Y*)</div>
   </div>
 
   <button class="btn-power" id="btnPower">
     <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg>
-    <span>ACTIVATE</span>
+    <span id="btnText">ACTIVATE</span>
   </button>
 
-  <div class="slider-wrap">
-    <div class="slider-info"><span>INTERVENTION CAP</span><span id="volVal">70%</span></div>
-    <input type="range" id="volRange" min="0" max="1" step="0.05" value="0.7">
-  </div>
+  <div class="controls">
+    <div class="row">
+      <div class="col">
+        <div class="label"><span>MODE</span><span id="modeVal">AUTO</span></div>
+        <select id="modeSel">
+          <option value="auto">AUTO</option>
+          <option value="monitor">MONITOR (S0 无干预)</option>
+          <option value="gentle">GENTLE</option>
+          <option value="standard">STANDARD</option>
+        </select>
+      </div>
+      <div class="col">
+        <div class="label"><span>SLEEP TEMPLATE</span><span id="sleepVal">AUTO</span></div>
+        <select id="sleepSel">
+          <option value="AUTO">AUTO</option>
+          <option value="OCEAN_SOFT">OCEAN_SOFT</option>
+          <option value="OCEAN_PAD">OCEAN_PAD</option>
+          <option value="RAIN_SOFT">RAIN_SOFT</option>
+          <option value="PINK_SOFT">PINK_SOFT</option>
+          <option value="OFF">OFF</option>
+        </select>
+      </div>
+    </div>
 
-  <button class="btn-test" id="btnTest">HOLD TO SIMULATE SNORE</button>
+    <div class="row">
+      <div class="col">
+        <div class="label"><span>INTERVENTION CAP</span><span id="capVal">0.10</span></div>
+        <input type="range" id="capRange" min="0" max="0.20" step="0.005" value="0.10">
+      </div>
+      <div class="col">
+        <div class="label"><span>SLEEP VOL</span><span id="sleepVolVal">0.70</span></div>
+        <input type="range" id="sleepVolRange" min="0" max="1" step="0.02" value="0.70">
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="col">
+        <div class="label"><span>THRESHOLD (THR)</span><span id="thrVal">120</span></div>
+        <input type="range" id="thrRange" min="45" max="210" step="1" value="120">
+      </div>
+      <div class="col">
+        <div class="label"><span>OPTION (sec)</span><span id="optVal">15</span></div>
+        <input type="range" id="optRange" min="10" max="30" step="1" value="15">
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="col">
+        <div class="label"><span>α (explore)</span><span id="alphaVal">0.65</span></div>
+        <input type="range" id="alphaRange" min="0.05" max="2.5" step="0.05" value="0.65">
+      </div>
+      <div class="col">
+        <div class="label"><span>SLEEP-QUALITY WEIGHT</span><span id="sqwVal">1.4</span></div>
+        <input type="range" id="sqwRange" min="0.7" max="2.5" step="0.1" value="1.4">
+      </div>
+    </div>
+
+    <div class="toggles">
+      <label class="toggle"><input type="checkbox" id="ifProbe"> IF Probe L1</label>
+      <label class="toggle"><input type="checkbox" id="autoBackup" checked> Auto Backup on Stop</label>
+    </div>
+
+    <button class="btn-test" id="btnTest">HOLD TO SIMULATE SNORE</button>
+
+    <details>
+      <summary>Session Summary / Debug</summary>
+      <pre id="debugView">{}</pre>
+    </details>
+  </div>
 </div>
 
-<div class="debug" id="debug">v6.0 Research Core</div>
+<div class="debug" id="debug">
+  v7.0 WaveFrame Full-Stack
+  <a href="#" id="exportBtn">EXPORT JSON</a>
+  <a href="#" id="clearBtn">CLEAR LOCAL</a>
+</div>
 
 <script>
-/* =========================================
-   SnoreField v6.0 (Research Core)
-   -----------------------------------------
-   1. CAUSAL BANDIT (RL): Dynamically selects Theta/Delta/SMR based on suppression success.
-   2. CIEU ENGINE: Calculates Shadow Energy (Counterfactual) vs Real Energy.
-   3. FIELD DYNAMICS: Langevin Equation implementation for Y* trajectory.
-   4. AUDIO ENGINE: 70/30 Mix, Ducking, Side-Chain, Soft Start preserved.
-   ========================================= */
+/* ============================================================
+   SnoreField v7.0 — WaveFrame Full Stack
+   - Sleep induction: fade-in + timed fade-down + ducking
+   - Multi-scale field Φ_short/mid/long
+   - Dynamic Y*: Φ -> τ(Φ,phase,stress) -> Y*(t)
+   - Safe RL: Options + Hierarchical LinUCB (Level + Action)
+   - CIEU five-tuple (event-level) + persistent storage
+   - IF Probe Level 1 (STABLE+CALM, <=5/h, abort)
+   ============================================================ */
 
+/* ------------------- utilities ------------------- */
 const $ = id => document.getElementById(id);
-const clamp = (x,a,b) => Math.max(a,Math.min(b,x));
+const clamp = (x,a,b) => Math.max(a, Math.min(b,x));
+const nowMs = () => performance.now();
+const wallNow = () => Date.now();
+const fmt = (x,d=3) => (typeof x==="number" ? x.toFixed(d) : String(x));
 
-// --- 1. THE MATH CORE (AI & Physics) ---
-
-// A. Functional Field (Langevin Dynamics)
-class PotentialField {
-  constructor() {
-    this.y = 0;      // Current State
-    this.yStar = 0;  // Attractor Target
-    this.k = 0.1;    // Stiffness (Field Strength)
-    this.mass = 5.0; // Inertia
-  }
-  
-  update(target, dt) {
-    // Equation: dy = -k(y - target) * dt (Simplified Gradient Descent)
-    // This creates the "Orange Line" that physically tracks the input
-    const force = -this.k * (this.y - target);
-    this.y += force * dt * 50; 
-    return this.y;
-  }
+/* ------------------- persistent storage ------------------- */
+const STORE = {
+  DB: "snorefield_v7_db"
+};
+function loadJSON(key, fallback){
+  try{ const raw = localStorage.getItem(key); return raw ? JSON.parse(raw) : fallback; }catch(e){ return fallback; }
 }
+function saveJSON(key, obj){ try{ localStorage.setItem(key, JSON.stringify(obj)); }catch(e){} }
+let DB = loadJSON(STORE.DB, []);
 
-// B. Causal Bandit (RL + CIEU)
-class CausalBandit {
-  constructor() {
-    // Arms: Frequency strategies
-    this.arms = [
-      { name: "THETA 6Hz", carrier: 200, beat: 6, q: 0.5 },
-      { name: "DELTA 2Hz", carrier: 150, beat: 2, q: 0.5 },
-      { name: "SMR 14Hz",  carrier: 250, beat: 14, q: 0.5 }
-    ];
-    this.currentArm = 0;
-    this.epsilon = 0.2; // Exploration rate
-    this.shadowBaseline = 0; // The "Counterfactual"
-  }
-
-  decide() {
-    // Epsilon-Greedy Strategy
-    if (Math.random() < this.epsilon) {
-      this.currentArm = Math.floor(Math.random() * this.arms.length);
-    } else {
-      // Exploitation: Choose highest Q
-      let maxQ = -1;
-      this.arms.forEach((arm, i) => {
-        if (arm.q > maxQ) { maxQ = arm.q; this.currentArm = i; }
-      });
-    }
-    return this.arms[this.currentArm];
-  }
-
-  // CIEU: Calculate Causal Effect
-  updateReward(realEnergy) {
-    // Shadow Energy (Estimated): What energy would be if we did nothing?
-    // We assume Shadow is slightly higher than previous baseline (snoring tends to escalate)
-    this.shadowBaseline = Math.max(this.shadowBaseline * 0.99, realEnergy);
-    
-    // Causal Effect = Shadow - Real
-    // If Real < Shadow, Effect is Positive (We suppressed it!)
-    const effect = this.shadowBaseline - realEnergy;
-    
-    // Q-Learning Update
-    const alpha = 0.1;
-    const arm = this.arms[this.currentArm];
-    arm.q += alpha * (effect - arm.q);
-    
-    return { effect, armName: arm.name };
-  }
-  
-  resetShadow(val) {
-    this.shadowBaseline = val;
-  }
-}
-
-// --- CONFIG & STATE ---
+/* ------------------- config ------------------- */
 const CFG = {
-  CALIB_TIME: 3000,
-  FADE_IN: 5.0,
-  BASE_THRESH: 15,
-  MIX_OCEAN: 0.7,
-  MIX_BEATS: 0.3,
-  DUCK_OCEAN: 0.2,
-  BOOST_BEATS: 0.8
+  LOGIC_HZ: 20,
+  SCOPE_N: 320,
+  CALIB_TIME_MS: 12_000,       // 环境校准
+  MASTER_FADE_IN: 5.0,         // 总输出软启动
+  ONSET_MIN_SEC: 180,          // 入睡判定：持续 calm 180s
+  ONSET_DUCK_AFTER_SEC: 15*60, // 入睡引导 15min 后自动降为背景
+  ONSET_BG_LEVEL: 0.35,        // 降为背景后的助眠系数
+  THR_MARGIN: 15,              // 校准后动态阈值 = noise + margin
+  PHI_SHORT: 8.0,
+  PHI_MID: 60.0,
+  PHI_LONG: 600.0,
+  DU_WIN: 30.0,
+  BUDGET_WIN: 600.0,
+  MAX_DU_PER_TICK: 0.015,
+  STRONG_MAX_PER_MIN: 3,
+  // IF Probe L1
+  PROBE_MAX_PER_H: 5,
+  PROBE_ABORT_MARGIN: 35
 };
 
-let ctx, mic, analyser, dataArray;
-let masterGain, natureGain, neuroGain, oscL, oscR;
-let active = false, state = "IDLE";
-let startTime = 0;
+/* ------------------- UI binding ------------------- */
+const ui = {
+  btnPower: $("btnPower"),
+  btnText: $("btnText"),
+  stMain: $("stMain"),
+  stSub: $("stSub"),
+  mathStat: $("mathStat"),
 
-// Instancing The Brains
-const Field = new PotentialField();
-const Brain = new CausalBandit();
+  modeSel: $("modeSel"),
+  sleepSel: $("sleepSel"),
 
-// Audio Logic
-let volOcean = 0, volBeats = 0;
-let lastSnoreTime = 0;
-let ambientNoise = 0, dynThreshold = 255;
+  capRange: $("capRange"),
+  sleepVolRange: $("sleepVolRange"),
+  thrRange: $("thrRange"),
+  optRange: $("optRange"),
+  alphaRange: $("alphaRange"),
+  sqwRange: $("sqwRange"),
 
-// Scope
-const cvs = $("scope");
-const cCtx = cvs.getContext("2d");
-let bufIn = new Array(300).fill(0);
-let bufField = new Array(300).fill(0);
-let bufOut = new Array(300).fill(0);
+  modeVal: $("modeVal"),
+  sleepVal: $("sleepVal"),
+  capVal: $("capVal"),
+  sleepVolVal: $("sleepVolVal"),
+  thrVal: $("thrVal"),
+  optVal: $("optVal"),
+  alphaVal: $("alphaVal"),
+  sqwVal: $("sqwVal"),
 
-// --- 2. AUDIO GRAPH ---
-async function startSystem() {
-  if(!ctx) ctx = new (window.AudioContext||window.webkitAudioContext)();
-  if(ctx.state==='suspended') await ctx.resume();
+  ifProbe: $("ifProbe"),
+  autoBackup: $("autoBackup"),
+  btnTest: $("btnTest"),
 
-  try {
-    const stream = await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:false, noiseSuppression:false}});
-    mic = ctx.createMediaStreamSource(stream);
-    analyser = ctx.createAnalyser();
-    analyser.fftSize = 512;
-    analyser.smoothingTimeConstant = 0.5;
-    mic.connect(analyser);
-    dataArray = new Uint8Array(analyser.frequencyBinCount);
-  } catch(e) { alert("Mic Error"); return; }
+  pillAudio: $("pillAudio"),
+  pillMic: $("pillMic"),
 
-  // OUTPUT
-  masterGain = ctx.createGain();
-  masterGain.connect(ctx.destination);
-  masterGain.gain.value = 0; // START SILENT
+  cvs: $("scope"),
+  debugView: $("debugView"),
+  debugBar: $("debug"),
+  exportBtn: $("exportBtn"),
+  clearBtn: $("clearBtn")
+};
 
-  // TRACK A: NATURE (Ocean)
-  const bSize = 2 * ctx.sampleRate;
-  const b = ctx.createBuffer(1, bSize, ctx.sampleRate);
-  const d = b.getChannelData(0);
-  for(let i=0; i<bSize; i++) d[i] = (Math.random()*2-1)*0.5;
-  const noise = ctx.createBufferSource();
-  noise.buffer = b; noise.loop = true;
-  const lpf = ctx.createBiquadFilter(); lpf.type="lowpass"; lpf.frequency.value=400;
-  const lfo = ctx.createOscillator(); lfo.frequency.value=0.12; 
-  const lfoG = ctx.createGain(); lfoG.gain.value=0.2;
-  
-  natureGain = ctx.createGain(); natureGain.gain.value = 0;
-  lfo.connect(lfoG); lfoG.connect(natureGain.gain);
-  noise.connect(lpf); lpf.connect(natureGain);
-  natureGain.connect(masterGain);
-  noise.start(); lfo.start();
+function syncUI(){
+  ui.modeVal.textContent = ui.modeSel.value.toUpperCase();
+  ui.sleepVal.textContent = ui.sleepSel.value;
+  ui.capVal.textContent = Number(ui.capRange.value).toFixed(2);
+  ui.sleepVolVal.textContent = Number(ui.sleepVolRange.value).toFixed(2);
+  ui.thrVal.textContent = ui.thrRange.value;
+  ui.optVal.textContent = ui.optRange.value;
+  ui.alphaVal.textContent = Number(ui.alphaRange.value).toFixed(2);
+  ui.sqwVal.textContent = Number(ui.sqwRange.value).toFixed(1);
+}
+["input","change"].forEach(ev=>{
+  ui.modeSel.addEventListener(ev, syncUI);
+  ui.sleepSel.addEventListener(ev, syncUI);
+  ui.capRange.addEventListener(ev, syncUI);
+  ui.sleepVolRange.addEventListener(ev, syncUI);
+  ui.thrRange.addEventListener(ev, syncUI);
+  ui.optRange.addEventListener(ev, syncUI);
+  ui.alphaRange.addEventListener(ev, syncUI);
+  ui.sqwRange.addEventListener(ev, syncUI);
+});
+syncUI();
 
-  // TRACK B: NEURO (Brain Driven)
-  const merger = ctx.createChannelMerger(2);
-  oscL = ctx.createOscillator(); 
-  oscR = ctx.createOscillator();
-  // Init with default arm
-  const arm = Brain.decide();
-  oscL.frequency.value = arm.carrier;
-  oscR.frequency.value = arm.carrier + arm.beat;
-  
-  const gL=ctx.createGain(); const gR=ctx.createGain();
-  oscL.connect(gL); gL.connect(merger, 0, 0);
-  oscR.connect(gR); gR.connect(merger, 0, 1);
-  neuroGain = ctx.createGain(); neuroGain.gain.value = 0;
-  merger.connect(neuroGain);
-  neuroGain.connect(masterGain);
-  oscL.start(); oscR.start();
+/* ------------------- getters ------------------- */
+function getTHR(){ return parseInt(ui.thrRange.value,10); }
+function getCap(){ return parseFloat(ui.capRange.value); }
+function getSleepVol(){ return parseFloat(ui.sleepVolRange.value); }
+function getOptSec(){ return parseFloat(ui.optRange.value); }
+function getAlpha(){ return parseFloat(ui.alphaRange.value); }
+function getSQW(){ return parseFloat(ui.sqwRange.value); }
+function getMode(){
+  const v = ui.modeSel.value;
+  if(v!=="auto") return v;
+  if(phase==="ONSET" || phase==="AROUSAL") return "gentle";
+  if(stage==="CALM") return "gentle";
+  return "standard";
+}
 
-  // FADE IN (Soft Start)
+/* ------------------- audio engine ------------------- */
+let ctx=null, mic=null, analyser=null, fftData=null;
+let outMaster=null, busSleep=null, busNeuro=null;
+let sleepGraph=null, neuroGraph=null;
+let currentSleepName="", currentNeuroToken="";
+
+function setPill(el, kind, text){
+  el.classList.remove("ok","warn","bad");
+  el.classList.add(kind);
+  el.textContent = text;
+}
+
+function ensureAudio(){
+  if(ctx) return;
+  ctx = new (window.AudioContext||window.webkitAudioContext)({ latencyHint:"interactive" });
+  outMaster = ctx.createGain(); outMaster.gain.value = 0;
+  busSleep  = ctx.createGain(); busSleep.gain.value  = 0;
+  busNeuro  = ctx.createGain(); busNeuro.gain.value  = 0;
+  busSleep.connect(outMaster);
+  busNeuro.connect(outMaster);
+  outMaster.connect(ctx.destination);
+
+  setPill(ui.pillAudio, ctx.state==="running"?"ok":"warn", `audio: ${ctx.state}`);
+  ctx.onstatechange = () => setPill(ui.pillAudio, ctx.state==="running"?"ok":"warn", `audio: ${ctx.state}`);
+}
+
+async function ensureMic(){
+  if(mic) return;
+  const stream = await navigator.mediaDevices.getUserMedia({ audio:{ echoCancellation:false, noiseSuppression:false, autoGainControl:false } });
+  mic = ctx.createMediaStreamSource(stream);
+  analyser = ctx.createAnalyser();
+  analyser.fftSize = 2048;
+  analyser.smoothingTimeConstant = 0.65;
+  fftData = new Float32Array(analyser.frequencyBinCount);
+  mic.connect(analyser);
+  setPill(ui.pillMic, "ok", "mic: on");
+}
+
+function stopGraph(g){
+  if(!g) return;
+  try{ g.stop?.(); }catch(e){}
+  try{ g.dispose?.(); }catch(e){}
+}
+
+function masterOn(on){
   const t = ctx.currentTime;
-  masterGain.gain.setValueAtTime(0, t);
-  masterGain.gain.linearRampToValueAtTime(1.0, t + CFG.FADE_IN);
-
-  active = true; state = "CALIB"; startTime = performance.now();
-  $("btnPower").classList.add("active");
-  $("btnPower").innerHTML = `<span>STOP SYSTEM</span>`;
-  loop();
+  outMaster.gain.cancelScheduledValues(t);
+  outMaster.gain.setValueAtTime(outMaster.gain.value, t);
+  outMaster.gain.linearRampToValueAtTime(on?1:0, t + (on?CFG.MASTER_FADE_IN:0.6));
 }
 
-function stopSystem() {
-  if(ctx) ctx.close();
-  ctx = null; active = false;
-  $("btnPower").classList.remove("active");
-  $("btnPower").innerHTML = `<svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg><span>ACTIVATE</span>`;
+function setSleepBus(level){
+  const t = ctx.currentTime;
+  const vol = getSleepVol();
+  busSleep.gain.cancelScheduledValues(t);
+  busSleep.gain.setValueAtTime(busSleep.gain.value, t);
+  busSleep.gain.linearRampToValueAtTime(level*vol, t+0.35);
 }
 
-// --- 3. THE LOOP (60Hz) ---
-function loop() {
-  if(!active) return;
-  requestAnimationFrame(loop);
-  
-  // A. SENSOR
-  analyser.getByteFrequencyData(dataArray);
-  let sum=0; for(let i=0; i<10; i++) sum+=dataArray[i];
-  let raw = sum/10;
-  
-  // B. PHYSICS FIELD UPDATE
-  // The Field tries to track the raw input
-  const fieldY = Field.update(raw, 0.016); // 60fps ~ 16ms
+function setNeuroBus(level){
+  const t = ctx.currentTime;
+  busNeuro.gain.cancelScheduledValues(t);
+  busNeuro.gain.setValueAtTime(busNeuro.gain.value, t);
+  busNeuro.gain.linearRampToValueAtTime(level, t+0.08);
+}
 
-  // C. LOGIC
-  let targetOcean = 0, targetBeats = 0;
-  let status = "", statColor = "#777";
-  
-  if (state === "CALIB") {
-    status = "CALIBRATING...";
-    if(raw > ambientNoise) ambientNoise = raw;
-    targetOcean = CFG.MIX_OCEAN; 
-    targetBeats = CFG.MIX_BEATS;
-    
-    if(performance.now() - startTime > CFG.CALIB_TIME) {
-      state = "RUN";
-      dynThreshold = Math.max(ambientNoise + 15, CFG.BASE_THRESH);
-      // Init CIEU Baseline
-      Brain.resetShadow(dynThreshold);
-    }
-  } 
-  else if (state === "RUN") {
-    // SNORE DETECTION
-    // Note: We check if Physics Field exceeds threshold (more robust than raw)
-    const isSnoring = fieldY > dynThreshold || $("btnTest").matches(':active');
-    
-    if(isSnoring) {
-      status = "INTERVENTION ACTIVE";
-      statColor = "var(--danger)";
-      
-      // 1. RL DECISION (Brain switches frequency if needed)
-      // Only switch occasionally to avoid glitching
-      if(Math.random() < 0.05) { 
-        const strat = Brain.decide();
-        if(oscL && oscR) {
-           oscL.frequency.setValueAtTime(strat.carrier, ctx.currentTime);
-           oscR.frequency.setValueAtTime(strat.carrier + strat.beat, ctx.currentTime);
-        }
-      }
-      
-      // 2. CIEU REWARD CALCULATION
-      const res = Brain.updateReward(raw);
-      $("mathStat").innerHTML = `Strategy: <span class="highlight">${res.armName}</span><br>CIEU Effect: <span class="highlight">${res.effect.toFixed(1)}</span>`;
+/* --- noise helpers --- */
+function whiteNoise(ctx){
+  const n = 2*ctx.sampleRate;
+  const b = ctx.createBuffer(1,n,ctx.sampleRate);
+  const d = b.getChannelData(0);
+  for(let i=0;i<n;i++) d[i]=(Math.random()*2-1)*0.35;
+  const s = ctx.createBufferSource(); s.buffer=b; s.loop=true;
+  return s;
+}
+function pinkNoise(ctx){
+  const n = 2*ctx.sampleRate;
+  const b = ctx.createBuffer(1,n,ctx.sampleRate);
+  const out = b.getChannelData(0);
+  let b0=0,b1=0,b2=0,b3=0,b4=0,b5=0,b6=0;
+  for(let i=0;i<n;i++){
+    const w=Math.random()*2-1;
+    b0=0.99886*b0 + w*0.0555179;
+    b1=0.99332*b1 + w*0.0750759;
+    b2=0.96900*b2 + w*0.1538520;
+    b3=0.86650*b3 + w*0.3104856;
+    b4=0.55*b4 + w*0.5329522;
+    b5=-0.7616*b5 - w*0.0168980;
+    const p=b0+b1+b2+b3+b4+b5+b6 + w*0.5362;
+    b6=w*0.115926;
+    out[i]=p*0.08;
+  }
+  const s = ctx.createBufferSource(); s.buffer=b; s.loop=true;
+  return s;
+}
+function brownNoise(ctx){
+  const n=2*ctx.sampleRate;
+  const b=ctx.createBuffer(1,n,ctx.sampleRate);
+  const out=b.getChannelData(0);
+  let last=0;
+  for(let i=0;i<n;i++){
+    const w=Math.random()*2-1;
+    last = clamp(last + 0.02*w, -1, 1);
+    out[i] = last * 0.32;
+  }
+  const s=ctx.createBufferSource(); s.buffer=b; s.loop=true;
+  return s;
+}
+function softPad(ctx){
+  const g=ctx.createGain(); g.gain.value=0.25;
+  const lp=ctx.createBiquadFilter(); lp.type="lowpass"; lp.frequency.value=700; lp.Q.value=0.7;
+  const mix=ctx.createGain(); mix.gain.value=0.22;
+  const base=110;
+  const freqs=[base, base*5/4, base*3/2];
+  const oscs=freqs.map(f=>{
+    const o=ctx.createOscillator(); o.type="sine";
+    o.frequency.value=f*(1+(Math.random()*0.004-0.002));
+    return o;
+  });
+  oscs.forEach(o=>o.connect(mix));
+  const lfo=ctx.createOscillator(); lfo.type="sine"; lfo.frequency.value=0.08;
+  const lfoG=ctx.createGain(); lfoG.gain.value=0.10;
+  lfo.connect(lfoG);
+  const amp=ctx.createGain(); amp.gain.value=0.8;
+  lfoG.connect(amp.gain);
+  mix.connect(lp); lp.connect(amp); amp.connect(g);
+  return {node:g, start:()=>{oscs.forEach(o=>o.start()); lfo.start();}, stop:()=>{oscs.forEach(o=>o.stop()); lfo.stop();}};
+}
 
-      // 3. AUDIO MIXING (Ducking)
-      targetOcean = CFG.DUCK_OCEAN; // Duck Ocean
-      targetBeats = CFG.BOOST_BEATS; // Boost Medicine
-      
-    } else {
-      status = "MONITORING / INDUCTION";
-      statColor = "var(--accent)";
-      targetOcean = CFG.MIX_OCEAN;
-      targetBeats = CFG.MIX_BEATS;
-      $("mathStat").innerHTML = "RL Agent: STANDBY<br>CIEU Effect: --";
+/* --- sleep template graph --- */
+function buildSleepTemplate(name){
+  const out = ctx.createGain(); out.gain.value = 1.0;
+  const hp = ctx.createBiquadFilter(); hp.type="highpass"; hp.frequency.value=25;
+  const lp = ctx.createBiquadFilter(); lp.type="lowpass"; lp.frequency.value=1800; lp.Q.value=0.7;
+  const notch = ctx.createBiquadFilter(); notch.type="peaking"; notch.frequency.value=3200; notch.Q.value=1.2; notch.gain.value=-10;
+
+  const main = ctx.createGain(); main.gain.value = 1.0;
+  main.connect(hp); hp.connect(lp); lp.connect(notch); notch.connect(out);
+
+  // swell
+  const swell=ctx.createOscillator(); swell.type="sine"; swell.frequency.value=0.09;
+  const swellG=ctx.createGain(); swellG.gain.value=0.22;
+  const swellAmp=ctx.createGain(); swellAmp.gain.value=0.72;
+  swell.connect(swellG); swellG.connect(swellAmp.gain);
+  swellAmp.connect(main);
+
+  const sources=[];
+  let pad=null, crest=null, crestLFO=null;
+
+  if(name==="OCEAN_SOFT" || name==="OCEAN_PAD"){
+    const brown=brownNoise(ctx);
+    const pink=pinkNoise(ctx);
+
+    const rumbleBP=ctx.createBiquadFilter(); rumbleBP.type="bandpass"; rumbleBP.frequency.value=140; rumbleBP.Q.value=0.8;
+    const rumbleG=ctx.createGain(); rumbleG.gain.value=0.28;
+
+    const foamHP=ctx.createBiquadFilter(); foamHP.type="highpass"; foamHP.frequency.value=180;
+    const foamLP=ctx.createBiquadFilter(); foamLP.type="lowpass"; foamLP.frequency.value=1400;
+    const foamG=ctx.createGain(); foamG.gain.value=0.65;
+
+    brown.connect(rumbleBP); rumbleBP.connect(rumbleG); rumbleG.connect(swellAmp);
+    pink.connect(foamHP); foamHP.connect(foamLP); foamLP.connect(foamG); foamG.connect(swellAmp);
+
+    crest=whiteNoise(ctx);
+    const crestBP=ctx.createBiquadFilter(); crestBP.type="bandpass"; crestBP.frequency.value=900; crestBP.Q.value=0.7;
+    const crestG=ctx.createGain(); crestG.gain.value=0.0;
+    crest.connect(crestBP); crestBP.connect(crestG); crestG.connect(swellAmp);
+    crestLFO=ctx.createOscillator(); crestLFO.type="triangle"; crestLFO.frequency.value=0.18;
+    const crestDepth=ctx.createGain(); crestDepth.gain.value=0.12;
+    crestLFO.connect(crestDepth); crestDepth.connect(crestG.gain);
+
+    sources.push(brown,pink,crest);
+    if(name==="OCEAN_PAD"){
+      pad=softPad(ctx);
+      pad.node.connect(swellAmp);
     }
+  }else if(name==="RAIN_SOFT"){
+    const base=pinkNoise(ctx);
+    const rain=whiteNoise(ctx);
+    const rHP=ctx.createBiquadFilter(); rHP.type="highpass"; rHP.frequency.value=650;
+    const rLP=ctx.createBiquadFilter(); rLP.type="lowpass"; rLP.frequency.value=5200;
+    const rG=ctx.createGain(); rG.gain.value=0.22;
+    base.connect(swellAmp);
+    rain.connect(rHP); rHP.connect(rLP); rLP.connect(rG); rG.connect(swellAmp);
+    sources.push(base,rain);
+  }else if(name==="PINK_SOFT"){
+    const p=pinkNoise(ctx);
+    p.connect(swellAmp);
+    sources.push(p);
+  }else{
+    // OFF
   }
 
-  // D. ENVELOPES
-  // Smooth transition logic
-  if(volOcean < targetOcean) volOcean += 0.005; else volOcean -= 0.02;
-  if(volBeats < targetBeats) volBeats += 0.05; else volBeats -= 0.01;
-  volOcean = clamp(volOcean, 0, 1);
-  volBeats = clamp(volBeats, 0, 1);
-
-  // E. HARDWARE ACTUATION
-  const uVol = parseFloat($("volRange").value);
-  if(natureGain) natureGain.gain.setTargetAtTime(volOcean * uVol, ctx.currentTime, 0.1);
-  if(neuroGain) neuroGain.gain.setTargetAtTime(volBeats * uVol, ctx.currentTime, 0.1);
-
-  // F. SCOPE RENDER
-  drawScope(raw, fieldY, volBeats);
-  
-  // G. UI TEXT
-  $("stMain").textContent = status;
-  $("stMain").style.color = statColor;
-  $("stSub").textContent = state==="RUN" ? `Noise Floor: ${Math.round(ambientNoise)} | Threshold: ${Math.round(dynThreshold)}` : "Sampling Environment...";
-  $("debug").textContent = `IN:${Math.round(raw)} | FIELD:${Math.round(fieldY)} | OUT:${Math.round(volBeats*100)}%`;
+  return {
+    node: out,
+    start: ()=>{
+      try{swell.start();}catch(e){}
+      if(crestLFO){ try{crestLFO.start();}catch(e){} }
+      sources.forEach(s=>{ try{s.start();}catch(e){} });
+      if(pad) pad.start();
+    },
+    stop: ()=>{
+      try{swell.stop();}catch(e){}
+      if(crestLFO){ try{crestLFO.stop();}catch(e){} }
+      sources.forEach(s=>{ try{s.stop();}catch(e){} });
+      if(pad) pad.stop();
+    }
+  };
 }
 
-function drawScope(raw, field, out) {
+/* --- neuro intervention token graph (binaural beat) --- */
+function buildNeuroToken(token){
+  // token: NEURO_THETA6 / NEURO_DELTA2 / NEURO_SMR14 / MASK_PINK / MASK_OCEAN fallback
+  const out = ctx.createGain(); out.gain.value = 1.0;
+
+  const hp=ctx.createBiquadFilter(); hp.type="highpass"; hp.frequency.value=35;
+  const lp=ctx.createBiquadFilter(); lp.type="lowpass"; lp.frequency.value=1900;
+  const notch=ctx.createBiquadFilter(); notch.type="peaking"; notch.frequency.value=3200; notch.Q.value=1.2; notch.gain.value=-10;
+  const main=ctx.createGain(); main.gain.value=1.0;
+  main.connect(hp); hp.connect(lp); lp.connect(notch); notch.connect(out);
+
+  const lfo=ctx.createOscillator(); lfo.type="sine"; lfo.frequency.value=0.12;
+  const lfoG=ctx.createGain(); lfoG.gain.value=0.05;
+  const amp=ctx.createGain(); amp.gain.value=1.0;
+  lfo.connect(lfoG); lfoG.connect(amp.gain);
+  amp.connect(main);
+
+  const sources=[];
+  let oscL=null, oscR=null, merger=null;
+
+  function startOsc(carrier, beat){
+    merger = ctx.createChannelMerger(2);
+    oscL = ctx.createOscillator(); oscR=ctx.createOscillator();
+    oscL.type="sine"; oscR.type="sine";
+    oscL.frequency.value = carrier - beat/2;
+    oscR.frequency.value = carrier + beat/2;
+    const gL=ctx.createGain(), gR=ctx.createGain();
+    gL.gain.value=0.20; gR.gain.value=0.20;
+    oscL.connect(gL); oscR.connect(gR);
+    gL.connect(merger,0,0); gR.connect(merger,0,1);
+    merger.connect(amp);
+  }
+
+  if(token==="NEURO_THETA6"){ startOsc(200,6); }
+  else if(token==="NEURO_DELTA2"){ startOsc(150,2); }
+  else if(token==="NEURO_SMR14"){ startOsc(240,14); }
+  else if(token==="MASK_OCEAN"){
+    // soft masking fallback inside neuro bus (rare)
+    const b=brownNoise(ctx); const p=pinkNoise(ctx);
+    b.connect(amp); p.connect(amp); sources.push(b,p);
+  }else{
+    const p=pinkNoise(ctx); p.connect(amp); sources.push(p);
+  }
+
+  return {
+    node: out,
+    start: ()=>{
+      try{lfo.start();}catch(e){}
+      if(oscL){ try{oscL.start(); oscR.start();}catch(e){} }
+      sources.forEach(s=>{ try{s.start();}catch(e){} });
+    },
+    stop: ()=>{
+      try{lfo.stop();}catch(e){}
+      if(oscL){ try{oscL.stop(); oscR.stop();}catch(e){} }
+      sources.forEach(s=>{ try{s.stop();}catch(e){} });
+    }
+  };
+}
+
+function applySleep(name){
+  if(!ctx) return;
+  if(name===currentSleepName && sleepGraph) return;
+  stopGraph(sleepGraph);
+  sleepGraph = buildSleepTemplate(name);
+  sleepGraph.node.connect(busSleep);
+  sleepGraph.start();
+  currentSleepName = name;
+}
+
+function applyNeuro(token){
+  if(!ctx) return;
+  if(token===currentNeuroToken && neuroGraph) return;
+  stopGraph(neuroGraph);
+  neuroGraph = buildNeuroToken(token);
+  neuroGraph.node.connect(busNeuro);
+  neuroGraph.start();
+  currentNeuroToken = token;
+}
+
+/* ------------------- signal processing (Y) ------------------- */
+function computeSpectrumFeatures(){
+  analyser.getFloatFrequencyData(fftData);
+  const sr = ctx.sampleRate;
+  const nyq = sr/2;
+  const N = fftData.length;
+
+  let sumP=0, sumF=0, geom=0, count=0;
+  let eL=0, eM=0, eH=0;
+  let peakP=0;
+
+  for(let i=0;i<N;i++){
+    const f = (i/N)*nyq;
+    const db = fftData[i];
+    const p = Math.pow(10, (db/10));
+    const pC = Math.max(1e-12, p);
+    sumP += pC;
+    sumF += f*pC;
+    geom += Math.log(pC);
+    count++;
+
+    if(pC>peakP) peakP=pC;
+    if(f>=60 && f<200) eL += pC;
+    else if(f>=200 && f<800) eM += pC;
+    else if(f>=800 && f<2500) eH += pC;
+  }
+
+  const centroid = sumP>0 ? (sumF/sumP) : 0;
+  const flatness = Math.exp(geom/count) / (sumP/count);
+  const meanP = sumP/Math.max(1,count);
+  const periodicity = clamp((peakP/Math.max(1e-12, meanP))/20, 0, 1);
+
+  const norm = x => clamp(x/Math.max(1e-9,sumP), 0, 1);
+  return { nl:norm(eL), nm:norm(eM), nh:norm(eH), centroid, flatness:clamp(flatness,0,1), periodicity };
+}
+
+function computeY(f){
+  const {nl,nm,nh,flatness,periodicity}=f;
+  let y=0;
+  y += 0.55*nl + 0.35*nm - 0.10*nh;
+  y += 0.55*periodicity;
+  y += 0.15*(1-flatness);
+  return Math.round(clamp(y,0,1)*255);
+}
+
+/* ------------------- multi-scale field Φ ------------------- */
+let bufS=[], bufM=[], bufL=[];
+function pushBuf(buf, winSec, s){
+  buf.push(s);
+  const t = s.t;
+  while(buf.length && (t - buf[0].t) > winSec) buf.shift();
+}
+function phiFrom(buf, thr){
+  let totalT=0, sumY=0, snoreT=0;
+  for(const s of buf){
+    totalT += s.dt;
+    sumY += s.Y*s.dt;
+    if(s.Y > thr) snoreT += s.dt;
+  }
+  const div=(a,b)=> b>0? a/b:0;
+  return {Ymean:div(sumY,totalT), snoreRatio:div(snoreT,totalT)};
+}
+
+/* budget + slew proxies */
+let budgetBuf=[], duBuf=[];
+function pushBudget(t,dt,u){
+  budgetBuf.push({t,dt,u2:(u*u)*dt});
+  while(budgetBuf.length && (t-budgetBuf[0].t) > CFG.BUDGET_WIN) budgetBuf.shift();
+}
+function budgetUsed(){ let s=0; for(const x of budgetBuf) s+=x.u2; return s; }
+function pushDu(t,dt,absDu){
+  duBuf.push({t,dt,val:absDu*dt});
+  while(duBuf.length && (t-duBuf[0].t) > CFG.DU_WIN) duBuf.shift();
+}
+function duUsed(){ let s=0; for(const x of duBuf) s+=x.val; return s; }
+
+/* stage/phase */
+let stage="CALM", phase="IDLE";
+function estimateStage(phiM,y){
+  const a=clamp(phiM.Ymean/255,0,1);
+  const b=clamp(phiM.snoreRatio,0,1);
+  const z=0.7*a + 0.9*b + 0.3*clamp(y/255,0,1);
+  if(z<0.28) return "CALM";
+  if(z<0.55) return "MIXED";
+  return "DIST";
+}
+
+/* sleep latency proxy */
+let sleepLatencySec=null, onsetStable=0;
+function updateSleepLatency(phiM, t, dt){
+  if(sleepLatencySec!=null) return;
+  const thr=getTHR();
+  // asleep-ish: 60s 平稳 + 干预很低
+  const asleepish = (phiM.Ymean < thr*0.95) && (phiM.snoreRatio < 0.12) && (busNeuro.gain.value < getCap()*0.25);
+  onsetStable = asleepish ? (onsetStable+dt) : Math.max(0, onsetStable-0.5*dt);
+  if(onsetStable>=CFG.ONSET_MIN_SEC){
+    sleepLatencySec = Math.round(t - session.t0);
+  }
+}
+
+function updatePhase(phiM, phiL){
+  if(!running){ phase="IDLE"; return; }
+  if(sleepLatencySec==null){ phase="ONSET"; return; }
+  const arousal = (duUsed()>0.35) && (stage!=="CALM");
+  if(arousal){ phase="AROUSAL"; return; }
+  if(session.inEvent){ phase="EVENT"; return; }
+  const stable = (phiL.snoreRatio<0.12) && (phiM.snoreRatio<0.20) && (stage==="CALM"||stage==="MIXED");
+  phase = stable ? "STABLE" : "EVENT";
+}
+
+/* ------------------- dynamic Y* via functional τ(Φ) ------------------- */
+function tauOf(phiS,phiM,phiL){
+  const cap=getCap();
+  const bNorm=clamp(budgetUsed()/Math.max(1e-9,(CFG.BUDGET_WIN*cap*cap*0.25)),0,2);
+  const duNorm=clamp(duUsed()/1.2,0,2);
+  let tau=2.4;
+  tau *= (1 + 0.9*phiM.snoreRatio);
+  tau *= (1 + 0.6*(bNorm/2));
+  tau *= (1 + 0.9*(duNorm/2));
+  if(phase==="ONSET") tau*=1.35;
+  if(phase==="AROUSAL") tau*=1.55;
+  if(phase==="STABLE") tau*=1.15;
+  return clamp(tau,0.8,7.5);
+}
+function computeYStar(elapsed, startY, phiS,phiM,phiL){
+  const thr=getTHR();
+  const tau=tauOf(phiS,phiM,phiL);
+  const k=1/Math.max(0.25,tau);
+  let ys = thr + (startY - thr)*Math.exp(-k*elapsed);
+  ys = Math.max(thr, ys);
+  if(phase==="ONSET" || phase==="AROUSAL"){
+    ys = Math.max(thr, thr + 0.30*(startY-thr));
+  }
+  return {ys,tau};
+}
+
+/* ------------------- RL: Options + hierarchical LinUCB ------------------- */
+function zeros(n){ return Array.from({length:n},()=>0); }
+function eye(n){ const m=[]; for(let i=0;i<n;i++){ const r=zeros(n); r[i]=1; m.push(r); } return m; }
+function dot(a,b){ let s=0; for(let i=0;i<a.length;i++) s+=a[i]*b[i]; return s; }
+function matVec(A,x){ const y=zeros(A.length); for(let i=0;i<A.length;i++){ let s=0; for(let j=0;j<x.length;j++) s+=A[i][j]*x[j]; y[i]=s; } return y; }
+function quad(x,A){ const Ax=matVec(A,x); return dot(x,Ax); }
+function sherman(Ainv,x){
+  const Ax=matVec(Ainv,x); const denom=1+dot(x,Ax);
+  const n=x.length;
+  const out=Array.from({length:n},()=>zeros(n));
+  for(let i=0;i<n;i++) for(let j=0;j<n;j++) out[i][j]=Ainv[i][j]-(Ax[i]*Ax[j])/denom;
+  return out;
+}
+class LinUCB{
+  constructor(actions,d){
+    this.actions=actions; this.d=d; this.alpha=0.65;
+    this.models={}; actions.forEach(a=>this.init(a));
+  }
+  init(a){ if(this.models[a]) return; this.models[a]={Ainv:eye(this.d), b:zeros(this.d), n:0, rSum:0}; }
+  choose(x){
+    let best=this.actions[0], bestScore=-1e9;
+    for(const a of this.actions){
+      this.init(a);
+      const m=this.models[a];
+      const theta=matVec(m.Ainv,m.b);
+      const mean=dot(theta,x);
+      const bonus=this.alpha*Math.sqrt(Math.max(0,quad(x,m.Ainv)));
+      const s=mean+bonus;
+      if(s>bestScore){ bestScore=s; best=a; }
+    }
+    return best;
+  }
+  update(a,x,r){
+    this.init(a);
+    const m=this.models[a];
+    m.Ainv=sherman(m.Ainv,x);
+    for(let i=0;i<this.d;i++) m.b[i]+=r*x[i];
+    m.n++; m.rSum+=r;
+  }
+}
+
+const LEVELS=["SOFT","NORMAL","ASSERTIVE"];
+const TOKENS=["NEURO_THETA6","NEURO_DELTA2","NEURO_SMR14","MASK_PINK","MASK_OCEAN"];
+const RHOS=[-0.20,-0.10,0.00,+0.10,+0.20];
+function buildActs(tokens,rhos){ const a=[]; tokens.forEach(t=>rhos.forEach(r=>a.push(`${t}::${r.toFixed(2)}`))); return a; }
+const LOW_ACTS = buildActs(TOKENS,RHOS);
+
+const banditLevel = new LinUCB(LEVELS, 8);
+const banditLow   = new LinUCB(LOW_ACTS, 8);
+const sleepBandit = new LinUCB(["OCEAN_SOFT","OCEAN_PAD","RAIN_SOFT","PINK_SOFT"], 8);
+
+function ctxVec(phiS,phiM,phiL){
+  const cap=getCap();
+  const bNorm=clamp(budgetUsed()/Math.max(1e-9,(CFG.BUDGET_WIN*cap*cap*0.25)),0,2);
+  const duNorm=clamp(duUsed()/1.2,0,2);
+  return [1,
+    clamp(phiS.Ymean/255,0,1),
+    clamp(phiS.snoreRatio,0,1),
+    clamp(phiM.Ymean/255,0,1),
+    clamp(phiM.snoreRatio,0,1),
+    clamp(phiL.snoreRatio,0,1),
+    clamp(bNorm/2,0,1),
+    clamp(duNorm/2,0,1)
+  ];
+}
+
+function allowed(level){
+  if(level==="SOFT"){
+    return {capScale:0.75, tokens:["NEURO_DELTA2","NEURO_THETA6","MASK_OCEAN","MASK_PINK"], rhos:[-0.20,-0.10,0.00,+0.10]};
+  }
+  if(level==="NORMAL"){
+    return {capScale:1.00, tokens:["NEURO_DELTA2","NEURO_THETA6","NEURO_SMR14","MASK_OCEAN","MASK_PINK"], rhos:[-0.20,-0.10,0.00,+0.10,+0.20]};
+  }
+  return {capScale:1.05, tokens:["NEURO_DELTA2","NEURO_THETA6","NEURO_SMR14","MASK_OCEAN","MASK_PINK"], rhos:[-0.10,0.00,+0.10,+0.20]};
+}
+
+function parseActionKey(a){ const [tok,r]=a.split("::"); return {tok, rho:parseFloat(r)}; }
+
+function chooseMaskedLow(x, level){
+  const allow=allowed(level);
+  const allowedSet=new Set(buildActs(allow.tokens, allow.rhos));
+  let best=null, bestScore=-1e9;
+  for(const a of LOW_ACTS){
+    if(!allowedSet.has(a)) continue;
+    const m=banditLow.models[a];
+    const theta=matVec(m.Ainv,m.b);
+    const mean=dot(theta,x);
+    const bonus=banditLow.alpha*Math.sqrt(Math.max(0, quad(x,m.Ainv)));
+    const s=mean+bonus;
+    if(s>bestScore){ bestScore=s; best=a; }
+  }
+  return best || "NEURO_DELTA2::0.00";
+}
+
+/* ------------------- Safety DSL ------------------- */
+let lastU=0;
+let strongTimes=[];
+function applySafety(uEff, cap, t, dt){
+  let u=clamp(uEff,0,cap);
+  const du=u-lastU;
+  const absDu=Math.abs(du);
+
+  if(du>CFG.MAX_DU_PER_TICK) u = lastU + CFG.MAX_DU_PER_TICK;
+  if(du<-CFG.MAX_DU_PER_TICK) u = lastU - CFG.MAX_DU_PER_TICK;
+  pushDu(t,dt,absDu);
+
+  // budget scaling
+  const budget=budgetUsed();
+  const thr=0.9*CFG.BUDGET_WIN*(cap*cap)*0.25;
+  if(budget>thr){
+    const scale=clamp(thr/Math.max(1e-9,budget),0.25,1);
+    u*=scale;
+  }
+
+  // strong freq rule
+  const strong = u > 0.75*cap;
+  if(strong){
+    const w=wallNow();
+    strongTimes.push(w);
+    strongTimes=strongTimes.filter(x=>w-x<=60*1000);
+    if(strongTimes.length>CFG.STRONG_MAX_PER_MIN) u*=0.65;
+  }
+
+  // phase protection
+  if(phase==="ONSET") u*=0.72;
+  if(phase==="AROUSAL") u*=0.60;
+
+  lastU=u;
+  return u;
+}
+
+/* ------------------- IF Probe L1 ------------------- */
+let probe={enabled:false, perHour:0, hourStart:0, inProbe:false, tEnd:0, key:null, accE:0, accD:0, accT:0, abort:0};
+const motifTable=new Map(); // key -> {eCycle,dCycle,tCycle}
+function resetProbeHour(){
+  const w=wallNow();
+  if(probe.hourStart===0) probe.hourStart=w;
+  if(w - probe.hourStart >= 3600*1000){
+    probe.hourStart=w; probe.perHour=0;
+  }
+}
+function canProbe(){
+  if(!probe.enabled) return false;
+  if(sleepLatencySec==null) return false;
+  if(!(phase==="STABLE" && stage==="CALM")) return false;
+  resetProbeHour();
+  if(probe.perHour>=CFG.PROBE_MAX_PER_H) return false;
+  if(probe.inProbe) return false;
+  return true;
+}
+function motifKeyFrom(feat, phiM){
+  const c=clamp(feat.centroid,0,4000);
+  const cBin=Math.round(c/250)*250;
+  const pBin=Math.round(feat.periodicity*10)/10;
+  const lBin=Math.round(feat.nl*10)/10;
+  const mBin=Math.round(feat.nm*10)/10;
+  const srBin=Math.round(clamp(phiM.snoreRatio,0,1)*10)/10;
+  return `c${cBin}_p${pBin}_l${lBin}_m${mBin}_sr${srBin}_st${stage}`;
+}
+function estimateCycleSec(feat){
+  const p=clamp(feat.periodicity,0,1);
+  return clamp(0.85-0.45*p,0.35,0.90);
+}
+function startProbe(key,cycleSec,t){
+  probe.inProbe=true;
+  probe.tEnd=t+cycleSec;
+  probe.key=key;
+  probe.accE=0; probe.accD=0; probe.accT=0;
+  probe.perHour++;
+}
+function abortProbe(){
+  probe.inProbe=false;
+  probe.abort++;
+}
+function finishProbe(){
+  motifTable.set(probe.key, {eCycle:probe.accE, dCycle:probe.accD, tCycle:probe.accT});
+  probe.inProbe=false;
+}
+
+/* ------------------- CIEU + Session ------------------- */
+let session=null;
+let currentCIEU=null;
+
+function newSession(t0){
+  session={
+    id:`sess_${Date.now()}`,
+    t0, t0Wall:Date.now(),
+    thr:getTHR(), cap:getCap(), mode:getMode(),
+    sleepLatencySec:null,
+    // Real totals
+    E_real:0, D_real:0, T_real:0,
+    uEnergy:0, uPeak:0,
+    // IF totals
+    E_if:0, D_if:0, T_if:0,
+    // deltas
+    deltaE:0, deltaD:0, deltaT:0,
+    // probe stats
+    probeEnabled:false, probePerHour:0, probeAbort:0, motifsProbed:0, motifCoverage:0,
+    _tMotifKnown:0,
+    // event state
+    inEvent:false, _eventT0:0, _eventStartY:0, _below:null,
+    // calibration
+    dynThr:null, ambientYmean:null
+  };
+  currentCIEU=null;
+  sleepLatencySec=null; onsetStable=0;
+  motifTable.clear();
+  probe.abort=0; probe.perHour=0; probe.hourStart=0; probe.inProbe=false;
+}
+
+function startCIEU(t, x, startY){
+  currentCIEU = {
+    id:`cieu_${Date.now()}_${Math.floor(Math.random()*1e6)}`,
+    t0_wall: Date.now(),
+    t0: t,
+    // five-tuple
+    x_t: { ctx:x, phiS0:null, phiM0:null, phiL0:null, phase0:phase, stage0:stage, mode0:getMode() },
+    u_t: { level:null, actionKey:null, token:null, rho:null },
+    yStar_t: { startY, tau0:null },
+    yOut_t: { peakY:startY, E_exceed:0, D_exceed:0, T_exceed:0, uEnergy:0, uPeak:0, durationSec:0 },
+    r_t: { rewardNorm:0, components:{} },
+    if_t: { motifKnownSec:0 }
+  };
+}
+
+function finishCIEU(t){
+  if(!currentCIEU) return;
+  currentCIEU.yOut_t.durationSec = t - currentCIEU.t0;
+
+  // Reward: benefit (lower exceedance) - cost (sleep quality)
+  // Here: benefit ~ normalized (E_exceed reduction vs a baseline proxy). We'll use session-level IF delta as a weak proxy,
+  // but for stability we mostly penalize strong u and du.
+  const cap=getCap();
+  const uMean = currentCIEU.yOut_t.durationSec>0 ? (currentCIEU.yOut_t.uEnergy/currentCIEU.yOut_t.durationSec) : 0;
+  const uPeakN = cap>0 ? clamp(currentCIEU.yOut_t.uPeak/cap,0,2) : 0;
+  const strongPenalty = clamp(strongTimes.length/3,0,2);
+  const duPenalty = clamp(duUsed()/0.8,0,2);
+
+  const sqw=getSQW();
+  const cost = sqw*(0.42*uMean + 0.35*uPeakN + 0.25*duPenalty + 0.25*strongPenalty);
+
+  // benefit: smaller mean exceedance is better
+  const meanEx = currentCIEU.yOut_t.durationSec>0 ? (currentCIEU.yOut_t.D_exceed/currentCIEU.yOut_t.durationSec) : 0; // ~ (Y-THR)
+  const benefit = clamp(1 - (meanEx/60), 0, 1); // heuristic scaling
+
+  const r = clamp(benefit - cost, -1, 1);
+  currentCIEU.r_t.rewardNorm = r;
+  currentCIEU.r_t.components = {benefit, cost, uMean, uPeakN, duPenalty, strongPenalty};
+
+  DB.push({type:"CIEU", ...currentCIEU});
+  currentCIEU = null;
+  saveJSON(STORE.DB, DB);
+}
+
+/* ------------------- scope rendering ------------------- */
+const cvs = ui.cvs;
+const cCtx = cvs.getContext("2d");
+let bufIn = new Array(CFG.SCOPE_N).fill(0);
+let bufStar = new Array(CFG.SCOPE_N).fill(0);
+let bufU = new Array(CFG.SCOPE_N).fill(0);
+
+function drawScope(y, yStar, u, dynThr){
   const w = cvs.width = cvs.offsetWidth;
   const h = cvs.height = cvs.offsetHeight;
   cCtx.clearRect(0,0,w,h);
-  
-  // Shift Buffers
-  bufIn.push(raw); bufIn.shift();
-  bufField.push(field); bufField.shift();
-  bufOut.push(out * 200); bufOut.shift();
 
-  // Draw Threshold
-  let yT = h - (dynThreshold/255)*h;
-  cCtx.strokeStyle = "#333"; cCtx.setLineDash([5,5]);
-  cCtx.beginPath(); cCtx.moveTo(0,yT); cCtx.lineTo(w,yT); cCtx.stroke(); cCtx.setLineDash([]);
+  bufIn.push(y); bufIn.shift();
+  bufStar.push(yStar); bufStar.shift();
+  bufU.push(u*255); bufU.shift();
 
-  // Draw Input (Blue)
-  cCtx.strokeStyle = "var(--snore)"; cCtx.lineWidth = 1; cCtx.beginPath();
-  for(let i=0; i<300; i++) cCtx.lineTo(i/299*w, h - (bufIn[i]/255)*h);
+  // threshold line
+  if(dynThr!=null){
+    const yT = h - (dynThr/255)*h;
+    cCtx.strokeStyle="#333"; cCtx.setLineDash([5,5]);
+    cCtx.beginPath(); cCtx.moveTo(0,yT); cCtx.lineTo(w,yT); cCtx.stroke();
+    cCtx.setLineDash([]);
+  }
+
+  // INPUT
+  cCtx.strokeStyle="var(--snore)";
+  cCtx.lineWidth=1;
+  cCtx.beginPath();
+  for(let i=0;i<CFG.SCOPE_N;i++){
+    const xx = i/(CFG.SCOPE_N-1)*w;
+    const yy = h - (bufIn[i]/255)*h;
+    if(i===0) cCtx.moveTo(xx,yy); else cCtx.lineTo(xx,yy);
+  }
   cCtx.stroke();
 
-  // Draw Field (Orange - Smoother)
-  cCtx.strokeStyle = "var(--target)"; cCtx.lineWidth = 2; cCtx.beginPath();
-  for(let i=0; i<300; i++) cCtx.lineTo(i/299*w, h - (bufField[i]/255)*h);
+  // Y*
+  cCtx.strokeStyle="var(--target)";
+  cCtx.lineWidth=2;
+  cCtx.beginPath();
+  for(let i=0;i<CFG.SCOPE_N;i++){
+    const xx = i/(CFG.SCOPE_N-1)*w;
+    const yy = h - (bufStar[i]/255)*h;
+    if(i===0) cCtx.moveTo(xx,yy); else cCtx.lineTo(xx,yy);
+  }
   cCtx.stroke();
 
-  // Draw Action (Red Fill)
-  if(Math.max(...bufOut) > 5) {
-    cCtx.fillStyle = "rgba(255, 59, 48, 0.25)"; cCtx.beginPath(); cCtx.moveTo(0,h);
-    for(let i=0; i<300; i++) cCtx.lineTo(i/299*w, h - (bufOut[i]/255)*h);
-    cCtx.lineTo(w,h); cCtx.fill();
+  // u fill
+  if(Math.max(...bufU) > 2){
+    cCtx.fillStyle="rgba(255,59,48,0.22)";
+    cCtx.beginPath();
+    cCtx.moveTo(0,h);
+    for(let i=0;i<CFG.SCOPE_N;i++){
+      const xx = i/(CFG.SCOPE_N-1)*w;
+      const yy = h - (bufU[i]/255)*h;
+      cCtx.lineTo(xx,yy);
+    }
+    cCtx.lineTo(w,h);
+    cCtx.closePath();
+    cCtx.fill();
   }
 }
 
-$("btnPower").addEventListener("click", ()=> active ? stopSystem() : startSystem());
-$("volRange").addEventListener("input", (e)=> $("volVal").textContent = Math.round(e.target.value*100)+"%");
-$("btnTest").addEventListener("mousedown", ()=> $("btnTest").classList.add("active")); // Helper for CSS visual
-document.addEventListener("mouseup", ()=> $("btnTest").classList.remove("active"));
+/* ------------------- runtime control ------------------- */
+let running=false;
+let lastTick=0;
+let t=0, dt=1/CFG.LOGIC_HZ;
 
+let ambientYmean=0, ambientSamples=0;
+let dynThr=null;
+let state="IDLE";
+
+// option RL
+let opt={active:false, tEnd:0, x:null, level:"SOFT", actionKey:null, token:"NEURO_DELTA2", rho:0, stats:{sumDelta:0,sumU:0,sumT:0,uPeak:0,strong:0}};
+
+function rewardOption(stats){
+  const cap=getCap();
+  const uMean=stats.sumT>0 ? stats.sumU/stats.sumT : 0;
+  const uPeakN=cap>0 ? clamp(stats.uPeak/cap,0,2) : 0;
+  const strongPenalty=clamp(stats.strong/2,0,2);
+  const duPenalty=clamp(duUsed()/0.8,0,2);
+  const sqw=getSQW();
+  const cost=sqw*(0.42*uMean+0.35*uPeakN+0.25*duPenalty+0.25*strongPenalty);
+
+  const meanDelta=stats.sumT>0 ? stats.sumDelta/stats.sumT : 0;
+  const benefit=1-clamp(meanDelta,0,1);
+
+  return clamp(benefit - cost, -1, 1);
+}
+function beginOption(t,x){
+  opt.active=true;
+  opt.tEnd=t+getOptSec();
+  opt.x=x;
+  opt.stats={sumDelta:0,sumU:0,sumT:0,uPeak:0,strong:0};
+
+  banditLevel.alpha = getAlpha() * ((phase==="ONSET"||phase==="AROUSAL")?0.7:1);
+  banditLow.alpha   = getAlpha();
+
+  opt.level = banditLevel.choose(x);
+  const a = chooseMaskedLow(x, opt.level);
+  opt.actionKey = a;
+  const p = parseActionKey(a);
+  opt.token = p.tok;
+  opt.rho = p.rho;
+
+  applyNeuro(opt.token);
+}
+function endOption(){
+  if(!opt.active) return;
+  opt.active=false;
+  const r = rewardOption(opt.stats);
+  banditLow.update(opt.actionKey, opt.x, r);
+}
+
+let lastSleepDecisionT=0;
+let autoSleepName="OCEAN_SOFT";
+
+function decideSleep(x){
+  const sel = ui.sleepSel.value;
+  if(sel==="OFF") return "OFF";
+  if(sel!=="AUTO") return sel;
+
+  // avoid churn: decide every 10s
+  if(t-lastSleepDecisionT > 10 || currentSleepName===""){
+    sleepBandit.alpha = getAlpha();
+    autoSleepName = sleepBandit.choose(x);
+    lastSleepDecisionT = t;
+  }
+  return autoSleepName;
+}
+
+/* sleep induction fade-down timer */
+function sleepBaseLevel(){
+  if(phase==="ONSET") return 0.78;
+  // after ONSET, reduce further after 15min from session start
+  const elapsed = t - session.t0;
+  if(elapsed > CFG.ONSET_DUCK_AFTER_SEC) return CFG.ONSET_BG_LEVEL;
+  return 0.50;
+}
+
+/* main loop */
+function loopTick(){
+  if(!running) return;
+  const tNow = nowMs()/1000;
+  dt = (lastTick>0) ? (tNow-lastTick) : (1/CFG.LOGIC_HZ);
+  lastTick=tNow;
+  t=tNow;
+
+  const feat = computeSpectrumFeatures();
+  const Y = computeY(feat);
+
+  // multi-scale buffers
+  pushBuf(bufS, CFG.PHI_SHORT, {t,dt,Y});
+  pushBuf(bufM, CFG.PHI_MID,   {t,dt,Y});
+  pushBuf(bufL, CFG.PHI_LONG,  {t,dt,Y});
+
+  const thr = getTHR();
+  const phiS = phiFrom(bufS, thr);
+  const phiM = phiFrom(bufM, thr);
+  const phiL = phiFrom(bufL, thr);
+
+  stage = estimateStage(phiM, Y);
+  updateSleepLatency(phiM, t, dt);
+  updatePhase(phiM, phiL);
+
+  // calibration
+  if(state==="CALIB"){
+    ambientSamples++;
+    ambientYmean += (Y - ambientYmean)/Math.max(1, ambientSamples);
+    if((t*1000 - session._calibStartWall) > CFG.CALIB_TIME_MS){
+      dynThr = Math.max(getTHR(), Math.round(ambientYmean + CFG.THR_MARGIN));
+      session.dynThr = dynThr;
+      session.ambientYmean = ambientYmean;
+      state="RUN";
+    }
+  }
+
+  // context
+  const x = ctxVec(phiS,phiM,phiL);
+
+  // sleep template apply
+  const sleepName = decideSleep(x);
+  if(sleepName==="OFF"){
+    // stop sleep graph
+    if(currentSleepName!=="OFF"){
+      stopGraph(sleepGraph); sleepGraph=null; currentSleepName="OFF";
+    }
+    setSleepBus(0);
+  }else{
+    applySleep(sleepName);
+    setSleepBus(sleepBaseLevel());
+  }
+
+  // option RL
+  if(!opt.active) beginOption(t,x);
+  if(opt.active && t>=opt.tEnd){ endOption(); beginOption(t,x); }
+
+  // event detection uses dynThr if ready else thr
+  const useThr = (state==="RUN" && dynThr!=null) ? dynThr : thr;
+  const wantEvent = (Y > useThr) || ui.btnTest.matches(":active");
+
+  if(!session.inEvent && wantEvent){
+    session.inEvent=true;
+    session._eventT0=t;
+    session._eventStartY=Y;
+    // create CIEU
+    startCIEU(t, x, Y);
+    if(currentCIEU){
+      currentCIEU.x_t.phiS0=phiS; currentCIEU.x_t.phiM0=phiM; currentCIEU.x_t.phiL0=phiL;
+      currentCIEU.u_t.level=opt.level; currentCIEU.u_t.actionKey=opt.actionKey; currentCIEU.u_t.token=opt.token; currentCIEU.u_t.rho=opt.rho;
+    }
+  }
+
+  if(session.inEvent && !wantEvent){
+    if(session._below==null) session._below=t;
+    if(t-session._below>2.0){
+      session.inEvent=false;
+      session._below=null;
+      finishCIEU(t);
+      // duck neuro down quickly
+    }
+  }else{
+    session._below=null;
+  }
+
+  // compute Y* (true target)
+  let Ystar = thr, tau=0;
+  if(session.inEvent){
+    const elapsed = t - session._eventT0;
+    const res = computeYStar(elapsed, session._eventStartY, phiS,phiM,phiL);
+    Ystar=res.ys; tau=res.tau;
+  }else{
+    const res = computeYStar(0, Y, phiS,phiM,phiL);
+    Ystar=res.ys; tau=res.tau;
+  }
+
+  // update stats
+  const exceed = Math.max(0, Y - useThr);
+  const eNow = exceed*exceed*dt;
+  const dNow = exceed*dt;
+  const tEx = (Y>useThr)?dt:0;
+
+  session.E_real += eNow;
+  session.D_real += dNow;
+  session.T_real += tEx;
+
+  // IF motif
+  const key = motifKeyFrom({centroid:feat.centroid, periodicity:feat.periodicity, nl:feat.nl, nm:feat.nm}, phiM);
+
+  if(motifTable.has(key) && Y>useThr){
+    const rec=motifTable.get(key);
+    const scale = (rec.tCycle>0)? (dt/rec.tCycle) : 0;
+    session.E_if += rec.eCycle*scale;
+    session.D_if += rec.dCycle*scale;
+    session.T_if += rec.tCycle*scale;
+    session._tMotifKnown += dt;
+    if(currentCIEU) currentCIEU.if_t.motifKnownSec += dt;
+  }
+
+  // IF probe L1
+  probe.enabled = ui.ifProbe.checked;
+  if(canProbe() && !motifTable.has(key) && Y>useThr){
+    const cycle = estimateCycleSec(feat);
+    startProbe(key,cycle,t);
+  }
+
+  // control action u
+  let u=0;
+  const mode = getMode();
+
+  if(probe.inProbe){
+    // no intervention
+    u=0;
+    setNeuroBus(0.0);
+
+    // accumulate probe unit
+    probe.accE += eNow;
+    probe.accD += dNow;
+    probe.accT += tEx;
+
+    if(Y > useThr + CFG.PROBE_ABORT_MARGIN) abortProbe();
+    else if(!(phase==="STABLE"&&stage==="CALM")) abortProbe();
+    else if(t>=probe.tEnd) finishProbe();
+  }else if(mode==="monitor"){
+    // S0 no intervention
+    u=0;
+    setNeuroBus(0.0);
+  }else{
+    const delta = Y - Ystar;
+    const e = Math.max(0, clamp(delta/255, -1, 1));
+
+    // PID scaffold (fixed KP/KI for stability; RL acts as residual rho & token choice)
+    const kp=0.40, ki=0.04;
+    pidI = clamp(pidI + e*dt, 0, 0.9);
+    const uPID = clamp(kp*e + ki*pidI, 0, 1);
+
+    const allow=allowed(opt.level);
+    const cap = getCap()*allow.capScale;
+
+    let uEff = uPID*(1+opt.rho);
+    uEff = applySafety(uEff, cap, t, dt);
+    u = uEff;
+
+    // actuation: neuro bus gain
+    setNeuroBus(u);
+
+    pushBudget(t,dt,u);
+    session.uEnergy += (u*u)*dt;
+    session.uPeak = Math.max(session.uPeak, u);
+
+    // option stats
+    opt.stats.sumT += dt;
+    opt.stats.sumDelta += clamp(Math.max(0, delta)/255, 0, 1)*dt;
+    opt.stats.sumU += (cap>0 ? (u/cap) : 0)*dt;
+    opt.stats.uPeak = Math.max(opt.stats.uPeak, u);
+    if(u>0.75*cap) opt.stats.strong += 1;
+
+    // CIEU accumulation if in event
+    if(currentCIEU){
+      currentCIEU.yOut_t.peakY = Math.max(currentCIEU.yOut_t.peakY, Y);
+      currentCIEU.yOut_t.E_exceed += eNow;
+      currentCIEU.yOut_t.D_exceed += dNow;
+      currentCIEU.yOut_t.T_exceed += tEx;
+      currentCIEU.yOut_t.uEnergy += (u*u)*dt;
+      currentCIEU.yOut_t.uPeak = Math.max(currentCIEU.yOut_t.uPeak, u);
+    }
+  }
+
+  // ducking: when intervention active, duck sleep a bit
+  if(mode!=="monitor" && (session.inEvent || u>0.05)){
+    setSleepBus(Math.min(sleepBaseLevel(), 0.25));
+  }
+
+  // update UI
+  ui.stMain.textContent = (state==="CALIB") ? "CALIBRATING..." : (session.inEvent ? "INTERVENTION ACTIVE" : "MONITORING / INDUCTION");
+  ui.stMain.style.color = session.inEvent ? "var(--intv)" : (phase==="ONSET" ? "var(--accent)" : "#ddd");
+  ui.stSub.textContent = `Phase=${phase} | Stage=${stage} | Thr=${useThr}${dynThr?` (dyn=${dynThr})`:""} | SleepLatency=${sleepLatencySec??"--"}s`;
+
+  // math overlay
+  const actStr = `${opt.level} / ${opt.actionKey}`;
+  const deltaE = session.E_if - session.E_real;
+  ui.mathStat.innerHTML =
+    `Phase: <span class="highlight">${phase}</span> | Stage: <span class="highlight">${stage}</span><br>`+
+    `RL(Level): <span class="highlight">${opt.level}</span> | RL(Action): <span class="highlight">${opt.actionKey}</span><br>`+
+    `CIEU: <span class="highlight">${DB.filter(x=>x.type==="CIEU").length}</span> | IF ΔE: <span class="highlight">${isFinite(deltaE)?deltaE.toFixed(1):"--"}</span>`;
+
+  // debug summary
+  session.sleepLatencySec = sleepLatencySec;
+  session.probeEnabled = probe.enabled;
+  session.probePerHour = probe.perHour;
+  session.probeAbort = probe.abort;
+  session.motifsProbed = motifTable.size;
+  session.deltaE = session.E_if - session.E_real;
+  session.deltaD = session.D_if - session.D_real;
+  session.deltaT = session.T_if - session.T_real;
+  session.motifCoverage = clamp(session._tMotifKnown/Math.max(1e-9, session.T_real), 0, 1);
+
+  ui.debugView.textContent = JSON.stringify({
+    state, phase, stage,
+    Y, Ystar:Math.round(Ystar), tau:+tau.toFixed(2),
+    u:+u.toFixed(3),
+    mode, sleepTemplate:currentSleepName, neuroToken:currentNeuroToken,
+    thr:useThr, dynThr,
+    sleepLatencySec,
+    session: {
+      E_if:+session.E_if.toFixed(1), E_real:+session.E_real.toFixed(1), dE:+session.deltaE.toFixed(1),
+      D_if:+session.D_if.toFixed(1), D_real:+session.D_real.toFixed(1), dD:+session.deltaD.toFixed(1),
+      T_if:+session.T_if.toFixed(1), T_real:+session.T_real.toFixed(1), dT:+session.deltaT.toFixed(1),
+      probePerHour: probe.perHour, abort: probe.abort, motifs: motifTable.size, coverage:+session.motifCoverage.toFixed(3)
+    }
+  }, null, 2);
+
+  // scope
+  drawScope(Y, Ystar, u, useThr);
+
+  // debug bar
+  ui.debugBar.firstChild.textContent = `v7.0 | Y=${Y} | Y*=${Math.round(Ystar)} | u=${u.toFixed(3)} | Phase=${phase} | Mode=${mode}`;
+
+  // schedule
+  setTimeout(loopTick, 1000/CFG.LOGIC_HZ);
+}
+
+/* ------------------- start/stop/export ------------------- */
+function exportJSON(){
+  const payload = {
+    session,
+    motifs: Array.from(motifTable.entries()),
+    dbTail: DB.slice(-200) // avoid huge export; you can export full local below
+  };
+  const blob = new Blob([JSON.stringify(payload,null,2)], {type:"application/json"});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href=url;
+  a.download=`SnoreField_v7_Report_${Date.now()}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function exportFullLocal(){
+  const blob = new Blob([JSON.stringify(DB,null,2)], {type:"application/json"});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href=url;
+  a.download=`SnoreField_v7_LOCAL_${Date.now()}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function clearLocal(){
+  if(!confirm("确定清空本地数据吗？不可撤销")) return;
+  DB=[];
+  saveJSON(STORE.DB, DB);
+  alert("已清空。");
+}
+
+async function startSystem(){
+  if(running) return;
+  ensureAudio();
+  await ctx.resume();
+  setPill(ui.pillAudio, ctx.state==="running"?"ok":"warn", `audio: ${ctx.state}`);
+
+  try{
+    await ensureMic();
+  }catch(e){
+    alert("Mic Error: 请允许麦克风权限。");
+    return;
+  }
+
+  // init graphs
+  currentSleepName=""; currentNeuroToken="";
+  applySleep("OCEAN_SOFT");
+  applyNeuro("NEURO_DELTA2");
+
+  // init gains
+  masterOn(true);
+  setSleepBus(0.78);
+  setNeuroBus(0.0);
+
+  // reset states
+  running=true;
+  lastTick=0;
+  state="CALIB";
+  phase="ONSET";
+  stage="CALM";
+  pidI=0;
+  lastU=0;
+  strongTimes=[];
+  budgetBuf=[];
+  duBuf=[];
+  bufS=[];bufM=[];bufL=[];
+  ambientYmean=0; ambientSamples=0;
+  dynThr=null;
+
+  // probe reset
+  probe.inProbe=false; probe.abort=0; probe.perHour=0; probe.hourStart=0;
+
+  // session
+  newSession(nowMs()/1000);
+  session._calibStartWall = nowMs();
+
+  // option
+  opt.active=false;
+
+  ui.btnPower.classList.add("active");
+  ui.btnText.textContent="STOP SYSTEM";
+
+  loopTick();
+}
+
+function stopSystem(){
+  if(!running){
+    return;
+  }
+  running=false;
+
+  try{ endOption(); }catch(e){}
+  try{ finishCIEU(t); }catch(e){}
+
+  // persist session summary
+  DB.push({type:"SESSION_SUMMARY", ...session, motifTableSize: motifTable.size, savedAt: Date.now()});
+  saveJSON(STORE.DB, DB);
+
+  // audio fade out
+  if(ctx){
+    setNeuroBus(0);
+    setSleepBus(0);
+    masterOn(false);
+  }
+
+  ui.btnPower.classList.remove("active");
+  ui.btnText.textContent="ACTIVATE";
+
+  if(ui.autoBackup.checked){
+    exportJSON();
+  }
+}
+
+/* ------------------- events ------------------- */
+ui.btnPower.addEventListener("click", ()=> running ? stopSystem() : startSystem());
+ui.exportBtn.addEventListener("click", (e)=>{ e.preventDefault(); exportFullLocal(); });
+ui.clearBtn.addEventListener("click", (e)=>{ e.preventDefault(); clearLocal(); });
+
+ui.btnTest.addEventListener("touchstart", ()=> ui.btnTest.classList.add("active"), {passive:true});
+document.addEventListener("touchend", ()=> ui.btnTest.classList.remove("active"), {passive:true});
+ui.btnTest.addEventListener("mousedown", ()=> ui.btnTest.classList.add("active"));
+document.addEventListener("mouseup", ()=> ui.btnTest.classList.remove("active"));
+
+/* initial pills */
+setPill(ui.pillMic, "warn", "mic: off");
+setPill(ui.pillAudio, "warn", "audio: suspended");
+setStatus("warn","IDLE");
+
+/* status helpers */
+function setStatus(kind,text){
+  const pill=$("pillStatus");
+  pill.classList.remove("ok","warn","bad");
+  pill.classList.add(kind);
+  $("statusText").textContent=text;
+}
 </script>
 </body>
 </html>
