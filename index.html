@@ -3,12 +3,13 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no" />
-  <title>SnoreField v7.9 — Clean Scope + Hidden Debug</title>
+  <title>SnoreField v8.0 — WaveFrame CIEU + RL + IFProbe + Y*</title>
   <style>
     :root{
       --bg:#050505; --panel:#0b0b0b; --line:#2a2a2a;
       --txt:#eaeaea; --muted:#9a9a9a; --accent:#0a84ff;
       --ok:#31c48d; --warn:#f6ad55; --bad:#fc8181;
+      --y:#00f2ff; --ystar:#ff9f0a; --u:#ff3b30;
     }
     html,body{height:100%; margin:0; background:var(--bg); color:var(--txt); font-family:ui-monospace, Menlo, Monaco, Consolas, monospace;}
     body{overflow:auto; -webkit-overflow-scrolling:touch;}
@@ -18,7 +19,6 @@
 
     .legend{position:absolute; top:10px; left:10px; font-size:10px; display:flex; gap:14px; pointer-events:none; opacity:.95;}
     .dot{width:8px; height:8px; border-radius:50%; display:inline-block; margin-right:4px;}
-
     .overlay{position:absolute; top:34px; left:10px; font-size:10px; color:#b5b5b5; line-height:1.55; pointer-events:none;}
     .hi{color:var(--accent); font-weight:800;}
 
@@ -63,7 +63,7 @@
 
     details{margin:12px; border:1px solid var(--line); border-radius:14px; background:#0a0a0a; padding:10px;}
     summary{cursor:pointer; color:#9a9a9a; font-size:11px; font-weight:800;}
-    pre{margin:8px 0 0; padding:10px; border-radius:12px; background:#050505; border:1px solid #222; max-height:260px; overflow:auto; font-size:10px; color:#9aa; white-space:pre-wrap;}
+    pre{margin:8px 0 0; padding:10px; border-radius:12px; background:#050505; border:1px solid #222; max-height:280px; overflow:auto; font-size:10px; color:#9aa; white-space:pre-wrap;}
     .hidden{display:none;}
   </style>
 </head>
@@ -71,14 +71,15 @@
 
 <div class="scope-wrap">
   <div class="legend">
-    <div><span class="dot" style="background:#00f2ff"></span>Y</div>
-    <div><span class="dot" style="background:#ff9f0a"></span>Y*</div>
-    <div><span class="dot" style="background:#ff3b30"></span>u</div>
+    <div><span class="dot" style="background:var(--y)"></span>Y</div>
+    <div><span class="dot" style="background:var(--ystar)"></span>Y*</div>
+    <div><span class="dot" style="background:var(--u)"></span>u</div>
   </div>
 
   <div class="overlay">
     Phase: <span class="hi" id="oPhase">IDLE</span> | Stage: <span class="hi" id="oStage">CALM</span><br>
-    Nudge: <span class="hi" id="oNudge">--</span> | Motion: <span class="hi" id="oMotion">OFF</span>
+    Level: <span class="hi" id="oLevel">--</span> | Action: <span class="hi" id="oAction">--</span><br>
+    IF ΔE: <span class="hi" id="oDE">--</span> | Turns: <span class="hi" id="oTurns">0</span>
   </div>
 
   <div class="top-right">
@@ -162,6 +163,7 @@
   <div class="card" style="grid-column:1 / -1;">
     <div class="toggles">
       <label class="toggle"><input type="checkbox" id="useMotion"> Use DeviceMotion</label>
+      <label class="toggle"><input type="checkbox" id="ifProbe"> IF Probe L1</label>
       <label class="toggle"><input type="checkbox" id="autoBackup" checked> Auto Backup</label>
     </div>
   </div>
@@ -173,34 +175,51 @@
 </details>
 
 <script>
-/* ===================== FIXED: define CFG first ===================== */
+/* ==========================================================
+   v8.0 FULL CORE — DO NOT DELETE:
+   - CIEU event-level five-tuple
+   - Options + Hierarchical LinUCB
+   - Dynamic Y* (functional τ(Φ))
+   - IF Probe Level 1 + motif parallel world
+   - Positional nudge pulses (directional ear cues)
+   - Optional DeviceMotion L0 feedback
+   ========================================================== */
+
+/* ---------------- CFG (MUST exist first) ---------------- */
 const CFG = {
   LOGIC_HZ: 20,
-  SCOPE_N: 320,
-  CALIB_MS: 6000,
+  SCOPE_N: 360,
+  CALIB_MS: 8000,
   THR_MARGIN: 15,
-  MASTER_FADE_IN: 0.6,
+  MASTER_FADE_IN: 0.7,
   ONSET_BG_AFTER: 15*60,
   ONSET_BG_LEVEL: 0.35,
-  PHI_S: 8, PHI_M: 60, PHI_L: 600,
-  BUDGET_WIN: 600,
+  PHI_S: 8,
+  PHI_M: 60,
+  PHI_L: 600,
   DU_WIN: 30,
+  BUDGET_WIN: 600,
   MAX_DU: 0.015,
+  STRONG_MAX_PER_MIN: 3,
   NUDGE_MIN_GAP: 0.8,
-  NUDGE_MAX_GAP: 2.2
+  NUDGE_MAX_GAP: 2.2,
+  PROBE_MAX_PER_H: 5,
+  PROBE_ABORT_MARGIN: 35
 };
 
+/* ---------------- Helpers / Debug ---------------- */
 const $ = (id)=>document.getElementById(id);
 const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
 const nowMs=()=>performance.now();
 const wallNow=()=>Date.now();
+const fmt=(x,d=3)=> (typeof x==="number"? x.toFixed(d): String(x));
 
-const debugEl = $("debug");
-const setErr = (msg)=>{ debugEl && (debugEl.textContent = msg + "\n\n" + debugEl.textContent); };
-window.addEventListener("error",(e)=>{ setErr(`[JS ERROR] ${e.message} @ ${e.filename}:${e.lineno}:${e.colno}`); });
+const debugEl=$("debug");
+const log=(s)=>{ debugEl.textContent = String(s)+"\n\n"+debugEl.textContent; };
+window.addEventListener("error",(e)=>{ log(`[JS ERROR] ${e.message} @ ${e.filename}:${e.lineno}:${e.colno}`); });
 
-/* ===================== UI ===================== */
-const ui = {
+/* ---------------- UI ---------------- */
+const ui={
   btnActivate:$("btnActivate"),
   btnSelfTest:$("btnSelfTest"),
   btnMotionPerm:$("btnMotionPerm"),
@@ -225,6 +244,7 @@ const ui = {
   vThr:$("vThr"), vOpt:$("vOpt"), vAlpha:$("vAlpha"), vSqw:$("vSqw"),
 
   useMotion:$("useMotion"),
+  ifProbe:$("ifProbe"),
   autoBackup:$("autoBackup"),
 
   pillAudio:$("pillAudio"),
@@ -233,8 +253,10 @@ const ui = {
 
   oPhase:$("oPhase"),
   oStage:$("oStage"),
-  oNudge:$("oNudge"),
-  oMotion:$("oMotion"),
+  oLevel:$("oLevel"),
+  oAction:$("oAction"),
+  oDE:$("oDE"),
+  oTurns:$("oTurns"),
 
   cvs:$("scope")
 };
@@ -244,7 +266,6 @@ function setPill(el, kind, text){
   el.classList.add(kind);
   el.textContent=text;
 }
-
 function syncUI(){
   ui.vMode.textContent = ui.modeSel.value.toUpperCase();
   ui.vSleep.textContent = ui.sleepSel.value;
@@ -278,13 +299,29 @@ function getOptSec(){return parseFloat(ui.opt.value);}
 function getAlpha(){return parseFloat(ui.alpha.value);}
 function getSQW(){return parseFloat(ui.sqw.value);}
 
-/* ===================== Storage ===================== */
-const STORE={DB:"snorefield_v7_9_db"};
+function getMode(phase, stage){
+  const v=ui.modeSel.value;
+  if(v!=="auto") return v;
+  if(phase==="ONSET"||phase==="AROUSAL") return "gentle";
+  if(stage==="CALM") return "gentle";
+  return "standard";
+}
+
+/* ---------------- Storage ---------------- */
+const STORE={DB:"snorefield_v8_db"};
 function loadJSON(key,fallback){ try{const raw=localStorage.getItem(key); return raw?JSON.parse(raw):fallback;}catch(e){return fallback;} }
 function saveJSON(key,obj){ try{localStorage.setItem(key,JSON.stringify(obj));}catch(e){} }
 let DB=loadJSON(STORE.DB,[]);
+function pushDB(item){
+  DB.push(item);
+  // keep DB from exploding: keep last 5000 items
+  if(DB.length>5000) DB = DB.slice(DB.length-5000);
+  saveJSON(STORE.DB, DB);
+}
 
-/* ===================== Audio + Mic ===================== */
+/* =========================================================
+   L0: Audio + Mic (Physical Layer)
+   ========================================================= */
 let ctx=null, mic=null, analyser=null, fftData=null;
 let outMaster=null, busSleep=null, busNudge=null;
 let sleepGraph=null, currentSleep="OFF";
@@ -318,7 +355,7 @@ function masterOn(on){
   const t=ctx.currentTime;
   outMaster.gain.cancelScheduledValues(t);
   outMaster.gain.setValueAtTime(outMaster.gain.value,t);
-  outMaster.gain.linearRampToValueAtTime(on?1:0, t+(on?CFG.MASTER_FADE_IN:0.3));
+  outMaster.gain.linearRampToValueAtTime(on?1:0, t+(on?CFG.MASTER_FADE_IN:0.35));
 }
 function setSleepBus(level){
   const t=ctx.currentTime;
@@ -335,6 +372,7 @@ function setNudgeBus(level){
 }
 function stopGraph(g){ if(!g) return; try{g.stop();}catch(e){} }
 
+/* ----- Sleep templates (pleasant, stable) ----- */
 function whiteNoise(){
   const n=2*ctx.sampleRate;
   const b=ctx.createBuffer(1,n,ctx.sampleRate);
@@ -430,8 +468,10 @@ function applySleep(name){
   currentSleep=name;
 }
 
-/* ===================== Motion ===================== */
-let motion={enabled:false, permitted:false, tiltLR:0, turnEvent:false, _prevTilt:0};
+/* =========================================================
+   DeviceMotion L0 (optional)
+   ========================================================= */
+let motion={enabled:false, permitted:false, tiltLR:0, rms:0, moved:false, turnEvent:false, _prevTilt:0};
 function computeTiltLR(gx,gy,gz){
   const denom=Math.max(1e-6, Math.sqrt(gx*gx+gy*gy+gz*gz));
   return clamp(gx/denom,-1,1);
@@ -445,6 +485,13 @@ function onMotion(e){
     const prev=motion._prevTilt;
     if(Math.abs(prev)>0.25 && Math.abs(tilt)>0.25 && (prev*tilt<0)) motion.turnEvent=true;
     motion._prevTilt=tilt;
+  }
+  const a=e.acceleration;
+  if(a){
+    const ax=a.x||0, ay=a.y||0, az=a.z||0;
+    const inst=Math.sqrt(ax*ax+ay*ay+az*az);
+    motion.rms=0.90*motion.rms + 0.10*inst;
+    motion.moved = motion.rms>0.25;
   }
 }
 async function requestMotionPerm(){
@@ -464,11 +511,142 @@ async function requestMotionPerm(){
     }
   }catch(e){
     setPill(ui.pillMotion,"warn","motion: error");
-    setErr("Motion perm error: "+(e?.message||e));
+    log("Motion perm error: "+(e?.message||e));
   }
 }
 
-/* ===================== Nudge ===================== */
+/* =========================================================
+   L1: Features -> Y (tokenization-ish)
+   ========================================================= */
+function computeFeatures(){
+  analyser.getFloatFrequencyData(fftData);
+  const sr=ctx.sampleRate, nyq=sr/2, N=fftData.length;
+  let sumP=0,sumF=0,geom=0,count=0;
+  let eL=0,eM=0,eH=0,peakP=0;
+  for(let i=0;i<N;i++){
+    const f=(i/N)*nyq;
+    const db=fftData[i];
+    const p=Math.pow(10,(db/10));
+    const pC=Math.max(1e-12,p);
+    sumP+=pC; sumF+=f*pC; geom+=Math.log(pC); count++;
+    if(pC>peakP) peakP=pC;
+    if(f>=60 && f<200) eL+=pC;
+    else if(f>=200 && f<800) eM+=pC;
+    else if(f>=800 && f<2500) eH+=pC;
+  }
+  const centroid=sumP>0?sumF/sumP:0;
+  const flatness=Math.exp(geom/count)/(sumP/count);
+  const meanP=sumP/Math.max(1,count);
+  const periodicity=clamp((peakP/Math.max(1e-12,meanP))/20,0,1);
+  const norm=(x)=>clamp(x/Math.max(1e-9,sumP),0,1);
+  return {nl:norm(eL), nm:norm(eM), nh:norm(eH), centroid, flatness:clamp(flatness,0,1), periodicity};
+}
+function computeY(f){
+  let y=0;
+  y += 0.55*f.nl + 0.35*f.nm - 0.10*f.nh;
+  y += 0.55*f.periodicity;
+  y += 0.15*(1-f.flatness);
+  return Math.round(clamp(y,0,1)*255);
+}
+
+/* =========================================================
+   Φ fields / phase / Y* (functional mapping, “field theory”)
+   ========================================================= */
+let bufS=[],bufM=[],bufL=[],budgetBuf=[],duBuf=[];
+function pushBuf(buf,win,s){buf.push(s); const tt=s.t; while(buf.length && (tt-buf[0].t)>win) buf.shift();}
+function phiFrom(buf,thr){
+  let total=0,sumY=0,snoreT=0;
+  for(const s of buf){total+=s.dt; sumY+=s.Y*s.dt; if(s.Y>thr) snoreT+=s.dt;}
+  return {Ymean: total>0?sumY/total:0, snoreRatio: total>0?snoreT/total:0};
+}
+function pushBudget(t,dt,u){budgetBuf.push({t,dt,u2:(u*u)*dt}); while(budgetBuf.length && (t-budgetBuf[0].t)>CFG.BUDGET_WIN) budgetBuf.shift();}
+function budgetUsed(){let s=0; for(const x of budgetBuf) s+=x.u2; return s;}
+function pushDu(t,dt,absDu){duBuf.push({t,dt,val:absDu*dt}); while(duBuf.length && (t-duBuf[0].t)>CFG.DU_WIN) duBuf.shift();}
+function duUsed(){let s=0; for(const x of duBuf) s+=x.val; return s;}
+
+function estimateStage(phiM,y){
+  const a=clamp(phiM.Ymean/255,0,1);
+  const b=clamp(phiM.snoreRatio,0,1);
+  const z=0.7*a+0.9*b+0.3*clamp(y/255,0,1);
+  if(z<0.28) return "CALM";
+  if(z<0.55) return "MIXED";
+  return "DIST";
+}
+
+let sleepLatencySec=null, onsetStable=0;
+function updateSleepLatency(phiM,t,dt){
+  if(sleepLatencySec!=null) return;
+  const thr=getTHR();
+  const asleepish=(phiM.Ymean<thr*0.95)&&(phiM.snoreRatio<0.12)&&(busNudge.gain.value<getCap()*0.25);
+  onsetStable = asleepish ? (onsetStable+dt) : Math.max(0,onsetStable-0.5*dt);
+  if(onsetStable>=180) sleepLatencySec=Math.round(t-session.t0);
+}
+
+function updatePhase(phiM,phiL){
+  if(!running){ phase="IDLE"; return; }
+  if(session && session.inEvent){ phase="EVENT"; return; }
+  if(sleepLatencySec==null){ phase="ONSET"; return; }
+  const arousal=(duUsed()>0.35)&&(stage!=="CALM");
+  if(arousal){ phase="AROUSAL"; return; }
+  const stable=(phiL.snoreRatio<0.12)&&(phiM.snoreRatio<0.20)&&(stage==="CALM"||stage==="MIXED");
+  phase=stable?"STABLE":"EVENT";
+}
+
+function tauOf(phiS,phiM,phiL){
+  const cap=getCap();
+  const bNorm=clamp(budgetUsed()/Math.max(1e-9,(CFG.BUDGET_WIN*cap*cap*0.25)),0,2);
+  const duNorm=clamp(duUsed()/1.2,0,2);
+  // functional: τ = τ(Φ, budget, du, phase)
+  let tau=2.4;
+  tau*=(1+0.9*phiM.snoreRatio);
+  tau*=(1+0.6*(bNorm/2));
+  tau*=(1+0.9*(duNorm/2));
+  if(phase==="ONSET") tau*=1.35;
+  if(phase==="AROUSAL") tau*=1.55;
+  if(phase==="STABLE") tau*=1.15;
+  return clamp(tau,0.8,7.5);
+}
+function computeYStar(elapsed,startY,phiS,phiM,phiL){
+  const thr=getTHR();
+  const tau=tauOf(phiS,phiM,phiL);
+  const k=1/Math.max(0.25,tau);
+  let ys=thr+(startY-thr)*Math.exp(-k*elapsed);
+  ys=Math.max(thr,ys);
+  if(phase==="ONSET"||phase==="AROUSAL"){
+    ys=Math.max(thr, thr+0.30*(startY-thr));
+  }
+  return {ys,tau};
+}
+
+/* =========================================================
+   L2 “syntax”: Safety DSL
+   ========================================================= */
+let lastU=0;
+let strongTimes=[];
+function applySafety(uEff, cap, t, dt){
+  let u=clamp(uEff,0,cap);
+  const du=u-lastU;
+  if(du>CFG.MAX_DU) u=lastU+CFG.MAX_DU;
+  if(du<-CFG.MAX_DU) u=lastU-CFG.MAX_DU;
+  pushDu(t,dt,Math.abs(du));
+
+  const strong=u>0.75*cap;
+  if(strong){
+    const w=wallNow();
+    strongTimes.push(w);
+    strongTimes=strongTimes.filter(x=>w-x<=60*1000);
+    if(strongTimes.length>CFG.STRONG_MAX_PER_MIN) u*=0.65;
+  }
+  if(phase==="ONSET") u*=0.72;
+  if(phase==="AROUSAL") u*=0.60;
+
+  lastU=u;
+  return u;
+}
+
+/* =========================================================
+   Nudge actuator: directional ear pulses (positional micro-movement)
+   ========================================================= */
 function scheduleNudge(pattern,intensity){
   const t0=ctx.currentTime+0.01;
   const osc=ctx.createOscillator(); osc.type="sine"; osc.frequency.value=180;
@@ -501,134 +679,342 @@ function scheduleNudge(pattern,intensity){
   nz.start(t0); nz.stop(t0+0.22);
 }
 
-/* ===================== Features -> Y ===================== */
-function computeFeatures(){
-  analyser.getFloatFrequencyData(fftData);
-  const sr=ctx.sampleRate, nyq=sr/2, N=fftData.length;
-  let sumP=0,sumF=0,geom=0,count=0;
-  let eL=0,eM=0,eH=0,peakP=0;
-  for(let i=0;i<N;i++){
-    const f=(i/N)*nyq;
-    const db=fftData[i];
-    const p=Math.pow(10,(db/10));
-    const pC=Math.max(1e-12,p);
-    sumP+=pC; sumF+=f*pC; geom+=Math.log(pC); count++;
-    if(pC>peakP) peakP=pC;
-    if(f>=60 && f<200) eL+=pC;
-    else if(f>=200 && f<800) eM+=pC;
-    else if(f>=800 && f<2500) eH+=pC;
-  }
-  const centroid=sumP>0?sumF/sumP:0;
-  const flatness=Math.exp(geom/count)/(sumP/count);
-  const meanP=sumP/Math.max(1,count);
-  const periodicity=clamp((peakP/Math.max(1e-12,meanP))/20,0,1);
-  const norm=(x)=>clamp(x/Math.max(1e-9,sumP),0,1);
-  return {nl:norm(eL), nm:norm(eM), nh:norm(eH), centroid, flatness:clamp(flatness,0,1), periodicity};
+/* =========================================================
+   RL: Options + Hierarchical LinUCB (Level + Action)
+   ========================================================= */
+function zeros(n){return Array.from({length:n},()=>0);}
+function eye(n){const m=[]; for(let i=0;i<n;i++){const r=zeros(n); r[i]=1; m.push(r);} return m;}
+function dot(a,b){let s=0; for(let i=0;i<a.length;i++) s+=a[i]*b[i]; return s;}
+function matVec(A,x){const y=zeros(A.length); for(let i=0;i<A.length;i++){let s=0; for(let j=0;j<x.length;j++) s+=A[i][j]*x[j]; y[i]=s;} return y;}
+function quad(x,A){const Ax=matVec(A,x); return dot(x,Ax);}
+function sherman(Ainv,x){
+  const Ax=matVec(Ainv,x), denom=1+dot(x,Ax), n=x.length;
+  const out=Array.from({length:n},()=>zeros(n));
+  for(let i=0;i<n;i++) for(let j=0;j<n;j++) out[i][j]=Ainv[i][j]-(Ax[i]*Ax[j])/denom;
+  return out;
 }
-function computeY(f){
-  let y=0;
-  y += 0.55*f.nl + 0.35*f.nm - 0.10*f.nh;
-  y += 0.55*f.periodicity;
-  y += 0.15*(1-f.flatness);
-  return Math.round(clamp(y,0,1)*255);
+class LinUCB{
+  constructor(actions,d){
+    this.actions=actions; this.d=d; this.alpha=0.65; this.models={};
+    actions.forEach(a=>this.init(a));
+  }
+  init(a){ if(this.models[a]) return; this.models[a]={Ainv:eye(this.d), b:zeros(this.d), n:0, rSum:0}; }
+  choose(x){
+    let best=this.actions[0], bestScore=-1e9;
+    for(const a of this.actions){
+      this.init(a);
+      const m=this.models[a];
+      const theta=matVec(m.Ainv,m.b);
+      const mean=dot(theta,x);
+      const bonus=this.alpha*Math.sqrt(Math.max(1e-12, quad(x,m.Ainv)));
+      const s=mean+bonus;
+      if(s>bestScore){bestScore=s; best=a;}
+    }
+    return best;
+  }
+  update(a,x,r){
+    this.init(a);
+    const m=this.models[a];
+    m.Ainv=sherman(m.Ainv,x);
+    for(let i=0;i<this.d;i++) m.b[i]+=r*x[i];
+    m.n++; m.rSum+=r;
+  }
 }
 
-/* ===================== Buffers / Y* / Control ===================== */
+const LEVELS=["SOFT","NORMAL","ASSERTIVE"];
+const TOKENS=["NUDGE_LEFT","NUDGE_RIGHT","NUDGE_ALT","NUDGE_BREATH"];
+const RHOS=[-0.20,-0.10,0.00,+0.10,+0.20];
+function buildActs(tokens,rhos){const a=[]; tokens.forEach(t=>rhos.forEach(r=>a.push(`${t}::${r.toFixed(2)}`))); return a;}
+const LOW_ACTS=buildActs(TOKENS,RHOS);
+
+const banditLevel=new LinUCB(LEVELS,8);
+const banditLow=new LinUCB(LOW_ACTS,8);
+
+function ctxVec(phiS,phiM,phiL){
+  const cap=getCap();
+  const bNorm=clamp(budgetUsed()/Math.max(1e-9,(CFG.BUDGET_WIN*cap*cap*0.25)),0,2);
+  const duNorm=clamp(duUsed()/1.2,0,2);
+  return [1,
+    clamp(phiS.Ymean/255,0,1),
+    clamp(phiS.snoreRatio,0,1),
+    clamp(phiM.Ymean/255,0,1),
+    clamp(phiM.snoreRatio,0,1),
+    clamp(phiL.snoreRatio,0,1),
+    clamp(bNorm/2,0,1),
+    clamp(duNorm/2,0,1)
+  ];
+}
+function allowed(level){
+  if(level==="SOFT") return {capScale:0.75, tokens:TOKENS, rhos:[-0.20,-0.10,0.00,+0.10]};
+  if(level==="NORMAL") return {capScale:1.00, tokens:TOKENS, rhos:[-0.20,-0.10,0.00,+0.10,+0.20]};
+  return {capScale:1.05, tokens:TOKENS, rhos:[-0.10,0.00,+0.10,+0.20]};
+}
+function chooseMaskedLow(x,level){
+  const allow=allowed(level);
+  const allowedSet=new Set(buildActs(allow.tokens,allow.rhos));
+  let best=null, bestScore=-1e9;
+  for(const a of LOW_ACTS){
+    if(!allowedSet.has(a)) continue;
+    const m=banditLow.models[a];
+    const theta=matVec(m.Ainv,m.b);
+    const mean=dot(theta,x);
+    const bonus=banditLow.alpha*Math.sqrt(Math.max(1e-12, quad(x,m.Ainv)));
+    const s=mean+bonus;
+    if(s>bestScore){bestScore=s; best=a;}
+  }
+  return best || "NUDGE_ALT::0.00";
+}
+function parseActionKey(a){const [tok,r]=a.split("::"); return {tok, rho:parseFloat(r)};}
+
+/* =========================================================
+   IF Probe Level 1 (complete motif parallel world)
+   ========================================================= */
+let probe={enabled:false, perHour:0, hourStart:0, inProbe:false, tEnd:0, key:null, accE:0, accD:0, accT:0, abort:0};
+const motifTable=new Map(); // key -> {eCycle,dCycle,tCycle}
+function resetProbeHour(){
+  const w=wallNow();
+  if(probe.hourStart===0) probe.hourStart=w;
+  if(w-probe.hourStart>=3600*1000){ probe.hourStart=w; probe.perHour=0; }
+}
+function canProbe(){
+  if(!probe.enabled) return false;
+  if(sleepLatencySec==null) return false;
+  if(!(phase==="STABLE" && stage==="CALM")) return false;
+  resetProbeHour();
+  if(probe.perHour>=CFG.PROBE_MAX_PER_H) return false;
+  if(probe.inProbe) return false;
+  return true;
+}
+function motifKeyFrom(feat, phiM){
+  const c=clamp(feat.centroid,0,4000);
+  const cBin=Math.round(c/250)*250;
+  const pBin=Math.round(feat.periodicity*10)/10;
+  const lBin=Math.round(feat.nl*10)/10;
+  const mBin=Math.round(feat.nm*10)/10;
+  const srBin=Math.round(clamp(phiM.snoreRatio,0,1)*10)/10;
+  return `c${cBin}_p${pBin}_l${lBin}_m${mBin}_sr${srBin}_st${stage}`;
+}
+function estimateCycleSec(feat){
+  const p=clamp(feat.periodicity,0,1);
+  return clamp(0.85-0.45*p,0.35,0.90);
+}
+function startProbe(key,cycleSec,t){
+  probe.inProbe=true;
+  probe.tEnd=t+cycleSec;
+  probe.key=key;
+  probe.accE=0; probe.accD=0; probe.accT=0;
+  probe.perHour++;
+}
+function abortProbe(){
+  probe.inProbe=false;
+  probe.abort++;
+}
+function finishProbe(){
+  motifTable.set(probe.key, {eCycle:probe.accE, dCycle:probe.accD, tCycle:probe.accT});
+  probe.inProbe=false;
+}
+
+/* =========================================================
+   CIEU event-level five tuple (core asset)
+   CIEU = <x_t, u_t, y*_t, y_{t+Δ}, r_{t+Δ}>
+   ========================================================= */
+let currentCIEU=null;
+function startCIEU(t, x, phiS, phiM, phiL, action, yStart, yStarStart){
+  currentCIEU = {
+    type:"CIEU",
+    id:`cieu_${Date.now()}_${Math.floor(Math.random()*1e6)}`,
+    t0: t,
+    t0Wall: Date.now(),
+    x_t: {
+      ctx: x,
+      phiS0: phiS,
+      phiM0: phiM,
+      phiL0: phiL,
+      phase0: phase,
+      stage0: stage
+    },
+    u_t: {
+      level: action.level,
+      actionKey: action.actionKey,
+      token: action.token,
+      rho: action.rho
+    },
+    yStar_t: {
+      startY: yStart,
+      startYStar: yStarStart
+    },
+    y_out: {
+      peakY: yStart,
+      E_exceed: 0,
+      E_delta: 0,
+      uEnergy: 0,
+      uPeak: 0,
+      duration: 0
+    },
+    if_t: {
+      motifKnownSec: 0
+    },
+    motion_t: {
+      enabled: (motion.enabled && motion.permitted),
+      turnDetected: false
+    },
+    r_t: {
+      rewardNorm: 0,
+      components: {}
+    }
+  };
+}
+function finishCIEU(t){
+  if(!currentCIEU) return;
+
+  currentCIEU.y_out.duration = t - currentCIEU.t0;
+
+  // Reward: benefit from E_delta reduction vs cost (sleep quality proxy) + turn bonus
+  const sqw=getSQW();
+  const dur=Math.max(1e-6, currentCIEU.y_out.duration);
+
+  const meanEdelta = currentCIEU.y_out.E_delta / dur; // using raw (not normalized), but stable enough
+  const benefit = clamp(1 - (meanEdelta / 2500), 0, 1); // scale factor heuristic
+
+  const uMean = currentCIEU.y_out.uEnergy / dur;
+  const uPeakN = getCap()>0 ? clamp(currentCIEU.y_out.uPeak / getCap(), 0, 2) : 0;
+  const duPenalty = clamp(duUsed()/0.8,0,2);
+
+  const cost = sqw*(0.42*uMean + 0.35*uPeakN + 0.23*duPenalty);
+
+  const turnBonus = currentCIEU.motion_t.turnDetected ? 0.08 : 0.0;
+
+  const r = clamp((benefit + turnBonus) - cost, -1, 1);
+
+  currentCIEU.r_t.rewardNorm = r;
+  currentCIEU.r_t.components = {benefit, turnBonus, cost, uMean, uPeakN, duPenalty, meanEdelta};
+
+  pushDB(currentCIEU);
+  currentCIEU=null;
+}
+
+/* =========================================================
+   SCOPE (crisp)
+   ========================================================= */
+const cCtx=ui.cvs.getContext("2d");
+let bY=new Array(CFG.SCOPE_N).fill(0);
+let bYs=new Array(CFG.SCOPE_N).fill(0);
+let bU=new Array(CFG.SCOPE_N).fill(0);
+
+function resizeCanvas(){
+  const dpr=Math.max(1, window.devicePixelRatio||1);
+  const w=ui.cvs.clientWidth;
+  const h=ui.cvs.clientHeight;
+  ui.cvs.width=Math.floor(w*dpr);
+  ui.cvs.height=Math.floor(h*dpr);
+  cCtx.setTransform(dpr,0,0,dpr,0,0);
+}
+window.addEventListener("resize", resizeCanvas);
+resizeCanvas();
+
+function drawScope(Y,Ys,u,thr){
+  const w=ui.cvs.clientWidth;
+  const h=ui.cvs.clientHeight;
+  cCtx.clearRect(0,0,w,h);
+
+  bY.push(Y); bY.shift();
+  bYs.push(Ys); bYs.shift();
+  bU.push(u*255); bU.shift();
+
+  // threshold
+  const yT=h-(thr/255)*h;
+  cCtx.save();
+  cCtx.strokeStyle="rgba(255,255,255,0.18)";
+  cCtx.lineWidth=1;
+  cCtx.setLineDash([6,6]);
+  cCtx.beginPath(); cCtx.moveTo(0,yT); cCtx.lineTo(w,yT); cCtx.stroke();
+  cCtx.restore();
+
+  // u fill
+  if(Math.max(...bU)>1){
+    cCtx.fillStyle="rgba(255,59,48,0.18)";
+    cCtx.beginPath();
+    cCtx.moveTo(0,h);
+    for(let i=0;i<bU.length;i++){
+      const xx=i/(bU.length-1)*w;
+      const yy=h-(bU[i]/255)*h;
+      cCtx.lineTo(xx,yy);
+    }
+    cCtx.lineTo(w,h);
+    cCtx.closePath();
+    cCtx.fill();
+  }
+
+  // Y
+  cCtx.strokeStyle="#00f2ff";
+  cCtx.lineWidth=1.5;
+  cCtx.beginPath();
+  for(let i=0;i<bY.length;i++){
+    const xx=i/(bY.length-1)*w;
+    const yy=h-(bY[i]/255)*h;
+    if(i===0) cCtx.moveTo(xx,yy); else cCtx.lineTo(xx,yy);
+  }
+  cCtx.stroke();
+
+  // Y*
+  cCtx.strokeStyle="#ff9f0a";
+  cCtx.lineWidth=2.0;
+  cCtx.beginPath();
+  for(let i=0;i<bYs.length;i++){
+    const xx=i/(bYs.length-1)*w;
+    const yy=h-(bYs[i]/255)*h;
+    if(i===0) cCtx.moveTo(xx,yy); else cCtx.lineTo(xx,yy);
+  }
+  cCtx.stroke();
+}
+
+/* =========================================================
+   Runtime loop
+   ========================================================= */
 let running=false;
 let phase="IDLE", stage="CALM";
 let lastTick=0, t=0, dt=1/CFG.LOGIC_HZ;
 let ambient=0, ambientN=0, dynThr=null, state="IDLE";
-let pidI=0, lastU=0;
+let pidI=0;
 let simulate=false;
 let nudgeNext=0;
 
-let bufS=[],bufM=[],bufL=[],budgetBuf=[],duBuf=[];
-function pushBuf(buf,win,s){buf.push(s); const tt=s.t; while(buf.length && (tt-buf[0].t)>win) buf.shift();}
-function phiFrom(buf,thr){
-  let total=0,sumY=0,snoreT=0;
-  for(const s of buf){total+=s.dt; sumY+=s.Y*s.dt; if(s.Y>thr) snoreT+=s.dt;}
-  return {Ymean: total>0?sumY/total:0, snoreRatio: total>0?snoreT/total:0};
-}
-function pushBudget(t,dt,u){budgetBuf.push({t,dt,u2:(u*u)*dt}); while(budgetBuf.length && (t-budgetBuf[0].t)>CFG.BUDGET_WIN) budgetBuf.shift();}
-function budgetUsed(){let s=0; for(const x of budgetBuf) s+=x.u2; return s;}
-function pushDu(t,dt,absDu){duBuf.push({t,dt,val:absDu*dt}); while(duBuf.length && (t-duBuf[0].t)>CFG.DU_WIN) duBuf.shift();}
-function duUsed(){let s=0; for(const x of duBuf) s+=x.val; return s;}
-
-function estimateStage(phiM,y){
-  const a=clamp(phiM.Ymean/255,0,1);
-  const b=clamp(phiM.snoreRatio,0,1);
-  const z=0.7*a+0.9*b+0.3*clamp(y/255,0,1);
-  if(z<0.28) return "CALM";
-  if(z<0.55) return "MIXED";
-  return "DIST";
-}
-let sleepLatencySec=null, onsetStable=0;
-let session=null;
+let action={level:"SOFT", actionKey:"NUDGE_ALT::0.00", token:"NUDGE_ALT", rho:0.0};
 
 function newSession(t0){
-  session={
+  return {
+    type:"SESSION",
     id:`sess_${Date.now()}`,
     t0, t0Wall:Date.now(),
     calibStart: nowMs(),
-    ambientYmean:null, dynThr:null,
-    inEvent:false, eventT0:0, eventStartY:0, below:null,
-    E_real:0, E_delta:0, uEnergy:0, uPeak:0,
-    motionTurns:0
+    ambientYmean:null,
+    dynThr:null,
+    sleepLatencySec:null,
+    inEvent:false,
+    eventT0:0,
+    eventStartY:0,
+    below:null,
+    // totals
+    E_real:0,
+    E_delta:0,
+    uEnergy:0,
+    uPeak:0,
+    // IF
+    E_if:0,
+    deltaE_if:0,
+    motifCoverageSec:0,
+    // probe stats
+    probeEnabled:false,
+    probePerHour:0,
+    probeAbort:0,
+    motifs:0,
+    // motion
+    motionEnabled:false,
+    turns:0
   };
 }
+let session=newSession(nowMs()/1000);
 
-function updateSleepLatency(phiM,t,dt){
-  if(sleepLatencySec!=null) return;
-  const thr=getTHR();
-  const asleepish=(phiM.Ymean<thr*0.95)&&(phiM.snoreRatio<0.12)&&(busNudge.gain.value<getCap()*0.25);
-  onsetStable = asleepish ? (onsetStable+dt) : Math.max(0,onsetStable-0.5*dt);
-  if(onsetStable>=180) sleepLatencySec=Math.round(t-session.t0);
-}
-
-function updatePhase(phiM,phiL){
-  if(!running){ phase="IDLE"; return; }
-  if(session && session.inEvent){ phase="EVENT"; return; }
-  if(sleepLatencySec==null){ phase="ONSET"; return; }
-  const stable=(phiL.snoreRatio<0.12)&&(phiM.snoreRatio<0.20)&&(stage==="CALM"||stage==="MIXED");
-  phase=stable?"STABLE":"EVENT";
-}
-function tauOf(phiS,phiM,phiL){
-  const cap=getCap();
-  const bNorm=clamp(budgetUsed()/Math.max(1e-9,(CFG.BUDGET_WIN*cap*cap*0.25)),0,2);
-  const duNorm=clamp(duUsed()/1.2,0,2);
-  let tau=2.4;
-  tau*=(1+0.9*phiM.snoreRatio);
-  tau*=(1+0.6*(bNorm/2));
-  tau*=(1+0.9*(duNorm/2));
-  if(phase==="ONSET") tau*=1.35;
-  if(phase==="STABLE") tau*=1.15;
-  return clamp(tau,0.8,7.5);
-}
-function computeYStar(elapsed,startY,phiS,phiM,phiL){
-  const thr=getTHR();
-  const tau=tauOf(phiS,phiM,phiL);
-  const k=1/Math.max(0.25,tau);
-  let ys=thr+(startY-thr)*Math.exp(-k*elapsed);
-  ys=Math.max(thr,ys);
-  if(phase==="ONSET") ys=Math.max(thr, thr+0.30*(startY-thr));
-  return ys;
-}
-function applySafety(uEff,cap,t,dt){
-  let u=clamp(uEff,0,cap);
-  const du=u-lastU;
-  if(du>CFG.MAX_DU) u=lastU+CFG.MAX_DU;
-  if(du<-CFG.MAX_DU) u=lastU-CFG.MAX_DU;
-  pushDu(t,dt,Math.abs(du));
-  lastU=u;
-  return u;
-}
-function getMode(){
-  const v=ui.modeSel.value;
-  if(v!=="auto") return v;
-  if(phase==="ONSET") return "gentle";
-  if(stage==="CALM") return "gentle";
-  return "standard";
-}
 function sleepBase(){
   if(phase==="ONSET") return 0.78;
   const elapsed=t-session.t0;
@@ -642,134 +1028,6 @@ function decideSleep(){
   return "OCEAN_SOFT";
 }
 
-/* ===================== Scope (crisp + correct colors) ===================== */
-const cCtx = ui.cvs.getContext("2d");
-let bY=new Array(CFG.SCOPE_N).fill(0);
-let bYs=new Array(CFG.SCOPE_N).fill(0);
-let bU=new Array(CFG.SCOPE_N).fill(0);
-
-function resizeCanvas(){
-  const dpr = Math.max(1, window.devicePixelRatio || 1);
-  const w = ui.cvs.clientWidth;
-  const h = ui.cvs.clientHeight;
-  ui.cvs.width = Math.floor(w * dpr);
-  ui.cvs.height = Math.floor(h * dpr);
-  cCtx.setTransform(dpr,0,0,dpr,0,0); // draw in CSS pixels
-}
-window.addEventListener("resize", resizeCanvas);
-resizeCanvas();
-
-function drawScope(Y,Ys,u,thr){
-  const w = ui.cvs.clientWidth;
-  const h = ui.cvs.clientHeight;
-  cCtx.clearRect(0,0,w,h);
-
-  bY.push(Y); bY.shift();
-  bYs.push(Ys); bYs.shift();
-  bU.push(u*255); bU.shift();
-
-  // threshold line
-  const yT = h - (thr/255)*h;
-  cCtx.save();
-  cCtx.strokeStyle="rgba(255,255,255,0.18)";
-  cCtx.lineWidth=1;
-  cCtx.setLineDash([6,6]);
-  cCtx.beginPath();
-  cCtx.moveTo(0,yT);
-  cCtx.lineTo(w,yT);
-  cCtx.stroke();
-  cCtx.restore();
-
-  // u fill (red)
-  const maxU = Math.max(...bU);
-  if(maxU > 1){
-    cCtx.fillStyle="rgba(255,59,48,0.18)";
-    cCtx.beginPath();
-    cCtx.moveTo(0,h);
-    for(let i=0;i<bU.length;i++){
-      const xx = i/(bU.length-1)*w;
-      const yy = h - (bU[i]/255)*h;
-      cCtx.lineTo(xx,yy);
-    }
-    cCtx.lineTo(w,h);
-    cCtx.closePath();
-    cCtx.fill();
-  }
-
-  // Y line (cyan)
-  cCtx.strokeStyle="#00f2ff";
-  cCtx.lineWidth=1.5;
-  cCtx.beginPath();
-  for(let i=0;i<bY.length;i++){
-    const xx=i/(bY.length-1)*w;
-    const yy=h-(bY[i]/255)*h;
-    if(i===0) cCtx.moveTo(xx,yy); else cCtx.lineTo(xx,yy);
-  }
-  cCtx.stroke();
-
-  // Y* line (orange)
-  cCtx.strokeStyle="#ff9f0a";
-  cCtx.lineWidth=2.0;
-  cCtx.beginPath();
-  for(let i=0;i<bYs.length;i++){
-    const xx=i/(bYs.length-1)*w;
-    const yy=h-(bYs[i]/255)*h;
-    if(i===0) cCtx.moveTo(xx,yy); else cCtx.lineTo(xx,yy);
-  }
-  cCtx.stroke();
-}
-
-/* ===================== Buttons ===================== */
-ui.btnSim.addEventListener("pointerdown",(e)=>{e.preventDefault(); simulate=true; ui.btnSim.classList.add("active");});
-ui.btnSim.addEventListener("pointerup",(e)=>{e.preventDefault(); simulate=false; ui.btnSim.classList.remove("active");});
-ui.btnSim.addEventListener("pointercancel",()=>{simulate=false; ui.btnSim.classList.remove("active");});
-document.addEventListener("pointerup",()=>{simulate=false; ui.btnSim.classList.remove("active");});
-
-ui.btnSelfTest.addEventListener("click", async ()=>{
-  try{
-    alert("SELF TEST start");
-    const AC=window.AudioContext||window.webkitAudioContext;
-    if(!AC) throw new Error("No AudioContext");
-    const tctx=new AC();
-    await tctx.resume();
-    alert("AudioContext="+tctx.state);
-    const stream=await navigator.mediaDevices.getUserMedia({audio:true});
-    alert("Mic OK. tracks="+stream.getTracks().length);
-    stream.getTracks().forEach(t=>t.stop());
-    await tctx.close();
-    setErr("SELF TEST PASS");
-  }catch(e){
-    alert("SELF TEST FAIL: "+(e?.name||"")+" "+(e?.message||e));
-    setErr("SELF TEST FAIL: "+(e?.name||"")+" "+(e?.message||e));
-  }
-});
-
-ui.btnMotionPerm.addEventListener("click", requestMotionPerm);
-
-ui.btnExportReport.addEventListener("click", ()=>{
-  const payload={type:"REPORT", session, savedAt:Date.now()};
-  const blob=new Blob([JSON.stringify(payload,null,2)],{type:"application/json"});
-  const url=URL.createObjectURL(blob);
-  const a=document.createElement("a"); a.href=url; a.download=`SnoreField_Report_${Date.now()}.json`; a.click();
-  URL.revokeObjectURL(url);
-});
-ui.btnExportLocal.addEventListener("click", ()=>{
-  const blob=new Blob([JSON.stringify(DB,null,2)],{type:"application/json"});
-  const url=URL.createObjectURL(blob);
-  const a=document.createElement("a"); a.href=url; a.download=`SnoreField_LOCAL_${Date.now()}.json`; a.click();
-  URL.revokeObjectURL(url);
-});
-ui.btnSnapshot.addEventListener("click", ()=>{
-  if(!session){alert("No session"); return;}
-  DB.push({type:"SNAPSHOT",...session,savedAt:Date.now()});
-  saveJSON(STORE.DB,DB);
-  alert("Snapshot saved");
-});
-ui.btnClearLocal.addEventListener("click", ()=>{
-  DB=[]; saveJSON(STORE.DB,DB); alert("Local cleared");
-});
-
-/* ===================== Start/Stop loop ===================== */
 function loop(){
   if(!running) return;
 
@@ -795,6 +1053,7 @@ function loop(){
   updateSleepLatency(phiM,t,dt);
   updatePhase(phiM,phiL);
 
+  // calibration
   if(state==="CALIB"){
     ambientN++;
     ambient += (Y-ambient)/Math.max(1,ambientN);
@@ -806,9 +1065,43 @@ function loop(){
     }
   }
 
+  // sleep template
   const sleepName=decideSleep();
   if(sleepName==="OFF"){ applySleep("OFF"); setSleepBus(0); }
   else { applySleep(sleepName); setSleepBus(sleepBase()); }
+
+  // choose option policy
+  const x = ctxVec(phiS,phiM,phiL);
+  if(!action._optActive){
+    action._optActive=true;
+    action._optEnd=t+getOptSec();
+
+    banditLevel.alpha=getAlpha();
+    banditLow.alpha=getAlpha();
+
+    action.level = banditLevel.choose(x);
+    const a = chooseMaskedLow(x, action.level);
+    action.actionKey = a;
+    const p = parseActionKey(a);
+    action.token = p.tok;
+    action.rho = p.rho;
+
+    action._x = x;
+    action._stats = {sumT:0, E_delta_norm:0, uMean:0, uPeakN:0, strong:0, duNorm:0, turnBonus:0};
+  }
+  if(action._optActive && t>=action._optEnd){
+    // compute reward for option
+    const stats=action._stats;
+    const meanE = stats.sumT>0 ? (stats.E_delta_norm/stats.sumT) : 0;
+    const benefit = clamp(1 - (meanE/0.04), 0, 1);
+    const cost = getSQW()*(0.42*stats.uMean + 0.35*stats.uPeakN + 0.23*stats.duNorm + 0.12*clamp(stats.strong/2,0,2));
+    const r = clamp((benefit + stats.turnBonus) - cost, -1, 1);
+
+    banditLow.update(action.actionKey, action._x, r);
+    banditLevel.update(action.level, action._x, r);
+
+    action._optActive=false;
+  }
 
   const useThr=(state==="RUN" && dynThr!=null)?dynThr:thr;
   const onsetDetect=Math.max(thr*0.85, (session.ambientYmean ?? ambient)+10);
@@ -816,77 +1109,302 @@ function loop(){
 
   if(simulate){ Y=Math.max(Y, detectThr+50); }
 
-  const wantEvent=(Y>detectThr) || simulate;
+  const wantEvent = (Y>detectThr) || simulate;
+
+  // event transitions + CIEU
   if(!session.inEvent && wantEvent){
     session.inEvent=true;
     session.eventT0=t;
     session.eventStartY=Y;
     phase="EVENT";
     nudgeNext=ctx.currentTime;
+
+    const yStar0 = computeYStar(0, Y, phiS,phiM,phiL).ys;
+    startCIEU(t, x, phiS,phiM,phiL, action, Y, yStar0);
   }
+
   if(session.inEvent && !wantEvent){
     if(session.below==null) session.below=t;
     if(t-session.below>2){
-      session.inEvent=false; session.below=null;
+      session.inEvent=false;
+      session.below=null;
+      finishCIEU(t);
     }
   } else {
     session.below=null;
   }
 
-  const Ystar = session.inEvent
+  // dynamic Y*
+  const yStarObj = session.inEvent
     ? computeYStar(t-session.eventT0, session.eventStartY, phiS,phiM,phiL)
     : computeYStar(0, Y, phiS,phiM,phiL);
+  const Ystar=yStarObj.ys;
 
+  // metrics
   const exceed=Math.max(0,Y-useThr);
   session.E_real += (exceed*exceed)*dt;
 
   const deltaPlus=Math.max(0,Y-Ystar);
   session.E_delta += (deltaPlus*deltaPlus)*dt;
 
+  // IF motif accumulation (parallel world)
+  const key = motifKeyFrom(feat, phiM);
+
+  if(motifTable.has(key) && Y>useThr){
+    const rec = motifTable.get(key);
+    const scale = (rec.tCycle>0) ? (dt/rec.tCycle) : 0;
+    session.E_if += rec.eCycle*scale;
+    session.motifCoverageSec += dt;
+    if(currentCIEU) currentCIEU.if_t.motifKnownSec += dt;
+  }
+
+  session.deltaE_if = session.E_if - session.E_real;
+
+  // IF Probe L1
+  probe.enabled = ui.ifProbe.checked;
+  session.probeEnabled = probe.enabled;
+
+  if(canProbe() && !motifTable.has(key) && Y>useThr){
+    startProbe(key, estimateCycleSec(feat), t);
+  }
+
+  // control action u and nudges
   let u=0;
-  if(getMode()==="monitor"){
-    u=0; setNudgeBus(0);
-  }else{
-    const e=Math.max(0, clamp((Y-Ystar)/255,-1,1));
+  const mode=getMode(phase, stage);
+
+  if(probe.inProbe){
+    u=0;
+    setNudgeBus(0);
+    probe.accE += (exceed*exceed)*dt;
+    probe.accD += exceed*dt;
+    probe.accT += (Y>useThr)?dt:0;
+
+    if(Y>useThr+CFG.PROBE_ABORT_MARGIN) abortProbe();
+    else if(!(phase==="STABLE" && stage==="CALM")) abortProbe();
+    else if(t>=probe.tEnd) finishProbe();
+
+  } else if(mode==="monitor"){
+    u=0;
+    setNudgeBus(0);
+
+  } else {
+    const e=Math.max(0, clamp((Y-Ystar)/255, -1, 1));
     const kp=0.40, ki=0.04;
     pidI=clamp(pidI + e*dt, 0, 0.9);
     const uPID=clamp(kp*e + ki*pidI, 0, 1);
-    const cap=getCap();
-    u=applySafety(uPID, cap, t, dt);
+
+    const cap=getCap()*allowed(action.level).capScale;
+    u=applySafety(uPID*(1+action.rho), cap, t, dt);
 
     setNudgeBus(Math.min(u,0.35));
     pushBudget(t,dt,u);
+
     session.uEnergy += (u*u)*dt;
     session.uPeak = Math.max(session.uPeak, u);
 
+    // nudge schedule in event
     if(session.inEvent && u>0.03){
       const gap=clamp(CFG.NUDGE_MAX_GAP - u*(CFG.NUDGE_MAX_GAP-CFG.NUDGE_MIN_GAP), CFG.NUDGE_MIN_GAP, CFG.NUDGE_MAX_GAP);
       if(ctx.currentTime >= nudgeNext){
-        scheduleNudge("NUDGE_ALT", clamp(u,0,1));
+        scheduleNudge(action.token, clamp(u,0,1));
         nudgeNext = ctx.currentTime + gap;
       }
     }
-    if(motion.enabled && motion.permitted && motion.turnEvent){
-      session.motionTurns += 1;
-      motion.turnEvent=false;
+
+    // option stats
+    if(action._optActive){
+      const dNorm=Math.max(0,(Y-Ystar)/255);
+      action._stats.sumT += dt;
+      action._stats.E_delta_norm += (dNorm*dNorm)*dt;
+      // uMean / uPeak normalized to cap
+      action._stats.uMean += (cap>0 ? (u/cap) : 0)*dt;
+      action._stats.uPeakN = Math.max(action._stats.uPeakN, cap>0 ? (u/cap) : 0);
+      action._stats.duNorm = clamp(duUsed()/0.8,0,2);
+      if(u>0.75*cap) action._stats.strong += 1;
+      if(motion.enabled && motion.permitted && motion.turnEvent){
+        action._stats.turnBonus = 0.08;
+      }
+    }
+
+    // CIEU accumulation
+    if(currentCIEU){
+      currentCIEU.y_out.peakY = Math.max(currentCIEU.y_out.peakY, Y);
+      currentCIEU.y_out.E_exceed += (exceed*exceed)*dt;
+      currentCIEU.y_out.E_delta += (deltaPlus*deltaPlus)*dt;
+      currentCIEU.y_out.uEnergy += (u*u)*dt;
+      currentCIEU.y_out.uPeak = Math.max(currentCIEU.y_out.uPeak, u);
+
+      if(motion.enabled && motion.permitted && motion.turnEvent){
+        currentCIEU.motion_t.turnDetected = true;
+        session.turns += 1;
+        motion.turnEvent=false;
+      }
     }
   }
 
-  if(getMode()!=="monitor" && (session.inEvent || u>0.05)){
+  // duck sleep while nudging
+  if(mode!=="monitor" && (session.inEvent || u>0.05)){
     setSleepBus(Math.min(sleepBase(),0.25));
   }
 
-  // overlay
+  // update overlay
   ui.oPhase.textContent=phase;
   ui.oStage.textContent=stage;
-  ui.oNudge.textContent="NUDGE_ALT";
+  ui.oLevel.textContent=action.level;
+  ui.oAction.textContent=action.actionKey;
+  ui.oDE.textContent=session.deltaE_if.toFixed(1);
+  ui.oTurns.textContent=String(session.turns||0);
   ui.oMotion.textContent=(motion.enabled && motion.permitted)?"ON":"OFF";
 
+  // probe stats
+  session.probePerHour = probe.perHour;
+  session.probeAbort = probe.abort;
+  session.motifs = motifTable.size;
+
+  // draw scope
   drawScope(Y,Ystar,u,useThr);
 
+  // loop
   setTimeout(loop, 1000/CFG.LOGIC_HZ);
 }
 
+/* =========================================================
+   Scope (crisp)
+   ========================================================= */
+const ctx2=ui.cvs.getContext("2d");
+let bY=new Array(CFG.SCOPE_N).fill(0);
+let bYs=new Array(CFG.SCOPE_N).fill(0);
+let bU=new Array(CFG.SCOPE_N).fill(0);
+
+function resizeCanvas(){
+  const dpr=Math.max(1, window.devicePixelRatio||1);
+  const w=ui.cvs.clientWidth;
+  const h=ui.cvs.clientHeight;
+  ui.cvs.width=Math.floor(w*dpr);
+  ui.cvs.height=Math.floor(h*dpr);
+  ctx2.setTransform(dpr,0,0,dpr,0,0);
+}
+window.addEventListener("resize", resizeCanvas);
+resizeCanvas();
+
+function drawScope(Y,Ys,u,thr){
+  const w=ui.cvs.clientWidth;
+  const h=ui.cvs.clientHeight;
+  ctx2.clearRect(0,0,w,h);
+
+  bY.push(Y); bY.shift();
+  bYs.push(Ys); bYs.shift();
+  bU.push(u*255); bU.shift();
+
+  // threshold
+  const yT=h-(thr/255)*h;
+  ctx2.save();
+  ctx2.strokeStyle="rgba(255,255,255,0.18)";
+  ctx2.lineWidth=1;
+  ctx2.setLineDash([6,6]);
+  ctx2.beginPath(); ctx2.moveTo(0,yT); ctx2.lineTo(w,yT); ctx2.stroke();
+  ctx2.restore();
+
+  // u fill
+  if(Math.max(...bU)>1){
+    ctx2.fillStyle="rgba(255,59,48,0.18)";
+    ctx2.beginPath();
+    ctx2.moveTo(0,h);
+    for(let i=0;i<bU.length;i++){
+      const xx=i/(bU.length-1)*w;
+      const yy=h-(bU[i]/255)*h;
+      ctx2.lineTo(xx,yy);
+    }
+    ctx2.lineTo(w,h);
+    ctx2.closePath();
+    ctx2.fill();
+  }
+
+  // Y line
+  ctx2.strokeStyle="#00f2ff";
+  ctx2.lineWidth=1.5;
+  ctx2.beginPath();
+  for(let i=0;i<bY.length;i++){
+    const xx=i/(bY.length-1)*w;
+    const yy=h-(bY[i]/255)*h;
+    if(i===0) ctx2.moveTo(xx,yy); else ctx2.lineTo(xx,yy);
+  }
+  ctx2.stroke();
+
+  // Y* line
+  ctx2.strokeStyle="#ff9f0a";
+  ctx2.lineWidth=2.0;
+  ctx2.beginPath();
+  for(let i=0;i<bYs.length;i++){
+    const xx=i/(bYs.length-1)*w;
+    const yy=h-(bYs[i]/255)*h;
+    if(i===0) ctx2.moveTo(xx,yy); else ctx2.lineTo(xx,yy);
+  }
+  ctx2.stroke();
+}
+
+/* =========================================================
+   Buttons / UX
+   ========================================================= */
+ui.showDebug.checked=false;
+ui.debugPanel.classList.add("hidden");
+
+ui.btnSelfTest.addEventListener("click", async ()=>{
+  try{
+    alert("SELF TEST start");
+    const AC=window.AudioContext||window.webkitAudioContext;
+    if(!AC) throw new Error("No AudioContext");
+    const tctx=new AC();
+    await tctx.resume();
+    alert("AudioContext="+tctx.state);
+    const stream=await navigator.mediaDevices.getUserMedia({audio:true});
+    alert("Mic OK. tracks="+stream.getTracks().length);
+    stream.getTracks().forEach(t=>t.stop());
+    await tctx.close();
+    log("SELF TEST PASS");
+  }catch(e){
+    alert("SELF TEST FAIL: "+(e?.name||"")+" "+(e?.message||e));
+    log("SELF TEST FAIL: "+(e?.name||"")+" "+(e?.message||e));
+  }
+});
+
+ui.btnMotionPerm.addEventListener("click", requestMotionPerm);
+ui.useMotion.addEventListener("change", ()=>{
+  motion.enabled = ui.useMotion.checked;
+  if(!motion.enabled) setPill(ui.pillMotion,"warn","motion: off");
+  else setPill(ui.pillMotion, motion.permitted?"ok":"warn", motion.permitted?"motion: on":"motion: need perm");
+});
+
+ui.btnSim.addEventListener("pointerdown",(e)=>{e.preventDefault(); simulate=true; ui.btnSim.classList.add("active");});
+ui.btnSim.addEventListener("pointerup",(e)=>{e.preventDefault(); simulate=false; ui.btnSim.classList.remove("active");});
+ui.btnSim.addEventListener("pointercancel",()=>{simulate=false; ui.btnSim.classList.remove("active");});
+document.addEventListener("pointerup",()=>{simulate=false; ui.btnSim.classList.remove("active");});
+
+ui.btnExportReport.addEventListener("click", ()=>{
+  const payload={type:"REPORT", session, motifs:[...motifTable.entries()], savedAt:Date.now()};
+  const blob=new Blob([JSON.stringify(payload,null,2)],{type:"application/json"});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement("a"); a.href=url; a.download=`SnoreField_Report_${Date.now()}.json`; a.click();
+  URL.revokeObjectURL(url);
+});
+ui.btnExportLocal.addEventListener("click", ()=>{
+  const blob=new Blob([JSON.stringify(DB,null,2)],{type:"application/json"});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement("a"); a.href=url; a.download=`SnoreField_LOCAL_${Date.now()}.json`; a.click();
+  URL.revokeObjectURL(url);
+});
+ui.btnSnapshot.addEventListener("click", ()=>{
+  pushDB({type:"SNAPSHOT", session, motifs:[...motifTable.entries()], savedAt:Date.now()});
+  alert("Snapshot saved");
+});
+ui.btnClearLocal.addEventListener("click", ()=>{
+  DB=[]; saveJSON(STORE.DB,DB);
+  alert("Local cleared");
+});
+
+/* =========================================================
+   Start/Stop
+   ========================================================= */
 async function startSystem(){
   if(running) return;
   try{
@@ -896,57 +1414,77 @@ async function startSystem(){
 
     await ensureMic();
 
+    // motion state
     motion.enabled = ui.useMotion.checked;
     if(motion.enabled && motion.permitted) setPill(ui.pillMotion,"ok","motion: on");
     else if(motion.enabled) setPill(ui.pillMotion,"warn","motion: need perm");
     else setPill(ui.pillMotion,"warn","motion: off");
 
+    // sleep template
     applySleep("OCEAN_SOFT");
     masterOn(true);
     setSleepBus(0.78);
     setNudgeBus(0);
 
+    // reset runtime
     running=true;
     phase="ONSET"; stage="CALM"; state="CALIB";
-    lastTick=0; t=0;
+    lastTick=0; t=0; dt=1/CFG.LOGIC_HZ;
     ambient=0; ambientN=0; dynThr=null;
-    pidI=0; lastU=0;
+    pidI=0; lastU=0; strongTimes=[];
     bufS=[];bufM=[];bufL=[];budgetBuf=[];duBuf=[];
     sleepLatencySec=null; onsetStable=0;
 
-    newSession(nowMs()/1000);
+    // reset IF probe
+    probe={enabled:false, perHour:0, hourStart:0, inProbe:false, tEnd:0, key:null, accE:0, accD:0, accT:0, abort:0};
+    motifTable.clear();
+
+    // reset session
+    session=newSession(nowMs()/1000);
+
+    // reset action option
+    action={level:"SOFT", actionKey:"NUDGE_ALT::0.00", token:"NUDGE_ALT", rho:0.0, _optActive:false};
 
     ui.btnActivate.textContent="STOP";
+
     loop();
   }catch(e){
-    setErr("START FAIL: "+(e?.name||"")+" "+(e?.message||e));
+    log("START FAIL: "+(e?.name||"")+" "+(e?.message||e));
     alert("START FAIL: "+(e?.message||e));
   }
 }
+
 function stopSystem(){
   if(!running) return;
   running=false;
-  try{
-    DB.push({type:"SESSION_SUMMARY",...session,savedAt:Date.now()});
-    saveJSON(STORE.DB,DB);
-  }catch(e){}
+
+  // finalize any open CIEU
+  finishCIEU(t);
+
+  // persist session summary
+  pushDB({type:"SESSION_SUMMARY", ...session, motifs: motifTable.size, savedAt:Date.now()});
+
+  // fade out
   try{ setNudgeBus(0); setSleepBus(0); masterOn(false); }catch(e){}
+
   ui.btnActivate.textContent="ACTIVATE";
+
   if(ui.autoBackup.checked){
-    const payload={type:"REPORT", session, savedAt:Date.now()};
+    const payload={type:"REPORT", session, motifs:[...motifTable.entries()], savedAt:Date.now()};
     const blob=new Blob([JSON.stringify(payload,null,2)],{type:"application/json"});
     const url=URL.createObjectURL(blob);
     const a=document.createElement("a"); a.href=url; a.download=`SnoreField_Report_${Date.now()}.json`; a.click();
     URL.revokeObjectURL(url);
   }
 }
+
 ui.btnActivate.addEventListener("click", ()=> running ? stopSystem() : startSystem());
 
-/* ===================== Init ===================== */
+/* init pills */
 setPill(ui.pillAudio,"warn","audio: suspended");
 setPill(ui.pillMic,"warn","mic: off");
 setPill(ui.pillMotion,"warn","motion: off");
-setErr("Loaded v7.9. Scope is crisp, debug hidden by default.");
+log("Loaded v8.0 full core. Debug hidden by default.");
 </script>
 </body>
 </html>
