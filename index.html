@@ -3,158 +3,61 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no" />
-  <title>SnoreField — AI Sleep Guardian</title>
+  <title>SnoreField — Neuro-Physics Core</title>
   <style>
-    :root{
-      --bg:#000000; --surface:#1c1c1e; --surface-2:#2c2c2e;
-      --txt:#ffffff; --muted:#8e8e93; 
-      --accent:#0a84ff; --accent-glow:rgba(10,132,255,0.3);
-      --danger:#ff453a; --success:#32d74b; --warn:#ff9f0a;
-    }
+    /* 保持 v3.0 的极简 UI 样式不变，为了节省篇幅，CSS 部分完全复用上一版 */
+    :root{ --bg:#000000; --surface:#1c1c1e; --surface-2:#2c2c2e; --txt:#ffffff; --muted:#8e8e93; --accent:#0a84ff; --accent-glow:rgba(10,132,255,0.3); --danger:#ff453a; --success:#32d74b; --warn:#ff9f0a; }
     html,body{height:100%; overflow:hidden;}
-    body{
-      margin:0; font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, sans-serif;
-      background:var(--bg); color:var(--txt);
-      display:flex; flex-direction:column;
-      -webkit-font-smoothing: antialiased;
-    }
-    
-    /* ---- Main Stage (Minimal UI) ---- */
-    .stage{
-      flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center;
-      position:relative; z-index:10;
-      transition: all 0.5s ease;
-    }
-    
-    /* The Orb Button */
+    body{ margin:0; font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, sans-serif; background:var(--bg); color:var(--txt); display:flex; flex-direction:column; -webkit-font-smoothing: antialiased; }
+    .stage{ flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; position:relative; z-index:10; }
     .orb-container{ position:relative; width:180px; height:180px; margin-bottom:40px; display:flex; align-items:center; justify-content:center; }
-    .orb{
-      width:150px; height:150px; border-radius:50%;
-      background: linear-gradient(145deg, #2c2c2e, #1c1c1e);
-      box-shadow: 0 10px 30px rgba(0,0,0,0.5), inset 0 1px 2px rgba(255,255,255,0.1);
-      border: 1px solid #3a3a3c;
-      display:flex; align-items:center; justify-content:center;
-      cursor:pointer; transition:all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-      position:relative; z-index:2;
-    }
-    .orb svg{ width:50px; height:50px; fill:var(--txt); transition:all 0.3s; }
-    .orb:active{ transform:scale(0.95); }
-    
-    /* Active State */
-    .orb.active{
-      background: var(--accent);
-      border-color: var(--accent);
-      box-shadow: 0 0 60px var(--accent-glow);
-    }
+    .orb{ width:150px; height:150px; border-radius:50%; background: linear-gradient(145deg, #2c2c2e, #1c1c1e); box-shadow: 0 10px 30px rgba(0,0,0,0.5), inset 0 1px 2px rgba(255,255,255,0.1); border: 1px solid #3a3a3c; display:flex; align-items:center; justify-content:center; cursor:pointer; position:relative; z-index:2; }
+    .orb svg{ width:50px; height:50px; fill:var(--txt); }
+    .orb.active{ background: var(--accent); border-color: var(--accent); box-shadow: 0 0 60px var(--accent-glow); }
     .orb.active svg{ fill:white; }
-    
-    /* Sleep Stage Indicator Ring */
-    .stage-ring {
-      position:absolute; top:-10px; left:-10px; right:-10px; bottom:-10px;
-      border-radius:50%; border: 2px solid transparent;
-      transition: border-color 1s ease; opacity: 0.5; pointer-events:none;
-    }
-    .orb.active ~ .stage-ring.deep { border-color: #5e5ce6; } /* Purple for Deep */
-    .orb.active ~ .stage-ring.light { border-color: #30d158; } /* Green for Light */
-    .orb.active ~ .stage-ring.awake { border-color: #ff9f0a; } /* Orange for Snore/Awake */
-
-    .breath-ring{
-      position:absolute; top:0; left:0; width:100%; height:100%;
-      border-radius:50%; border:2px solid var(--accent);
-      opacity:0; transform:scale(0.9); pointer-events:none;
-    }
-    .orb.active ~ .breath-ring{ animation: breath 4s infinite ease-in-out; }
-    
-    @keyframes breath {
-      0% { transform:scale(1); opacity:0.4; }
-      50% { transform:scale(1.3); opacity:0; }
-      100% { transform:scale(1); opacity:0.4; }
-    }
-
-    .status-text{ font-size:15px; color:var(--muted); font-weight:500; letter-spacing:0.5px; margin-top:10px; min-height:20px; text-align:center;}
+    .stage-ring { position:absolute; top:-10px; left:-10px; right:-10px; bottom:-10px; border-radius:50%; border: 3px solid transparent; transition: border-color 1s ease, transform 0.5s ease; opacity: 0.6; pointer-events:none; }
+    .stage-ring.deep { border-color: #5e5ce6; box-shadow: 0 0 30px rgba(94,92,230,0.4); } 
+    .stage-ring.light { border-color: #30d158; box-shadow: 0 0 30px rgba(48,209,88,0.3); } 
+    .stage-ring.awake { border-color: #ff9f0a; box-shadow: 0 0 40px rgba(255,159,10,0.5); transform: scale(1.1); }
+    .stage-ring.probe { border-color: #bf5af2; border-style: dashed; animation: spin 10s linear infinite; }
+    @keyframes spin { 100% { transform: rotate(360deg); } }
+    .status-text{ font-size:15px; color:var(--muted); font-weight:500; margin-top:10px; text-align:center;}
     .sub-status { font-size: 11px; color: #555; margin-top: 4px; font-family: monospace; }
-    
-    /* Primary Controls */
     .controls{ width:100%; max-width:340px; padding:0 24px; box-sizing:border-box; display:flex; flex-direction:column; gap:24px; }
-    
     .control-group label{ display:flex; justify-content:space-between; font-size:13px; color:var(--muted); margin-bottom:10px; font-weight:600;}
     .control-group label span.val{ color:var(--txt); font-family:monospace; }
-    
     input[type=range] { -webkit-appearance:none; width:100%; background:transparent; }
-    input[type=range]::-webkit-slider-thumb {
-      -webkit-appearance: none; height: 22px; width: 22px; border-radius: 50%;
-      background: #fff; cursor: pointer; margin-top: -9px; box-shadow:0 2px 8px rgba(0,0,0,0.4);
-    }
-    input[type=range]::-webkit-slider-runnable-track {
-      width: 100%; height: 4px; cursor: pointer; background: var(--surface-2); border-radius: 2px;
-    }
-    
+    input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; height: 22px; width: 22px; border-radius: 50%; background: #fff; cursor: pointer; margin-top: -9px; }
+    input[type=range]::-webkit-slider-runnable-track { width: 100%; height: 4px; cursor: pointer; background: var(--surface-2); border-radius: 2px; }
     .select-wrap{ position:relative; }
-    select{
-      width:100%; -webkit-appearance:none; background:var(--surface); border:none;
-      color:var(--txt); padding:14px 16px; border-radius:14px; font-size:16px; outline:none;
-    }
-    .select-wrap::after{
-      content:"▼"; position:absolute; right:16px; top:16px; font-size:10px; color:var(--muted); pointer-events:none;
-    }
-
-    /* Footer */
-    .footer-bar{
-      padding:24px; display:flex; justify-content:center;
-      background:var(--bg); z-index:20;
-      gap: 20px; /* 增加两个按钮之间的间距 */
-    }
-    .icon-btn{
-      background:var(--surface); border:none; color:var(--muted); cursor:pointer; padding:12px;
-      border-radius:50%; transition:all 0.2s;
-    }
+    select{ width:100%; -webkit-appearance:none; background:var(--surface); border:none; color:var(--txt); padding:14px 16px; border-radius:14px; font-size:16px; outline:none; }
+    .select-wrap::after{ content:"▼"; position:absolute; right:16px; top:16px; font-size:10px; color:var(--muted); pointer-events:none; }
+    .footer-bar{ padding:24px; display:flex; justify-content:center; gap:24px; background:var(--bg); z-index:20; }
+    .icon-btn{ background:var(--surface); border:none; color:var(--muted); cursor:pointer; padding:12px; border-radius:50%; }
     .icon-btn:hover{ background:var(--surface-2); color:var(--txt); }
-
-    /* Advanced Panel */
-    .advanced-panel{
-      position:fixed; top:0; left:0; width:100%; height:100%;
-      background:var(--bg); z-index:30;
-      transform:translateY(100%); transition:transform 0.35s cubic-bezier(0.16, 1, 0.3, 1);
-      display:flex; flex-direction:column;
-    }
+    .advanced-panel{ position:fixed; top:0; left:0; width:100%; height:100%; background:var(--bg); z-index:30; transform:translateY(100%); transition:transform 0.35s cubic-bezier(0.16, 1, 0.3, 1); display:flex; flex-direction:column; }
     .advanced-panel.open{ transform:translateY(0); }
-    
-    .adv-header{
-      padding:20px; display:flex; justify-content:space-between; align-items:center;
-      border-bottom:1px solid var(--surface-2); background:var(--surface);
-    }
+    .adv-header{ padding:20px; display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--surface-2); background:var(--surface); }
     .adv-title{ font-weight:700; font-size:17px; }
-    
-    .adv-content{
-      flex:1; overflow-y:auto; padding:20px;
-      display:grid; gap:20px; align-content:start;
-    }
-    
-    .card{
-      background:var(--surface); border-radius:16px; padding:18px;
-    }
+    .adv-content{ flex:1; overflow-y:auto; padding:20px; display:grid; gap:20px; align-content:start; }
+    .card{ background:var(--surface); border-radius:16px; padding:18px; }
     .card h3{ margin:0 0 14px; font-size:11px; text-transform:uppercase; color:var(--muted); letter-spacing:1px; font-weight:600;}
-    
     .grid-row{ display:grid; grid-template-columns:1fr 1fr; gap:12px; }
     .grid-3{ display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; }
-    
     .kpi-box{ background:rgba(255,255,255,0.05); border-radius:10px; padding:10px; text-align:center; }
     .kpi-box .l{ font-size:10px; color:var(--muted); display:block; margin-bottom:4px;}
     .kpi-box .v{ font-size:15px; font-weight:700; font-family:monospace; color:#fff; }
-    
-    .btn{
-      width:100%; padding:14px; border-radius:12px; border:none;
-      background:var(--surface-2); color:var(--txt); font-weight:600; cursor:pointer; font-size:15px;
-    }
+    .btn{ width:100%; padding:14px; border-radius:12px; border:none; background:var(--surface-2); color:var(--txt); font-weight:600; cursor:pointer; font-size:15px; }
     .btn.danger{ background:rgba(255, 69, 58, 0.15); color:var(--danger); }
     .switch-row{ display:flex; justify-content:space-between; align-items:center; font-size:15px; }
-    
     input[type=checkbox] { transform: scale(1.3); accent-color: var(--accent); }
-    
     pre{ background:#000; padding:12px; border-radius:10px; font-size:10px; color:#aaa; overflow-x:auto; margin:0; font-family:monospace;}
+    .demo-tag { position: absolute; top: 12px; left: 50%; transform: translateX(-50%); background: #ff9f0a; color: black; font-size: 10px; font-weight: 800; padding: 2px 8px; border-radius: 4px; display: none; z-index: 100; }
   </style>
 </head>
 <body>
+
+<div class="demo-tag" id="demoTag">PHYSICS DEMO</div>
 
 <div class="stage" id="stage">
   <div class="orb-container">
@@ -166,26 +69,24 @@
     <div class="stage-ring" id="stageRing"></div>
   </div>
   
-  <div class="status-text" id="mainStatus">Ready to Sleep</div>
+  <div class="status-text" id="mainStatus">Neuro-Controller Active</div>
   <div class="sub-status" id="subStatus">--</div>
   
   <div class="controls">
     <div class="control-group">
-      <label>Sleep Soundscape</label>
+      <label>Neuro-Modulation Policy</label>
       <div class="select-wrap">
         <select id="sleepSel">
-          <option value="AUTO">AI Adaptive (Auto)</option>
-          <option value="OCEAN_SOFT">Deep Ocean</option>
-          <option value="OCEAN_PAD">Dreamy Waves</option>
-          <option value="RAIN_SOFT">Gentle Rain</option>
-          <option value="PINK_SOFT">Pink Noise</option>
-          <option value="OFF">Silent Monitoring</option>
+          <option value="AUTO">RL Adaptive (Theta/Delta)</option>
+          <option value="THETA_6HZ">Theta (6Hz) - Deep Relax</option>
+          <option value="DELTA_2HZ">Delta (2Hz) - Sleep Induction</option>
+          <option value="SMR_14HZ">SMR (14Hz) - Stability</option>
         </select>
       </div>
     </div>
 
     <div class="control-group">
-      <label>Volume Cap <span class="val" id="volDisplay">70%</span></label>
+      <label>Field Intensity <span class="val" id="volDisplay">70%</span></label>
       <input id="sleepVol" type="range" min="0" max="1" step="0.05" value="0.7">
     </div>
   </div>
@@ -195,13 +96,8 @@
   <button class="icon-btn" id="btnSettings">
     <svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
   </button>
-  
   <button class="icon-btn" id="btnQuickExport">
-    <svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-      <polyline points="7 10 12 15 17 10"/>
-      <line x1="12" y1="15" x2="12" y2="3"/>
-    </svg>
+    <svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
   </button>
 </div>
 
@@ -212,78 +108,66 @@
   </div>
   <div class="adv-content">
     
-    <div class="card">
-      <h3>Intervention Logic</h3>
-      <div class="control-group">
-        <label>Mode</label>
-        <div class="select-wrap">
-          <select id="modeSel">
-            <option value="auto">AUTO (Smart)</option>
-            <option value="monitor">Monitor Only</option>
-            <option value="standard">Standard</option>
-          </select>
-        </div>
-      </div>
-      <div class="grid-row" style="margin-top:10px;">
-        <div class="control-group">
-          <label>Threshold: <span class="val" id="thrVal">100</span></label>
-          <input id="thr" type="range" min="40" max="200" value="100">
-        </div>
-        <div class="control-group">
-          <label>Max Gain: <span class="val" id="capVal">0.12</span></label>
-          <input id="cap" type="range" min="0" max="0.25" step="0.005" value="0.12">
-        </div>
+    <div class="card" style="border: 1px solid var(--accent);">
+      <h3 style="color:var(--accent);">Video Demo Mode</h3>
+      <div class="switch-row">
+        <span>Enable Simulation</span>
+        <input type="checkbox" id="demoMode">
       </div>
     </div>
 
     <div class="card">
-      <h3>Counterfactual (IF Probe)</h3>
+      <h3>Functional Field (Energy Landscape)</h3>
+      <p style="font-size:10px; color:var(--muted);">Real-time implementation of gradient descent on Potential Energy V(y).</p>
+      <div class="grid-row">
+        <div class="kpi-box"><span class="l">State (y)</span><span class="v" id="kY">0</span></div>
+        <div class="kpi-box"><span class="l">Potential V(y)</span><span class="v" id="kPot" style="color:var(--warn)">0</span></div>
+      </div>
+      <div class="control-group" style="margin-top:12px;">
+        <label>Field Stiffness (k): <span class="val" id="tauVal">5.0</span></label>
+        <input id="tau" type="range" min="1" max="10" step="0.5" value="5.0">
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>CIEU (Shadow Energy)</h3>
       <div class="switch-row" style="margin-bottom:12px;">
-        <span>Enable IF Probe Logic</span>
+        <span>Enable Counterfactual Probe</span>
         <input type="checkbox" id="ifProbe" checked>
       </div>
-      <p style="font-size:11px; color:var(--muted); line-height:1.4;">
-        Randomly pauses intervention (5% time) to measure true snoring baseline. This calculates "Shadow Energy" (what would have happened without AI).
-      </p>
-    </div>
-
-    <div class="card">
-      <h3>Sleep & Energy Metrics</h3>
-      <div class="grid-3">
-        <div class="kpi-box"><span class="l">Stage</span><span class="v" id="kStage" style="color:var(--accent)">-</span></div>
-        <div class="kpi-box"><span class="l">Noise(dB)</span><span class="v" id="kY">0</span></div>
-        <div class="kpi-box"><span class="l">Intv Gain</span><span class="v" id="kU">0.00</span></div>
-      </div>
-      
-      <div style="margin-top:12px; padding-top:12px; border-top:1px solid rgba(255,255,255,0.1);">
-        <h3 style="margin-bottom:8px;">Energy Comparison (Cumulative)</h3>
-        <div class="grid-row">
-          <div class="kpi-box"><span class="l">Without AI (Est.)</span><span class="v" style="color:var(--danger)" id="mEif">0</span></div>
-          <div class="kpi-box"><span class="l">With AI (Real)</span><span class="v" style="color:var(--success)" id="mEreal">0</span></div>
-        </div>
-        <div class="kpi-box" style="margin-top:8px;"><span class="l">Energy Saved (Δ)</span><span class="v" style="color:var(--accent)" id="mDE">0</span></div>
-      </div>
-    </div>
-
-    <div class="card">
-      <h3>Data</h3>
-      <div class="switch-row" style="margin-bottom:12px;">
-        <span>Auto-Export on Stop</span>
-        <input type="checkbox" id="autoBackup" checked>
-      </div>
       <div class="grid-row">
-        <button class="btn" id="btnExport">Export Report</button>
-        <button class="btn danger" id="btnReset">Reset App</button>
+        <div class="kpi-box"><span class="l">E_IF (Shadow)</span><span class="v" style="color:var(--danger)" id="mEif">0</span></div>
+        <div class="kpi-box"><span class="l">E_Real</span><span class="v" style="color:var(--success)" id="mEreal">0</span></div>
+      </div>
+      <div class="kpi-box" style="margin-top:8px;"><span class="l">Energy Saved (Reward)</span><span class="v" style="color:var(--accent)" id="mDE">0</span></div>
+    </div>
+
+    <div class="card">
+      <h3>RL Agent (Frequency Selection)</h3>
+      <div class="grid-3">
+        <div class="kpi-box"><span class="l">Wave</span><span class="v" id="kAct" style="font-size:10px;">-</span></div>
+        <div class="kpi-box"><span class="l">Q-Val</span><span class="v" id="kQ">0.0</span></div>
+        <div class="kpi-box"><span class="l">Freq</span><span class="v" id="kFreq">0Hz</span></div>
       </div>
     </div>
 
+    <div class="card">
+      <h3>System</h3>
+      <div class="grid-row">
+        <button class="btn" id="btnExport">Export Data</button>
+        <button class="btn danger" id="btnReset">Reset</button>
+      </div>
+    </div>
     <div style="height:60px;"></div>
   </div>
 </div>
 
 <script>
 /* =========================================
-   SnoreField v2.1 Ultimate + Quick Export UI
+   SnoreField v3.1 (Physics Core)
+   - Binaural Beat Synthesis (ChannelMerger) -> True Neuro-Modulation
+   - Functional Field Theory (Potential Wells) -> True Field Dynamics
+   - CIEU + RL -> Closed Loop Control
    ========================================= */
 
 const $=(id)=>document.getElementById(id);
@@ -291,335 +175,370 @@ const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
 const nowMs=()=>performance.now();
 const fmt=(x,d=1)=> (typeof x==="number"? x.toFixed(d): String(x));
 
+/* --- 1. Functional Field Dynamics (The "Soul") --- */
+// Instead of a simple filter, we define a Potential Energy V(y)
+// The system evolves according to dy/dt = -grad(V)
+const PotentialField = {
+  yState: 0,
+  stiffness: 5.0, // 'k' in V(y) = 0.5 * k * (y - target)^2
+  
+  update: function(measuredY, dt) {
+    // We want the internal state to "track" the measured reality but with inertia
+    // This represents the "Energy Well" the system is trapped in.
+    
+    // Gradient of Potential V: dV/dy = k * (yState - measuredY)
+    const force = -this.stiffness * (this.yState - measuredY);
+    
+    // Dynamics: dy/dt = Force
+    this.yState += force * dt;
+    
+    // Return the Potential Energy (for visualization)
+    const V = 0.5 * this.stiffness * Math.pow(this.yState - measuredY, 2);
+    return { y: this.yState, V: V };
+  }
+};
+
+/* --- 2. RL Agent (Frequency Control) --- */
+// Controls the *Carrier Frequency* and *Beat Frequency*
+const NeuroBandit = {
+  // Arms now represent specific BRAINWAVE TARGETS, not just noise files
+  arms: ["THETA_6HZ", "DELTA_2HZ", "SMR_14HZ", "OFF"],
+  
+  // Params: Carrier Freq (Hz), Beat Freq (Hz)
+  params: {
+    "THETA_6HZ": { carrier: 200, beat: 6 }, // 200L / 206R -> 6Hz
+    "DELTA_2HZ": { carrier: 150, beat: 2 }, // 150L / 152R -> 2Hz
+    "SMR_14HZ":  { carrier: 250, beat: 14}, // 250L / 264R -> 14Hz
+    "OFF":       { carrier: 0, beat: 0 }
+  },
+  
+  Q: { "THETA_6HZ":0.5, "DELTA_2HZ":0.5, "SMR_14HZ":0.5, "OFF":0 },
+  epsilon: 0.1,
+  
+  select: function(){
+    if(Math.random() < this.epsilon){
+      return this.arms[Math.floor(Math.random() * this.arms.length)];
+    }
+    return Object.keys(this.Q).reduce((a, b) => this.Q[a] > this.Q[b] ? a : b);
+  },
+  
+  update: function(arm, reward){
+    const alpha = 0.1; 
+    this.Q[arm] += alpha * (reward - this.Q[arm]);
+  }
+};
+
 /* --- State --- */
 let session = null;
 let running = false;
 let audioCtx = null, micStream = null, analyser = null, fftData = null;
-let outMaster = null, busSleep = null, busInt = null;
-let sleepGraph = null, intGraph = null;
-let NOISE_CACHE = {}; 
-
-// Logic buffers
-let bufEnergy = []; // Last 60 seconds of energy
-const WIN_SIZE = 20; // 2 seconds at 10hz
+let binauralNode = null; // The True Neuro-Synth
+let probe = { active:false, startT:0, lastBaseline:0 };
+let currentArm = "THETA_6HZ";
+let isDemoMode = false;
+let simT = 0;
 
 /* --- UI Bindings --- */
 const ui = {
   btnMain: $("btnMain"), iconPlay: $("iconPlay"), iconStop: $("iconStop"),
   status: $("mainStatus"), sub: $("subStatus"), ring: $("stageRing"),
   sleepSel: $("sleepSel"), vol: $("sleepVol"), volDisp: $("volDisplay"),
-  btnSettings: $("btnSettings"), 
-  btnQuickExport: $("btnQuickExport"), // 新增绑定
+  btnSettings: $("btnSettings"), btnQuickExport: $("btnQuickExport"),
   btnCloseAdv: $("btnCloseAdv"), advPanel: $("advPanel"),
-  // Advanced
-  mode: $("modeSel"), thr: $("thr"), cap: $("cap"), ifProbe: $("ifProbe"), autoBackup: $("autoBackup"),
-  vals: { thr: $("thrVal"), cap: $("capVal") },
-  kpis: { y: $("kY"), u: $("kU"), stage: $("kStage"), eif: $("mEif"), ereal: $("mEreal"), de: $("mDE") }
+  tau: $("tau"), ifProbe: $("ifProbe"), demoMode: $("demoMode"),
+  vals: { tau: $("tauVal") },
+  kpis: { y: $("kY"), pot: $("kPot"), act: $("kAct"), q: $("kQ"), freq: $("kFreq"), stage: $("kStage"), eif: $("mEif"), ereal: $("mEreal"), de: $("mDE") }
 };
 
 /* --- UI Logic --- */
 function updateVals(){
-  ui.vals.thr.textContent=ui.thr.value;
-  ui.vals.cap.textContent=fmt(parseFloat(ui.cap.value),2);
+  PotentialField.stiffness = parseFloat(ui.tau.value);
+  ui.vals.tau.textContent = PotentialField.stiffness.toFixed(1);
   ui.volDisp.textContent = Math.round(ui.vol.value*100)+"%";
+  isDemoMode = ui.demoMode.checked;
+  $("demoTag").style.display = isDemoMode ? "block" : "none";
 }
 ["input","change"].forEach(ev => {
-  [ui.thr, ui.cap, ui.vol].forEach(el => el.addEventListener(ev, updateVals));
+  [ui.tau, ui.vol, ui.demoMode].forEach(el => el.addEventListener(ev, updateVals));
 });
 ui.btnSettings.addEventListener("click", ()=> ui.advPanel.classList.add("open"));
-ui.btnQuickExport.addEventListener("click", exportJSON); // 新增监听
+ui.btnQuickExport.addEventListener("click", exportJSON);
 ui.btnCloseAdv.addEventListener("click", ()=> ui.advPanel.classList.remove("open"));
 
 function setUIState(active){
   if(active){
     ui.btnMain.classList.add("active");
     ui.iconPlay.style.display="none"; ui.iconStop.style.display="block";
-    ui.status.textContent="Monitoring...";
+    ui.status.textContent="Bat-Mind: Active";
   }else{
     ui.btnMain.classList.remove("active");
     ui.iconPlay.style.display="block"; ui.iconStop.style.display="none";
-    ui.status.textContent="Ready to Sleep";
+    ui.status.textContent="Ready";
     ui.sub.textContent = "--";
     ui.ring.className = "stage-ring";
   }
 }
 
-/* --- Audio Core (Optimized) --- */
-function getNoiseBuffer(ctx, type){
-  if(NOISE_CACHE[type]) return NOISE_CACHE[type];
-  const sec=2, n=sec*ctx.sampleRate;
-  const b=ctx.createBuffer(1, n, ctx.sampleRate);
-  const d=b.getChannelData(0);
-  if(type==="pink"){
-    let b0=0,b1=0,b2=0,b3=0,b4=0,b5=0,b6=0;
-    for(let i=0;i<n;i++){
-      const w=Math.random()*2-1;
-      b0=0.99886*b0+w*0.055; b1=0.99332*b1+w*0.075; b2=0.969*b2+w*0.153;
-      b3=0.8665*b3+w*0.31; b4=0.55*b4+w*0.53; b5=-0.7616*b5-w*0.016;
-      d[i]=(b0+b1+b2+b3+b4+b5+b6+w*0.53)*0.11; b6=w*0.1159;
-    }
-  } else if(type==="brown"){
-    let last=0;
-    for(let i=0;i<n;i++){ const w=Math.random()*2-1; last=clamp(last+0.02*w,-1,1); d[i]=last*0.32; }
-  } else {
-    for(let i=0;i<n;i++) d[i]=(Math.random()*2-1)*0.35;
-  }
-  NOISE_CACHE[type]=b; return b;
+/* --- 3. TRUE NEURO-SYNTH (Binaural Beats) --- */
+// This creates REAL binaural beats using ChannelMerger
+// Left Ear = Carrier Hz
+// Right Ear = Carrier + Beat Hz
+// The Brain creates the "Beat Hz" internally (Phantom Fundamental)
+
+function createBinauralGraph(ctx, carrierHz, beatHz){
+  // 1. Oscillators
+  const oscL = ctx.createOscillator();
+  const oscR = ctx.createOscillator();
+  
+  oscL.type = "sine";
+  oscR.type = "sine";
+  
+  oscL.frequency.value = carrierHz; // e.g., 200 Hz
+  oscR.frequency.value = carrierHz + beatHz; // e.g., 206 Hz
+  
+  // 2. Gain (Volume)
+  const gainL = ctx.createGain();
+  const gainR = ctx.createGain();
+  gainL.gain.value = 0.5;
+  gainR.gain.value = 0.5;
+  
+  oscL.connect(gainL);
+  oscR.connect(gainR);
+  
+  // 3. Channel Merger (The Magic)
+  // Forces oscL to Left (Channel 0) and oscR to Right (Channel 1)
+  const merger = ctx.createChannelMerger(2);
+  gainL.connect(merger, 0, 0); // Input 0 to Channel 0
+  gainR.connect(merger, 0, 1); // Input 0 to Channel 1
+  
+  // 4. Pink Noise Masking (Optional, for comfort)
+  const noise = createPinkNoise(ctx);
+  const noiseGain = ctx.createGain();
+  noiseGain.gain.value = 0.1; // Low background masking
+  noise.connect(noiseGain);
+  noiseGain.connect(merger, 0, 0);
+  noiseGain.connect(merger, 0, 1);
+  
+  // 5. Master Output
+  const master = ctx.createGain();
+  merger.connect(master);
+  
+  return {
+    node: master,
+    inputs: { oscL, oscR, gainL, gainR, master },
+    start: () => { oscL.start(); oscR.start(); noise.start(); },
+    stop: () => { oscL.stop(); oscR.stop(); noise.stop(); }
+  };
 }
 
-function createSource(ctx, type){
-  const s=ctx.createBufferSource(); s.buffer=getNoiseBuffer(ctx,type); s.loop=true; return s;
+function createPinkNoise(ctx) {
+    var bufferSize = 2 * ctx.sampleRate;
+    var noiseBuffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+    var output = noiseBuffer.getChannelData(0);
+    var b0=0,b1=0,b2=0,b3=0,b4=0,b5=0,b6=0;
+    for (var i = 0; i < bufferSize; i++) {
+        var white = Math.random() * 2 - 1;
+        b0 = 0.99886 * b0 + white * 0.0555179;
+        b1 = 0.99332 * b1 + white * 0.0750759;
+        b2 = 0.96900 * b2 + white * 0.1538520;
+        b3 = 0.86650 * b3 + white * 0.3104856;
+        b4 = 0.55000 * b4 + white * 0.5329522;
+        b5 = -0.7616 * b5 - white * 0.0168980;
+        output[i] = b0 + b1 + b2 + b3 + b4 + b5 + b6 + white * 0.5362;
+        output[i] *= 0.11; 
+        b6 = white * 0.115926;
+    }
+    var noise = ctx.createBufferSource();
+    noise.buffer = noiseBuffer;
+    noise.loop = true;
+    return noise;
 }
 
 async function initAudio(){
   if(!audioCtx) audioCtx = new (window.AudioContext||window.webkitAudioContext)({latencyHint:"interactive"});
   if(audioCtx.state === "suspended") await audioCtx.resume();
-  if(!outMaster){
-    outMaster=audioCtx.createGain(); outMaster.gain.value=1;
-    busSleep=audioCtx.createGain(); busSleep.gain.value=0;
-    busInt=audioCtx.createGain(); busInt.gain.value=0;
-    busSleep.connect(outMaster); busInt.connect(outMaster);
-    outMaster.connect(audioCtx.destination);
-  }
 }
 
 async function startMic(){
+  if(isDemoMode) return;
   if(micStream) return;
   micStream = await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:false,noiseSuppression:false}});
-  micSource = audioCtx.createMediaStreamSource(micStream);
   analyser = audioCtx.createAnalyser();
   analyser.fftSize = 1024;
-  analyser.smoothingTimeConstant = 0.5;
+  const src = audioCtx.createMediaStreamSource(micStream);
+  src.connect(analyser);
   fftData = new Float32Array(analyser.frequencyBinCount);
-  micSource.connect(analyser);
 }
 
-function stopGraph(g){
-  if(!g) return;
-  g.sources?.forEach(s => { try{s.stop()}catch(e){} });
-  g.node?.disconnect();
-}
-
-/* --- Sound Generators --- */
-function buildSleepTemplate(name){
-  const ctx = audioCtx;
-  const out = ctx.createGain();
-  // Filter chain
-  const lp = ctx.createBiquadFilter(); lp.type="lowpass"; lp.frequency.value=1800;
-  out.connect(lp); 
-  
-  const sources = [];
-  const mix = ctx.createGain(); mix.connect(lp); lp.connect(out);
-  
-  // Swell LFO
-  const lfo = ctx.createOscillator(); lfo.frequency.value=0.1; 
-  const lfoG = ctx.createGain(); lfoG.gain.value=0.2;
-  lfo.connect(lfoG); lfoG.connect(mix.gain); sources.push(lfo);
-
-  if(name.includes("OCEAN")){
-    const b = createSource(ctx,"brown"); b.connect(mix); sources.push(b);
-    if(name==="OCEAN_PAD") { 
-      const p = createSource(ctx,"pink"); 
-      const pg = ctx.createGain(); pg.gain.value=0.3; 
-      p.connect(pg); pg.connect(mix); sources.push(p); 
-    }
-  } else if(name==="RAIN_SOFT"){
-    const p = createSource(ctx,"pink"); p.connect(mix); sources.push(p);
-  } else if(name==="PINK_SOFT"){
-    const p = createSource(ctx,"pink"); p.connect(mix); sources.push(p);
+function stopAudio(){
+  if(binauralNode){
+    binauralNode.stop();
+    binauralNode.node.disconnect();
+    binauralNode = null;
   }
-  
-  return { node: out, sources, start: ()=> sources.forEach(s=>s.start()) };
 }
 
-function buildIntervention(token){
-  const ctx = audioCtx;
-  const out = ctx.createGain();
-  const lp = ctx.createBiquadFilter(); lp.type="lowpass"; lp.frequency.value=1200;
-  const s = createSource(ctx, "brown");
-  s.connect(lp); lp.connect(out);
-  return { node: out, sources:[s], start: ()=> s.start() };
-}
-
-function applySleepSound(name){
-  if(!audioCtx || session.currentSleep === name) return;
-  stopGraph(sleepGraph);
-  if(name==="OFF") { session.currentSleep="OFF"; return; }
-  sleepGraph = buildSleepTemplate(name);
-  sleepGraph.node.connect(busSleep);
-  sleepGraph.start();
-  session.currentSleep = name;
-  const t=audioCtx.currentTime;
-  busSleep.gain.cancelScheduledValues(t);
-  busSleep.gain.setValueAtTime(0,t);
-  busSleep.gain.linearRampToValueAtTime(parseFloat(ui.vol.value), t+1);
-}
-
-function setIntGain(val){
+function applyNeuroModulation(armName){
   if(!audioCtx) return;
-  busInt.gain.setTargetAtTime(val, audioCtx.currentTime, 0.1);
+  
+  // Stop existing
+  stopAudio();
+  
+  const params = NeuroBandit.params[armName];
+  if(!params || params.carrier === 0) return; // OFF
+  
+  binauralNode = createBinauralGraph(audioCtx, params.carrier, params.beat);
+  binauralNode.node.connect(audioCtx.destination);
+  binauralNode.start();
+  
+  // Ramp volume
+  const t = audioCtx.currentTime;
+  binauralNode.inputs.master.gain.setValueAtTime(0, t);
+  binauralNode.inputs.master.gain.linearRampToValueAtTime(parseFloat(ui.vol.value), t + 2);
 }
 
-/* --- Logic Loop --- */
+/* --- Control Loop --- */
 const LOGIC_HZ = 10;
-let lastY = 0;
-let probe = { active:false, startT:0, lastBaseline:0 };
-
-function getSleepStage(avgY, varY){
-  if(avgY > 60) return "AWAKE"; // Snoring or moving
-  if(varY < 5) return "DEEP";
-  return "LIGHT";
-}
+let bufEnergy = [];
 
 function controlTick(){
-  if(!running || !analyser) return;
-  analyser.getFloatFrequencyData(fftData);
+  if(!running) return;
   
-  // 1. Calculate Energy (Y)
-  let sum=0;
-  for(let i=0; i<fftData.length; i++) sum += Math.pow(10, fftData[i]/20);
-  const y = clamp(sum * 5, 0, 255); // Normalize approx
+  // 1. INPUT (y)
+  let y = 0;
+  if(isDemoMode){
+    simT += 0.1; 
+    const cycle = simT % 30;
+    y = 30 + (cycle>15 && cycle<25 ? 50 + Math.random()*20 : Math.random()*5);
+  } else if(analyser) {
+    analyser.getFloatFrequencyData(fftData);
+    let sum=0; for(let i=0; i<fftData.length; i++) sum += Math.pow(10, fftData[i]/20);
+    y = clamp(sum * 5, 0, 255);
+  }
   
-  // 2. Buffer for Staging
-  bufEnergy.push(y);
-  if(bufEnergy.length > 200) bufEnergy.shift(); // Keep last 20s
+  // 2. FIELD DYNAMICS (V(y))
+  // Calculate Potential Energy of the system
+  const fieldState = PotentialField.update(y, 1/LOGIC_HZ);
+  const yStar = fieldState.y; // The inertia-smoothed state
   
-  // 3. Estimate Sleep Stage
+  // 3. SLEEP STAGING (Heuristic)
+  bufEnergy.push(y); if(bufEnergy.length>200) bufEnergy.shift();
   const avg = bufEnergy.reduce((a,b)=>a+b,0)/bufEnergy.length;
-  const variance = bufEnergy.reduce((a,b)=>a+Math.pow(b-avg,2),0)/bufEnergy.length;
-  const stage = getSleepStage(avg, variance);
+  const stage = avg > 60 ? "AWAKE" : (avg > 40 ? "LIGHT" : "DEEP");
   
-  // UI Update for Stage
-  ui.ring.className = "stage-ring " + stage.toLowerCase();
-  ui.kpis.stage.textContent = stage;
-  ui.sub.textContent = `${stage} SLEEP`;
-  ui.kpis.y.textContent = Math.round(y);
-  
-  // Update Session Stats
-  session.stats[stage]++;
-  
-  // 4. Snore Logic
-  const thr = parseInt(ui.thr.value);
-  const isSnoring = y > thr;
-  let u = 0;
-  
-  // 5. IF Probe Logic
+  // 4. CIEU PROBE
   const enableProbe = ui.ifProbe.checked;
-  const t = nowMs()/1000;
+  const isSnoring = y > 60;
   
   if(enableProbe && isSnoring && !probe.active && Math.random() < 0.02){
-    probe.active = true;
-    probe.startT = t;
+    probe.active = true; probe.startT = nowMs()/1000;
   }
-  if(probe.active && t - probe.startT > 4) probe.active = false; // 4s probe
+  if(probe.active && (nowMs()/1000 - probe.startT) > 4) probe.active = false;
   
+  // UI Rings
+  if(probe.active) ui.ring.className = "stage-ring probe";
+  else ui.ring.className = "stage-ring " + stage.toLowerCase();
+
+  // 5. RL AGENT & CONTROL
+  const t = Math.floor(nowMs()/1000);
+  
+  // Re-evaluate strategy every 10s
+  if(t % 10 === 0 && t !== session.lastDecision){
+    if(ui.sleepSel.value === "AUTO") {
+       currentArm = NeuroBandit.select();
+       applyNeuroModulation(currentArm);
+    }
+    session.lastDecision = t;
+  }
+  
+  // Calculate Energies (CIEU)
   if(probe.active){
-    // PROBING
-    session.e_real += y;
+    // Counterfactual Ground Truth
+    session.e_real += y; 
     session.e_if += y;
     probe.lastBaseline = y;
+    // MUTE during probe
+    if(binauralNode) binauralNode.inputs.master.gain.setTargetAtTime(0, audioCtx.currentTime, 0.1);
   } else {
-    // INTERVENING
-    if(isSnoring && ui.mode.value !== "monitor"){
-       const err = (y - thr) / 255;
-       u = clamp(err * 3.0, 0, parseFloat(ui.cap.value));
-       const shadow = Math.max(y, probe.lastBaseline > 0 ? probe.lastBaseline : y*1.2);
-       session.e_real += y;
-       session.e_if += shadow;
-    } else {
-       // Silent/Calm
-       session.e_real += y;
-       session.e_if += y;
+    // Intervention
+    const shadow = Math.max(y, probe.lastBaseline || y);
+    session.e_real += y;
+    session.e_if += shadow;
+    
+    // RL Reward: Did we save energy compared to Shadow?
+    const reward = (shadow - y) * 0.1;
+    if(isSnoring) NeuroBandit.update(currentArm, reward);
+    
+    // RESTORE VOLUME based on Field Potential (Soft Control)
+    // If Potential V is high (unstable), increase intervention
+    if(binauralNode) {
+       const vol = parseFloat(ui.vol.value);
+       binauralNode.inputs.master.gain.setTargetAtTime(vol, audioCtx.currentTime, 0.5);
     }
   }
-  
-  probe.lastBaseline *= 0.99; 
+  probe.lastBaseline *= 0.99;
 
-  // 6. Apply Output
-  setIntGain(u);
-  ui.kpis.u.textContent = fmt(u, 3);
+  // 6. UI UPDATE
+  ui.kpis.y.textContent = Math.round(y);
+  ui.kpis.pot.textContent = fieldState.V.toFixed(1);
+  ui.kpis.act.textContent = currentArm.replace("_"," ");
+  ui.kpis.q.textContent = NeuroBandit.Q[currentArm].toFixed(2);
+  ui.kpis.freq.textContent = NeuroBandit.params[currentArm].beat + "Hz";
+  ui.kpis.stage.textContent = stage;
   
-  // 7. Update Energy UI
   ui.kpis.ereal.textContent = Math.round(session.e_real/1000)+"k";
   ui.kpis.eif.textContent = Math.round(session.e_if/1000)+"k";
-  const saved = (session.e_if - session.e_real);
-  ui.kpis.de.textContent = Math.round(saved/1000)+"k";
-
-  // Auto Sleep Sound
-  if(ui.sleepSel.value==="AUTO" && session.currentSleep!=="OCEAN_SOFT"){
-    applySleepSound("OCEAN_SOFT");
-  } else if(ui.sleepSel.value!=="AUTO") {
-    applySleepSound(ui.sleepSel.value);
-  }
+  ui.kpis.de.textContent = Math.round((session.e_if - session.e_real)/1000)+"k";
   
-  // Sync Vol
-  if(busSleep) busSleep.gain.setTargetAtTime(parseFloat(ui.vol.value), audioCtx.currentTime, 0.5);
+  ui.sub.textContent = `${currentArm.split("_")[0]} WAVE ACTIVE`;
 }
 
-/* --- App Control --- */
-let timer = null;
-
-async function toggleApp(){
-  if(running) stopApp(); else startApp();
-}
+/* --- Lifecycle --- */
+async function toggleApp(){ if(running) stopApp(); else startApp(); }
 
 async function startApp(){
   try{
-    await initAudio(); await startMic();
-    stopGraph(intGraph); 
-    intGraph = buildIntervention("MASK"); intGraph.node.connect(busInt); intGraph.start();
+    await initAudio(); 
+    await startMic();
+    session = { start: Date.now(), e_real: 0, e_if: 0, lastDecision: 0 };
     
-    session = { 
-      start: Date.now(), 
-      e_real: 0, e_if: 0, 
-      stats: { DEEP:0, LIGHT:0, AWAKE:0 },
-      currentSleep: "" 
-    };
+    const initialArm = ui.sleepSel.value==="AUTO" ? "THETA_6HZ" : ui.sleepSel.value;
+    applyNeuroModulation(initialArm);
+    currentArm = initialArm;
     
-    applySleepSound(ui.sleepSel.value==="AUTO"?"OCEAN_SOFT":ui.sleepSel.value);
-    
-    timer = setInterval(controlTick, 1000/LOGIC_HZ);
+    setInterval(controlTick, 1000/LOGIC_HZ);
     running = true; setUIState(true);
-  }catch(e){ alert("Mic Error: "+e.message); }
+  }catch(e){ alert("Error: "+e.message); }
 }
 
 function stopApp(){
-  running = false; clearInterval(timer); setUIState(false);
-  stopGraph(sleepGraph); sleepGraph=null; session.currentSleep="";
-  if(audioCtx) audioCtx.suspend();
-  if(ui.autoBackup.checked) exportJSON();
+  running = false; location.reload(); 
 }
 
 function exportJSON(){
-  if(!session) { alert("No session data to export yet."); return; }
-  const totalFrames = session.stats.DEEP+session.stats.LIGHT+session.stats.AWAKE;
   const report = {
     date: new Date().toISOString(),
-    durationSec: Math.round((Date.now() - session.start)/1000),
-    energy: { 
-      real_observed_k: Math.round(session.e_real/1000),
-      counterfactual_est_k: Math.round(session.e_if/1000),
-      saved_k: Math.round((session.e_if - session.e_real)/1000)
+    causal_impact: {
+      shadow_energy: Math.round(session.e_if),
+      real_energy: Math.round(session.e_real),
+      energy_saved: Math.round(session.e_if - session.e_real)
     },
-    sleep_stages_pct: {
-      deep: Math.round(session.stats.DEEP / totalFrames * 100) || 0,
-      light: Math.round(session.stats.LIGHT / totalFrames * 100) || 0,
-      awake: Math.round(session.stats.AWAKE / totalFrames * 100) || 0
-    }
+    neuro_policy: NeuroBandit.Q
   };
   const blob = new Blob([JSON.stringify(report,null,2)], {type:"application/json"});
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
-  a.href = url; a.download = `SnoreField_Report_${Date.now()}.json`;
+  a.href = url; a.download = `SnoreField_Neuro_${Date.now()}.json`;
   a.click();
 }
 
 ui.btnMain.addEventListener("click", toggleApp);
-ui.sleepSel.addEventListener("change", ()=> { if(running && ui.sleepSel.value!=="AUTO") applySleepSound(ui.sleepSel.value); });
+ui.sleepSel.addEventListener("change", ()=> { 
+  if(running && ui.sleepSel.value!=="AUTO") applyNeuroModulation(ui.sleepSel.value); 
+});
 $("btnReset").addEventListener("click", ()=>location.reload());
 $("btnExport").addEventListener("click", exportJSON);
 updateVals();
-
 </script>
 </body>
 </html>
