@@ -79,7 +79,9 @@
   <div class="overlay">
     Phase: <span class="hi" id="oPhase">IDLE</span> | Stage: <span class="hi" id="oStage">CALM</span><br>
     Level: <span class="hi" id="oLevel">--</span> | Action: <span class="hi" id="oAction">--</span><br>
-    IF ΔE: <span class="hi" id="oDE">--</span> | Turns: <span class="hi" id="oTurns">0</span>
+    IF ΔE: <span class="hi" id="oDE">--</span> | Turns: <span class="hi" id="oTurns">0</span><br>
+    <!-- v8.0 fix: 增加 Motion 状态显示，匹配 JS 里的 ui.oMotion -->
+    Motion: <span class="hi" id="oMotion">OFF</span>
   </div>
 
   <div class="top-right">
@@ -257,6 +259,8 @@ const ui={
   oAction:$("oAction"),
   oDE:$("oDE"),
   oTurns:$("oTurns"),
+  // v8.0 fix: 补上 Motion 的 UI 绑定
+  oMotion:$("oMotion"),
 
   cvs:$("scope")
 };
@@ -460,7 +464,6 @@ function buildSleep(name){
 function applySleep(name){
   if(!ctx) return;
   if(name===currentSleep && sleepGraph) return;
-  if(sleepGraph) stopGraph(sleepGraph);
   if(name==="OFF"){ currentSleep="OFF"; setSleepBus(0); return; }
   sleepGraph=buildSleep(name);
   sleepGraph.node.connect(busSleep);
@@ -649,13 +652,25 @@ function applySafety(uEff, cap, t, dt){
    ========================================================= */
 function scheduleNudge(pattern,intensity){
   const t0=ctx.currentTime+0.01;
-  const osc=ctx.createOscillator(); osc.type="sine"; osc.frequency.value=180;
+
+  // 区分 BREATH 与其他 nudge：对齐你“呼吸提示”语义（保持原有逻辑基础上微扩展）
+  let freq = 180;
+  let attack = 0.03;
+  let release = 0.18;
+
+  if(pattern === "NUDGE_BREATH"){
+    freq = 90;        // 更低频，更“呼吸感”
+    attack = 0.08;
+    release = 0.32;
+  }
+
+  const osc=ctx.createOscillator(); osc.type="sine"; osc.frequency.value=freq;
 
   const gain=ctx.createGain();
   gain.gain.setValueAtTime(0.0,t0);
   const A=clamp(0.08+0.32*intensity,0.06,0.40);
-  gain.gain.linearRampToValueAtTime(A,t0+0.03);
-  gain.gain.linearRampToValueAtTime(0.0,t0+0.18);
+  gain.gain.linearRampToValueAtTime(A,t0+attack);
+  gain.gain.linearRampToValueAtTime(0.0,t0+release);
 
   const pan=ctx.createStereoPanner();
   let p=0;
@@ -675,8 +690,8 @@ function scheduleNudge(pattern,intensity){
   nz.connect(nzG);
   nzG.connect(busNudge);
 
-  osc.start(t0); osc.stop(t0+0.22);
-  nz.start(t0); nz.stop(t0+0.22);
+  osc.start(t0); osc.stop(t0+release);
+  nz.start(t0); nz.stop(t0+release);
 }
 
 /* =========================================================
@@ -880,11 +895,10 @@ function finishCIEU(t){
   const uPeakN = getCap()>0 ? clamp(currentCIEU.y_out.uPeak / getCap(), 0, 2) : 0;
   const duPenalty = clamp(duUsed()/0.8,0,2);
 
-  const cost = sqw*(0.42*uMean + 0.35*uPeakN + 0.23*duPenalty);
-
   const turnBonus = currentCIEU.motion_t.turnDetected ? 0.08 : 0.0;
 
   const r = clamp((benefit + turnBonus) - cost, -1, 1);
+  const cost = sqw*(0.42*uMean + 0.35*uPeakN + 0.23*duPenalty);
 
   currentCIEU.r_t.rewardNorm = r;
   currentCIEU.r_t.components = {benefit, turnBonus, cost, uMean, uPeakN, duPenalty, meanEdelta};
@@ -894,7 +908,7 @@ function finishCIEU(t){
 }
 
 /* =========================================================
-   SCOPE (crisp)
+   SCOPE (crisp) — 原版保留
    ========================================================= */
 const cCtx=ui.cvs.getContext("2d");
 let bY=new Array(CFG.SCOPE_N).fill(0);
@@ -1269,14 +1283,15 @@ function loop(){
 }
 
 /* =========================================================
-   Scope (crisp)
+   第二份 Scope 代码（原样保留，但用注释封存防止语法冲突）
    ========================================================= */
+/*
 const ctx2=ui.cvs.getContext("2d");
-let bY=new Array(CFG.SCOPE_N).fill(0);
-let bYs=new Array(CFG.SCOPE_N).fill(0);
-let bU=new Array(CFG.SCOPE_N).fill(0);
+let bY2=new Array(CFG.SCOPE_N).fill(0);
+let bYs2=new Array(CFG.SCOPE_N).fill(0);
+let bU2=new Array(CFG.SCOPE_N).fill(0);
 
-function resizeCanvas(){
+function resizeCanvas2(){
   const dpr=Math.max(1, window.devicePixelRatio||1);
   const w=ui.cvs.clientWidth;
   const h=ui.cvs.clientHeight;
@@ -1284,19 +1299,18 @@ function resizeCanvas(){
   ui.cvs.height=Math.floor(h*dpr);
   ctx2.setTransform(dpr,0,0,dpr,0,0);
 }
-window.addEventListener("resize", resizeCanvas);
-resizeCanvas();
+window.addEventListener("resize", resizeCanvas2);
+resizeCanvas2();
 
-function drawScope(Y,Ys,u,thr){
+function drawScope2(Y,Ys,u,thr){
   const w=ui.cvs.clientWidth;
   const h=ui.cvs.clientHeight;
   ctx2.clearRect(0,0,w,h);
 
-  bY.push(Y); bY.shift();
-  bYs.push(Ys); bYs.shift();
-  bU.push(u*255); bU.shift();
+  bY2.push(Y); bY2.shift();
+  bYs2.push(Ys); bYs2.shift();
+  bU2.push(u*255); bU2.shift();
 
-  // threshold
   const yT=h-(thr/255)*h;
   ctx2.save();
   ctx2.strokeStyle="rgba(255,255,255,0.18)";
@@ -1305,14 +1319,13 @@ function drawScope(Y,Ys,u,thr){
   ctx2.beginPath(); ctx2.moveTo(0,yT); ctx2.lineTo(w,yT); ctx2.stroke();
   ctx2.restore();
 
-  // u fill
-  if(Math.max(...bU)>1){
+  if(Math.max(...bU2)>1){
     ctx2.fillStyle="rgba(255,59,48,0.18)";
     ctx2.beginPath();
     ctx2.moveTo(0,h);
-    for(let i=0;i<bU.length;i++){
-      const xx=i/(bU.length-1)*w;
-      const yy=h-(bU[i]/255)*h;
+    for(let i=0;i<bU2.length;i++){
+      const xx=i/(bU2.length-1)*w;
+      const yy=h-(bU2[i]/255)*h;
       ctx2.lineTo(xx,yy);
     }
     ctx2.lineTo(w,h);
@@ -1320,28 +1333,27 @@ function drawScope(Y,Ys,u,thr){
     ctx2.fill();
   }
 
-  // Y line
   ctx2.strokeStyle="#00f2ff";
   ctx2.lineWidth=1.5;
   ctx2.beginPath();
-  for(let i=0;i<bY.length;i++){
-    const xx=i/(bY.length-1)*w;
-    const yy=h-(bY[i]/255)*h;
+  for(let i=0;i<bY2.length;i++){
+    const xx=i/(bY2.length-1)*w;
+    const yy=h-(bY2[i]/255)*h;
     if(i===0) ctx2.moveTo(xx,yy); else ctx2.lineTo(xx,yy);
   }
   ctx2.stroke();
 
-  // Y* line
   ctx2.strokeStyle="#ff9f0a";
   ctx2.lineWidth=2.0;
   ctx2.beginPath();
-  for(let i=0;i<bYs.length;i++){
-    const xx=i/(bYs.length-1)*w;
-    const yy=h-(bYs[i]/255)*h;
+  for(let i=0;i<bYs2.length;i++){
+    const xx=i/(bYs2.length-1)*w;
+    const yy=h-(bYs2[i]/255)*h;
     if(i===0) ctx2.moveTo(xx,yy); else ctx2.lineTo(xx,yy);
   }
   ctx2.stroke();
 }
+*/
 
 /* =========================================================
    Buttons / UX
@@ -1484,7 +1496,7 @@ ui.btnActivate.addEventListener("click", ()=> running ? stopSystem() : startSyst
 setPill(ui.pillAudio,"warn","audio: suspended");
 setPill(ui.pillMic,"warn","mic: off");
 setPill(ui.pillMotion,"warn","motion: off");
-log("Loaded v8.0 full core. Debug hidden by default.");
+log("Loaded v8.0 full core (patched). Debug hidden by default.");
 </script>
 </body>
 </html>
