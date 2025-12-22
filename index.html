@@ -3,40 +3,56 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no" />
-  <title>SnoreField — Parallel Guardian</title>
+  <title>SnoreField — Sensory Feedback</title>
   <style>
-    /* 保持黑色极简 UI */
-    :root{ --bg:#000000; --surface:#1c1c1e; --surface-2:#2c2c2e; --txt:#ffffff; --muted:#8e8e93; --accent:#0a84ff; --accent-glow:rgba(10,132,255,0.3); --danger:#ff453a; --success:#32d74b; --warn:#ff9f0a; }
+    :root{ --bg:#000000; --surface:#1c1c1e; --surface-2:#2c2c2e; --txt:#ffffff; --muted:#8e8e93; --accent:#0a84ff; --accent-glow:rgba(10,132,255,0.4); --danger:#ff453a; --success:#32d74b; --warn:#ff9f0a; }
     html,body{height:100%; overflow:hidden;}
     body{ margin:0; font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, sans-serif; background:var(--bg); color:var(--txt); display:flex; flex-direction:column; -webkit-font-smoothing: antialiased; }
     
     .stage{ flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; position:relative; z-index:10; }
-    .orb-container{ position:relative; width:200px; height:200px; margin-bottom:40px; display:flex; align-items:center; justify-content:center; }
+    .orb-container{ position:relative; width:220px; height:220px; margin-bottom:40px; display:flex; align-items:center; justify-content:center; }
     
+    /* THE ORB */
     .orb{ 
-      width:150px; height:150px; border-radius:50%; 
+      width:140px; height:140px; border-radius:50%; 
       background: linear-gradient(145deg, #2c2c2e, #1c1c1e); 
       box-shadow: 0 10px 30px rgba(0,0,0,0.5), inset 0 1px 2px rgba(255,255,255,0.1); 
       border: 1px solid #3a3a3c; 
       display:flex; align-items:center; justify-content:center; 
       cursor:pointer; position:relative; z-index:10; 
-      transition: transform 0.2s;
+      transition: transform 0.1s;
     }
-    .orb:active { transform: scale(0.98); }
+    .orb:active { transform: scale(0.95); }
     .orb svg{ width:50px; height:50px; fill:var(--txt); }
     .orb.active{ background: var(--accent); border-color: var(--accent); box-shadow: 0 0 50px var(--accent-glow); }
     .orb.active svg{ fill:white; }
 
-    .breath-ring {
-      position:absolute; top:0; left:0; width:100%; height:100%;
-      border-radius:50%; background: var(--accent);
-      opacity: 0; z-index: 1; pointer-events:none;
+    /* RIPPLE SYSTEM (Multi-Layer) */
+    .ripple {
+      position:absolute; top:50%; left:50%; transform: translate(-50%, -50%);
+      width:140px; height:140px; border-radius:50%; 
+      border: 2px solid var(--accent);
+      opacity: 0; pointer-events:none; z-index: 1;
     }
-    .orb.active ~ .breath-ring { animation: breath-anim 6s ease-in-out infinite; }
-    @keyframes breath-anim {
-      0% { transform: scale(0.85); opacity: 0; }
-      50% { transform: scale(1.4); opacity: 0.25; } 
-      100% { transform: scale(0.85); opacity: 0; }
+    
+    /* Animation: Breathe (Default) */
+    .orb.active ~ .ripple.r1 { animation: breathe 6s ease-in-out infinite; }
+    .orb.active ~ .ripple.r2 { animation: breathe 6s ease-in-out infinite 0.2s; }
+    
+    @keyframes breathe {
+      0% { width:140px; height:140px; opacity:0; border-color:var(--accent); }
+      50% { width:180px; height:180px; opacity:0.3; } 
+      100% { width:140px; height:140px; opacity:0; }
+    }
+
+    /* Animation: INTERVENTION (Sonar Ping) */
+    .orb.intervening ~ .ripple.r1 { animation: ping 1.5s cubic-bezier(0, 0.2, 0.8, 1) infinite; border-color: var(--warn); border-width: 4px; }
+    .orb.intervening ~ .ripple.r2 { animation: ping 1.5s cubic-bezier(0, 0.2, 0.8, 1) infinite 0.3s; border-color: var(--warn); }
+    .orb.intervening ~ .ripple.r3 { animation: ping 1.5s cubic-bezier(0, 0.2, 0.8, 1) infinite 0.6s; border-color: var(--warn); }
+
+    @keyframes ping {
+      0% { width:140px; height:140px; opacity:0.8; }
+      100% { width:300px; height:300px; opacity:0; }
     }
     
     .status-text{ font-size:16px; color:var(--txt); font-weight:600; margin-top:20px; text-align:center; height:24px;}
@@ -61,10 +77,8 @@
     .advanced-panel{ position:fixed; top:0; left:0; width:100%; height:100%; background:var(--bg); z-index:30; transform:translateY(100%); transition:transform 0.35s cubic-bezier(0.16, 1, 0.3, 1); display:flex; flex-direction:column; }
     .advanced-panel.open{ transform:translateY(0); }
     .adv-header{ padding:20px; display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--surface-2); background:var(--surface); }
-    .adv-title{ font-weight:700; font-size:17px; }
     .adv-content{ flex:1; overflow-y:auto; padding:20px; display:grid; gap:20px; align-content:start; }
     .card{ background:var(--surface); border-radius:16px; padding:18px; }
-    .card h3{ margin:0 0 14px; font-size:11px; text-transform:uppercase; color:var(--muted); letter-spacing:1px; font-weight:600;}
     .grid-row{ display:grid; grid-template-columns:1fr 1fr; gap:12px; }
     .kpi-box{ background:rgba(255,255,255,0.05); border-radius:10px; padding:10px; text-align:center; }
     .kpi-box .l{ font-size:10px; color:var(--muted); display:block; margin-bottom:4px;}
@@ -85,7 +99,9 @@
       <svg id="iconPlay" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
       <svg id="iconStop" viewBox="0 0 24 24" style="display:none; transform:scale(0.85);"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>
     </div>
-    <div class="breath-ring"></div>
+    <div class="ripple r1"></div>
+    <div class="ripple r2"></div>
+    <div class="ripple r3"></div>
   </div>
   
   <div class="status-text" id="mainStatus">System Ready</div>
@@ -93,12 +109,12 @@
   
   <div class="controls">
     <div class="control-group">
-      <label>Soundscape (Induction)</label>
+      <label>Soundscape Mix</label>
       <div class="select-wrap">
         <select id="sleepSel">
           <option value="AUTO">Adaptive Ocean</option>
-          <option value="OCEAN_DEEP">Deep Ocean</option>
-          <option value="RAIN_SOFT">Cozy Rain</option>
+          <option value="OCEAN_DEEP">Deep Ocean (Delta)</option>
+          <option value="RAIN_SOFT">Cozy Rain (SMR)</option>
           <option value="SILENT">Silent Mode</option>
         </select>
       </div>
@@ -136,17 +152,17 @@
     </div>
     
     <div class="card">
-      <h3>Track Mixer</h3>
+      <h3>Dual-Track Mixer</h3>
       <div class="grid-row">
-        <div class="kpi-box"><span class="l">Nature Vol</span><span class="v" id="kNature">0%</span></div>
-        <div class="kpi-box"><span class="l">Beats Vol</span><span class="v" id="kBeats">0%</span></div>
+        <div class="kpi-box"><span class="l">Nature (Candy)</span><span class="v" id="kNature">0%</span></div>
+        <div class="kpi-box"><span class="l">Beats (Med)</span><span class="v" id="kBeats">0%</span></div>
       </div>
     </div>
 
     <div class="card">
       <h3>Debug</h3>
       <div class="grid-row">
-        <div class="kpi-box"><span class="l">Snore dB</span><span class="v" id="kY">0</span></div>
+        <div class="kpi-box"><span class="l">Input dB</span><span class="v" id="kY">0</span></div>
         <div class="kpi-box"><span class="l">Stage</span><span class="v" id="kStage">-</span></div>
       </div>
       <div class="switch-row" style="margin-top:12px;">
@@ -168,22 +184,24 @@
 
 <script>
 /* =========================================
-   SnoreField v3.6 (Parallel Guardian Edition)
-   - FEATURE 1: Dual-Track Mixing. Nature (Induction) and Beats (Intervention) are independent.
-   - FEATURE 2: Zero-Latency Intervention. Checks for snore continuously, ignoring sleep stage.
-   - FEATURE 3: Calibration Mode. First snore cycle is ignored for baseline modeling.
+   SnoreField v3.7 (Sensory Feedback Edition)
+   - MIX FIX: Nature boosted to 90%, Beats base reduced to 5% (max 30%).
+   - VISUAL FIX: "Ripple Diffusion" animation synced to Intervention State.
+   - SENSITIVITY FIX: Snore Threshold lowered to 40 for easier testing.
    ========================================= */
 
 const $=(id)=>document.getElementById(id);
 const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
 const nowMs=()=>performance.now();
 
-/* --- Config --- */
+/* --- Tuning Config --- */
 const CONFIG = {
-  FADE_FLOOR: 0.12,   // Background floor for Induction
-  BEATS_BASE: 0.1,    // Base volume for Beats (Medicine)
-  BEATS_BOOST: 0.35,  // Boosted volume during intervention
-  SOFT_START: 4.0     // Seconds to fade in nature sounds
+  FADE_FLOOR: 0.15,   // Raised from 0.12 so induction is audible
+  NATURE_GAIN: 0.9,   // The Candy: Strong Ocean/Rain
+  BEATS_BASE: 0.05,   // The Medicine (Quiet): 5% Background
+  BEATS_MAX: 0.30,    // The Medicine (Active): Max 30% Boost
+  SNORE_THRESH: 40,   // Lowered from 60 for sensitive testing
+  SOFT_START: 3.0
 };
 
 /* --- Global State --- */
@@ -194,25 +212,13 @@ let isDemoMode = false;
 let forceTest = false;
 let simT = 0;
 
-// NEW: Calibration State
-let calibState = {
-  isCalibrated: false,
-  startTime: 0,
-  baselineEnergy: 0
-};
-
-// Internal Volume States
-let volState = {
-  natureCurrent: 0,
-  natureTarget: 1.0,
-  beatsCurrent: 0,
-  beatsTarget: 0.0
-};
+let calibState = { isCalibrated: false, startTime: 0, baselineEnergy: 0 };
+let volState = { natureCurrent: 0, beatsCurrent: 0 };
 
 /* --- UI Logic --- */
 const ui = {
   btnMain: $("btnMain"), iconPlay: $("iconPlay"), iconStop: $("iconStop"),
-  status: $("mainStatus"), sub: $("subStatus"), ring: document.querySelector(".breath-ring"),
+  status: $("mainStatus"), sub: $("subStatus"), orb: document.querySelector(".orb"),
   sleepSel: $("sleepSel"), vol: $("sleepVol"), volDisp: $("volDisplay"),
   btnSettings: $("btnSettings"), btnQuickExport: $("btnQuickExport"),
   advPanel: $("advPanel"), btnCloseAdv: $("btnCloseAdv"),
@@ -239,6 +245,7 @@ function setUIState(active){
   }else{
     ui.btnMain.classList.remove("active");
     ui.iconPlay.style.display="block"; ui.iconStop.style.display="none";
+    ui.orb.classList.remove("intervening"); // Clear state
     ui.status.textContent="System Ready";
     ui.sub.textContent="--";
   }
@@ -252,12 +259,11 @@ async function initAudio(){
   
   if(!masterGain){
     masterGain = audioCtx.createGain();
-    masterGain.gain.value = 1.0; 
+    masterGain.gain.value = 1.3; // Boost overall output by 30%
     masterGain.connect(audioCtx.destination);
   }
 }
 
-// Nature Node (Induction Track)
 function createOceanNode(ctx) {
     const bSize = 2 * ctx.sampleRate;
     const b = ctx.createBuffer(1, bSize, ctx.sampleRate);
@@ -272,37 +278,32 @@ function createOceanNode(ctx) {
     const lpf = ctx.createBiquadFilter(); lpf.type = "lowpass"; lpf.frequency.value = 350; 
     const lfo = ctx.createOscillator(); lfo.frequency.value = 0.12;
     const lfoGain = ctx.createGain(); lfoGain.gain.value = 0.3;
-    const baseGain = ctx.createGain(); baseGain.gain.value = 0.6;
+    const baseGain = ctx.createGain(); baseGain.gain.value = CONFIG.NATURE_GAIN; // 90%
     lfo.connect(lfoGain); lfoGain.connect(baseGain.gain);
     noise.connect(lpf); lpf.connect(baseGain);
     return { output: baseGain, start: ()=>{ noise.start(); lfo.start(); }, stop: ()=>{ noise.stop(); lfo.stop(); } };
 }
 
-// Dual-Track Neuro-Mixer
 function createNeuroGraph(ctx, carrier, beat, type) {
     const merger = ctx.createChannelMerger(2);
     let oscL=null, oscR=null;
     
-    // Track A: Beats (Intervention) - Always Loaded
-    const beatsGainL = ctx.createGain(); beatsGainL.gain.value = 0; // Start Silent
+    // Track A: Beats (Intervention)
+    const beatsGainL = ctx.createGain(); beatsGainL.gain.value = 0; 
     const beatsGainR = ctx.createGain(); beatsGainR.gain.value = 0;
     
     if(carrier > 0 || type === "SILENT") {
-      // Even in Silent mode, we load the gun (200Hz Theta)
       const c = (carrier === 0) ? 200 : carrier;
       const b = (beat === 0) ? 6 : beat;
-      
       oscL = ctx.createOscillator(); oscL.frequency.value = c;
       oscR = ctx.createOscillator(); oscR.frequency.value = c + b;
-      
       oscL.connect(beatsGainL); beatsGainL.connect(merger, 0, 0);
       oscR.connect(beatsGainR); beatsGainR.connect(merger, 0, 1);
     }
     
     // Track B: Nature (Induction)
     let nature = null;
-    const natureGain = ctx.createGain(); 
-    natureGain.gain.value = 0; // Controlled by Soft Start
+    const natureGain = ctx.createGain(); natureGain.gain.value = 0; 
     
     if(type !== "SILENT") {
       nature = createOceanNode(ctx);
@@ -331,120 +332,88 @@ async function startAudio(mode){
   neuroNode = createNeuroGraph(audioCtx, carrier, beat, mode);
   neuroNode.start();
   
-  // Reset Internal States
   volState.natureCurrent = 0;
   volState.beatsCurrent = 0;
   calibState.isCalibrated = false;
   calibState.baselineEnergy = 0;
 }
 
-/* --- PARALLEL LOGIC LOOP --- */
+/* --- LOGIC LOOP --- */
 
 function controlTick(){
   if(!running) return;
   
-  // 1. Sensor Input
   let y = 0;
   if(isDemoMode){
     simT += 0.1;
-    // Simulate: Quiet for 5s, then Snore
     y = 30 + (simT > 5 ? 50 * (Math.sin(simT)+1)/2 : Math.random()*5); 
+  } else if(analyser && fftData) {
+     // Mic data would be processed here in real app
+     // For this HTML file without external audio processing lib, we rely on Force Test or Demo
+     // But structure is ready for FFT integration
   }
   
-  const isSnoring = y > 60 || forceTest;
+  const isSnoring = y > CONFIG.SNORE_THRESH || forceTest;
   const isSilentMode = ui.sleepSel.value === "SILENT";
   
-  // --- TRACK A: INDUCTION LOGIC (The "Music") ---
-  // If Silent Mode, Target is 0. 
-  // Else, if Snoring, keep at 1.0 (masking). If Quiet/Deep, fade to floor.
-  
-  let natureTarget = CONFIG.FADE_FLOOR;
-  if(isSilentMode) {
-     natureTarget = 0.0;
+  // --- VISUAL FEEDBACK (RIPPLE) ---
+  if(isSnoring && calibState.isCalibrated) {
+     ui.orb.classList.add("intervening");
   } else {
-     // If snoring, bring nature sound up/keep up to mask
-     if(isSnoring) natureTarget = 1.0; 
-     else {
-        // Simple fade logic for demo: drift to floor
-        natureTarget = CONFIG.FADE_FLOOR;
-     }
+     ui.orb.classList.remove("intervening");
   }
-  
-  // Apply Soft Start & Envelope for Nature
-  if(volState.natureCurrent < natureTarget) volState.natureCurrent += 0.01; // Rise
-  else volState.natureCurrent -= 0.001; // Fall slow
+
+  // --- TRACK A: INDUCTION ---
+  let natureTarget = isSilentMode ? 0.0 : (isSnoring ? 1.0 : CONFIG.FADE_FLOOR);
+  if(volState.natureCurrent < natureTarget) volState.natureCurrent += 0.01; 
+  else volState.natureCurrent -= 0.001; 
   volState.natureCurrent = clamp(volState.natureCurrent, 0, 1.0);
 
-  // --- TRACK B: INTERVENTION LOGIC (The "Medicine") ---
-  // Rules:
-  // 1. If NOT Calibrated and Snoring -> DO NOT Intervene (Record Baseline)
-  // 2. If Calibrated and Snoring -> INTERVENE (Boost Beats)
-  // 3. If Not Snoring -> Beats at Base level (or 0 if Silent Mode)
-  
-  let beatsTarget = isSilentMode ? 0.0 : CONFIG.BEATS_BASE;
+  // --- TRACK B: INTERVENTION ---
+  let beatsTarget = isSilentMode ? 0.0 : CONFIG.BEATS_BASE; // 5% default
   
   if(isSnoring) {
      if(!calibState.isCalibrated) {
-        // First Snore Cycle! Capture Baseline.
         ui.kpis.calib.textContent = "CALIBRATING...";
         ui.kpis.calib.style.color = "var(--warn)";
         calibState.baselineEnergy = Math.max(calibState.baselineEnergy, y);
-        
-        // Wait for snore to stop or timeout to finish calibration
-        // For demo, we calibrate after 2 seconds of snoring
         if(!calibState.startTime) calibState.startTime = nowMs();
-        if(nowMs() - calibState.startTime > 2000) {
-           calibState.isCalibrated = true;
-        }
-        
-        // During calibration, DO NOT BOOST. Keep at base/zero.
+        if(nowMs() - calibState.startTime > 1500) calibState.isCalibrated = true; // Faster Calib
         beatsTarget = isSilentMode ? 0.0 : CONFIG.BEATS_BASE;
-        
      } else {
-        // Calibrated! Fire at will.
         ui.kpis.calib.textContent = "ACTIVE";
         ui.kpis.calib.style.color = "var(--success)";
-        beatsTarget = CONFIG.BEATS_BOOST;
+        beatsTarget = CONFIG.BEATS_MAX; // 30% Boost
      }
   } else {
-     // Reset calibration timer if snore stops before calibration done
      if(!calibState.isCalibrated) calibState.startTime = 0;
   }
 
-  // Apply Fast Attack / Release for Beats
   if(volState.beatsCurrent < beatsTarget) volState.beatsCurrent += 0.05; // Fast Attack
-  else volState.beatsCurrent -= 0.02; // Med Release
+  else volState.beatsCurrent -= 0.01; // Slow Release
   
-  // --- HARDWARE OUTPUT ---
+  // --- OUTPUT ---
   if(neuroNode && audioCtx) {
      const userVol = parseFloat(ui.vol.value);
-     
-     // Apply Nature Vol
      neuroNode.natureGain.gain.setTargetAtTime(volState.natureCurrent * userVol, audioCtx.currentTime, 0.1);
      
-     // Apply Beats Vol
-     // Note: Beats are mixed on top.
+     // Beats Logic
      neuroNode.beatsL.gain.setTargetAtTime(volState.beatsCurrent * userVol, audioCtx.currentTime, 0.1);
      neuroNode.beatsR.gain.setTargetAtTime(volState.beatsCurrent * userVol, audioCtx.currentTime, 0.1);
   }
 
-  // --- UI UPDATES ---
+  // --- UI ---
   ui.kpis.nature.textContent = Math.round(volState.natureCurrent*100)+"%";
   ui.kpis.beats.textContent = Math.round(volState.beatsCurrent*100)+"%";
   ui.kpis.y.textContent = Math.round(y);
   ui.kpis.base.textContent = Math.round(calibState.baselineEnergy);
   
   if(isSnoring && calibState.isCalibrated) {
-    ui.status.textContent = "Intervention: BOOST";
-    ui.ring.style.animationDuration = "1s";
-    ui.ring.style.opacity = 0.5;
-  } else if (isSnoring && !calibState.isCalibrated) {
-    ui.status.textContent = "Analyzing First Snore...";
-    ui.ring.style.animationDuration = "2s";
+    ui.status.textContent = "Intervention Active";
+  } else if (isSnoring) {
+    ui.status.textContent = "Calibrating Snore...";
   } else {
     ui.status.textContent = isSilentMode ? "Silent Watch" : "Induction Phase";
-    ui.ring.style.animationDuration = "6s";
-    ui.ring.style.opacity = 0.2;
   }
   ui.sub.textContent = ui.sleepSel.value;
 }
