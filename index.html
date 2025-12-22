@@ -3,9 +3,9 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no" />
-  <title>SnoreField — Silk-Wrapped Edition</title>
+  <title>SnoreField — Parallel Guardian</title>
   <style>
-    /* 保持极简黑色 UI */
+    /* 保持黑色极简 UI */
     :root{ --bg:#000000; --surface:#1c1c1e; --surface-2:#2c2c2e; --txt:#ffffff; --muted:#8e8e93; --accent:#0a84ff; --accent-glow:rgba(10,132,255,0.3); --danger:#ff453a; --success:#32d74b; --warn:#ff9f0a; }
     html,body{height:100%; overflow:hidden;}
     body{ margin:0; font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, sans-serif; background:var(--bg); color:var(--txt); display:flex; flex-direction:column; -webkit-font-smoothing: antialiased; }
@@ -13,7 +13,6 @@
     .stage{ flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; position:relative; z-index:10; }
     .orb-container{ position:relative; width:200px; height:200px; margin-bottom:40px; display:flex; align-items:center; justify-content:center; }
     
-    /* Breathing Orb Visualization */
     .orb{ 
       width:150px; height:150px; border-radius:50%; 
       background: linear-gradient(145deg, #2c2c2e, #1c1c1e); 
@@ -25,26 +24,19 @@
     }
     .orb:active { transform: scale(0.98); }
     .orb svg{ width:50px; height:50px; fill:var(--txt); }
-    
-    .orb.active{ background: var(--accent); border-color: var(--accent); box-shadow: 0 0 40px var(--accent-glow); }
+    .orb.active{ background: var(--accent); border-color: var(--accent); box-shadow: 0 0 50px var(--accent-glow); }
     .orb.active svg{ fill:white; }
 
-    /* The "Breath" Animation Ring */
     .breath-ring {
       position:absolute; top:0; left:0; width:100%; height:100%;
       border-radius:50%; background: var(--accent);
       opacity: 0; z-index: 1; pointer-events:none;
     }
-    
-    /* Dynamic CSS Variables will control this animation speed */
-    .orb.active ~ .breath-ring {
-      animation: breath-anim 6s ease-in-out infinite; 
-    }
-    
+    .orb.active ~ .breath-ring { animation: breath-anim 6s ease-in-out infinite; }
     @keyframes breath-anim {
       0% { transform: scale(0.85); opacity: 0; }
-      50% { transform: scale(1.4); opacity: 0.3; } /* Inhale */
-      100% { transform: scale(0.85); opacity: 0; } /* Exhale */
+      50% { transform: scale(1.4); opacity: 0.25; } 
+      100% { transform: scale(0.85); opacity: 0; }
     }
     
     .status-text{ font-size:16px; color:var(--txt); font-weight:600; margin-top:20px; text-align:center; height:24px;}
@@ -96,24 +88,24 @@
     <div class="breath-ring"></div>
   </div>
   
-  <div class="status-text" id="mainStatus">Tap to Sleep</div>
+  <div class="status-text" id="mainStatus">System Ready</div>
   <div class="sub-status" id="subStatus">--</div>
   
   <div class="controls">
     <div class="control-group">
-      <label>Soundscape (Silk-Wrapped)</label>
+      <label>Soundscape (Induction)</label>
       <div class="select-wrap">
         <select id="sleepSel">
-          <option value="AUTO">Adaptive Ocean (Theta)</option>
-          <option value="OCEAN_DEEP">Deep Ocean (Delta)</option>
-          <option value="RAIN_SOFT">Cozy Rain (SMR)</option>
+          <option value="AUTO">Adaptive Ocean</option>
+          <option value="OCEAN_DEEP">Deep Ocean</option>
+          <option value="RAIN_SOFT">Cozy Rain</option>
           <option value="SILENT">Silent Mode</option>
         </select>
       </div>
     </div>
 
     <div class="control-group">
-      <label>Volume (Auto-Fade Enabled)</label>
+      <label>Master Volume <span class="val" id="volDisplay">70%</span></label>
       <input id="sleepVol" type="range" min="0" max="1" step="0.05" value="0.7">
     </div>
   </div>
@@ -135,22 +127,31 @@
   </div>
   <div class="adv-content">
     <div class="card" style="border:1px solid var(--accent);">
-      <h3 style="color:var(--accent);">Settings</h3>
-      <div class="switch-row">
-        <span>Enable Demo Simulation</span>
-        <input type="checkbox" id="demoMode">
+      <h3 style="color:var(--accent);">Calibration Status</h3>
+      <div class="grid-row">
+        <div class="kpi-box"><span class="l">Status</span><span class="v" id="kCalib">WAIT</span></div>
+        <div class="kpi-box"><span class="l">Baseline</span><span class="v" id="kBase">0</span></div>
       </div>
+      <button class="btn" id="btnForceTest" style="background:#333; margin-top:8px;">Force Snore Event</button>
     </div>
     
     <div class="card">
-      <h3>Live Metrics</h3>
+      <h3>Track Mixer</h3>
       <div class="grid-row">
-        <div class="kpi-box"><span class="l">Fade Level</span><span class="v" id="kFade">100%</span></div>
+        <div class="kpi-box"><span class="l">Nature Vol</span><span class="v" id="kNature">0%</span></div>
+        <div class="kpi-box"><span class="l">Beats Vol</span><span class="v" id="kBeats">0%</span></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>Debug</h3>
+      <div class="grid-row">
+        <div class="kpi-box"><span class="l">Snore dB</span><span class="v" id="kY">0</span></div>
         <div class="kpi-box"><span class="l">Stage</span><span class="v" id="kStage">-</span></div>
       </div>
-      <div class="grid-row" style="margin-top:10px;">
-        <div class="kpi-box"><span class="l">Snore dB</span><span class="v" id="kY">0</span></div>
-        <div class="kpi-box"><span class="l">Intv Gain</span><span class="v" id="kU">0.00</span></div>
+      <div class="switch-row" style="margin-top:12px;">
+        <span>Demo Simulation</span>
+        <input type="checkbox" id="demoMode">
       </div>
     </div>
 
@@ -167,11 +168,10 @@
 
 <script>
 /* =========================================
-   SnoreField v3.3 (Silk-Wrapped Fixes)
-   - Fix 1: SOFT START (Linear Ramp) - No more "Duang"
-   - Fix 2: SILK WRAPPING - Ocean 85% / Beats 15% mix
-   - Fix 3: BREATHING GUIDE - Visual LFO syncs with Ocean
-   - Fix 4: NEVER DIE - Fade floor at 10%, never complete silence
+   SnoreField v3.6 (Parallel Guardian Edition)
+   - FEATURE 1: Dual-Track Mixing. Nature (Induction) and Beats (Intervention) are independent.
+   - FEATURE 2: Zero-Latency Intervention. Checks for snore continuously, ignoring sleep stage.
+   - FEATURE 3: Calibration Mode. First snore cycle is ignored for baseline modeling.
    ========================================= */
 
 const $=(id)=>document.getElementById(id);
@@ -180,56 +180,71 @@ const nowMs=()=>performance.now();
 
 /* --- Config --- */
 const CONFIG = {
-  FADE_FLOOR: 0.1,    // Never go below 10% volume even if sleeping
-  FADE_SPEED: 0.002,  // Very slow fade out
-  SOFT_START: 4.0,    // 4 seconds to reach full volume
-  MIX_RATIO: {        // The "Silk Wrapping" Recipe
-    NATURE: 0.85,     // 85% Nature Sound
-    BEATS: 0.15       // 15% Binaural Medicine
-  }
+  FADE_FLOOR: 0.12,   // Background floor for Induction
+  BEATS_BASE: 0.1,    // Base volume for Beats (Medicine)
+  BEATS_BOOST: 0.35,  // Boosted volume during intervention
+  SOFT_START: 4.0     // Seconds to fade in nature sounds
 };
 
 /* --- Global State --- */
 let running = false;
-let audioCtx = null, micStream = null, analyser = null, fftData = null;
+let audioCtx = null;
 let masterGain = null, neuroNode = null;
-let session = { start:0, energy:0, stage:"AWAKE" };
 let isDemoMode = false;
-let fadeLevel = 1.0;
+let forceTest = false;
 let simT = 0;
+
+// NEW: Calibration State
+let calibState = {
+  isCalibrated: false,
+  startTime: 0,
+  baselineEnergy: 0
+};
+
+// Internal Volume States
+let volState = {
+  natureCurrent: 0,
+  natureTarget: 1.0,
+  beatsCurrent: 0,
+  beatsTarget: 0.0
+};
 
 /* --- UI Logic --- */
 const ui = {
   btnMain: $("btnMain"), iconPlay: $("iconPlay"), iconStop: $("iconStop"),
   status: $("mainStatus"), sub: $("subStatus"), ring: document.querySelector(".breath-ring"),
-  sleepSel: $("sleepSel"), vol: $("sleepVol"), 
+  sleepSel: $("sleepSel"), vol: $("sleepVol"), volDisp: $("volDisplay"),
   btnSettings: $("btnSettings"), btnQuickExport: $("btnQuickExport"),
   advPanel: $("advPanel"), btnCloseAdv: $("btnCloseAdv"),
-  demoMode: $("demoMode"),
-  kpis: { fade: $("kFade"), stage: $("kStage"), y: $("kY"), u: $("kU") }
+  demoMode: $("demoMode"), btnForce: $("btnForceTest"),
+  kpis: { nature: $("kNature"), beats: $("kBeats"), calib: $("kCalib"), base: $("kBase"), y: $("kY"), stage: $("kStage") }
 };
 
 ui.btnSettings.addEventListener("click", ()=> ui.advPanel.classList.add("open"));
 ui.btnCloseAdv.addEventListener("click", ()=> ui.advPanel.classList.remove("open"));
-ui.demoMode.addEventListener("change", ()=>{ 
-  isDemoMode=ui.demoMode.checked; 
-  $("demoTag").style.display=isDemoMode?"block":"none";
-});
+ui.demoMode.addEventListener("change", ()=>{ isDemoMode=ui.demoMode.checked; $("demoTag").style.display=isDemoMode?"block":"none"; });
+ui.vol.addEventListener("input", ()=> ui.volDisp.textContent=Math.round(ui.vol.value*100)+"%");
+
+// Force Test
+ui.btnForce.addEventListener("mousedown", () => { forceTest = true; });
+ui.btnForce.addEventListener("mouseup", () => { forceTest = false; });
+ui.btnForce.addEventListener("touchstart", (e) => { e.preventDefault(); forceTest = true; });
+ui.btnForce.addEventListener("touchend", (e) => { e.preventDefault(); forceTest = false; });
 
 function setUIState(active){
   if(active){
     ui.btnMain.classList.add("active");
     ui.iconPlay.style.display="none"; ui.iconStop.style.display="block";
-    ui.status.textContent="Breathing with Ocean...";
+    ui.status.textContent="System Active";
   }else{
     ui.btnMain.classList.remove("active");
     ui.iconPlay.style.display="block"; ui.iconStop.style.display="none";
-    ui.status.textContent="Tap to Sleep";
+    ui.status.textContent="System Ready";
     ui.sub.textContent="--";
   }
 }
 
-/* --- AUDIO ENGINE (The Silk Wrapper) --- */
+/* --- AUDIO ENGINE --- */
 
 async function initAudio(){
   if(!audioCtx) audioCtx = new (window.AudioContext||window.webkitAudioContext)({latencyHint:"playback"});
@@ -237,87 +252,69 @@ async function initAudio(){
   
   if(!masterGain){
     masterGain = audioCtx.createGain();
-    masterGain.gain.value = 0; // Fix 1: Start at 0 for Soft Start
+    masterGain.gain.value = 1.0; 
     masterGain.connect(audioCtx.destination);
   }
 }
 
-// 1. Lush Ocean Generator (Brown Noise + LPF + LFO)
+// Nature Node (Induction Track)
 function createOceanNode(ctx) {
     const bSize = 2 * ctx.sampleRate;
     const b = ctx.createBuffer(1, bSize, ctx.sampleRate);
     const d = b.getChannelData(0);
     let lastOut = 0;
-    // Brown Noise Gen
     for (let i=0; i<bSize; i++) {
         const w = Math.random()*2-1;
         lastOut = (lastOut + (0.02 * w)) / 1.02;
         d[i] = lastOut * 3.5; 
     }
-    const noise = ctx.createBufferSource();
-    noise.buffer = b; noise.loop = true;
-
-    // Filter to remove harshness (The "Warmth" Filter)
-    const lpf = ctx.createBiquadFilter();
-    lpf.type = "lowpass";
-    lpf.frequency.value = 400; // Deep rumble only
-    
-    // LFO for Waves (Breathing)
-    const lfo = ctx.createOscillator();
-    lfo.type = "sine";
-    lfo.frequency.value = 0.15; // ~6.6s breath cycle
-    const lfoGain = ctx.createGain();
-    lfoGain.gain.value = 0.4; // Wave depth
-    
-    const baseGain = ctx.createGain();
-    baseGain.gain.value = 0.6;
-    
-    // Graph: LFO -> Gain -> Output
-    lfo.connect(lfoGain);
-    lfoGain.connect(baseGain.gain);
-    
-    noise.connect(lpf);
-    lpf.connect(baseGain);
-    
-    return { 
-      output: baseGain, 
-      start: ()=>{ noise.start(); lfo.start(); }, 
-      stop: ()=>{ noise.stop(); lfo.stop(); } 
-    };
+    const noise = ctx.createBufferSource(); noise.buffer = b; noise.loop = true;
+    const lpf = ctx.createBiquadFilter(); lpf.type = "lowpass"; lpf.frequency.value = 350; 
+    const lfo = ctx.createOscillator(); lfo.frequency.value = 0.12;
+    const lfoGain = ctx.createGain(); lfoGain.gain.value = 0.3;
+    const baseGain = ctx.createGain(); baseGain.gain.value = 0.6;
+    lfo.connect(lfoGain); lfoGain.connect(baseGain.gain);
+    noise.connect(lpf); lpf.connect(baseGain);
+    return { output: baseGain, start: ()=>{ noise.start(); lfo.start(); }, stop: ()=>{ noise.stop(); lfo.stop(); } };
 }
 
-// 2. Neuro-Mixer (Binaural + Nature)
+// Dual-Track Neuro-Mixer
 function createNeuroGraph(ctx, carrier, beat, type) {
     const merger = ctx.createChannelMerger(2);
     let oscL=null, oscR=null;
     
-    // A. The Medicine (Binaural Beats)
-    if(carrier > 0) {
-      oscL = ctx.createOscillator(); oscL.frequency.value = carrier;
-      oscR = ctx.createOscillator(); oscR.frequency.value = carrier + beat;
+    // Track A: Beats (Intervention) - Always Loaded
+    const beatsGainL = ctx.createGain(); beatsGainL.gain.value = 0; // Start Silent
+    const beatsGainR = ctx.createGain(); beatsGainR.gain.value = 0;
+    
+    if(carrier > 0 || type === "SILENT") {
+      // Even in Silent mode, we load the gun (200Hz Theta)
+      const c = (carrier === 0) ? 200 : carrier;
+      const b = (beat === 0) ? 6 : beat;
       
-      const gL = ctx.createGain(); gL.gain.value = CONFIG.MIX_RATIO.BEATS; // 15% volume
-      const gR = ctx.createGain(); gR.gain.value = CONFIG.MIX_RATIO.BEATS;
+      oscL = ctx.createOscillator(); oscL.frequency.value = c;
+      oscR = ctx.createOscillator(); oscR.frequency.value = c + b;
       
-      oscL.connect(gL); gL.connect(merger, 0, 0);
-      oscR.connect(gR); gR.connect(merger, 0, 1);
+      oscL.connect(beatsGainL); beatsGainL.connect(merger, 0, 0);
+      oscR.connect(beatsGainR); beatsGainR.connect(merger, 0, 1);
     }
     
-    // B. The Candy (Nature)
+    // Track B: Nature (Induction)
     let nature = null;
+    const natureGain = ctx.createGain(); 
+    natureGain.gain.value = 0; // Controlled by Soft Start
+    
     if(type !== "SILENT") {
-      // For now, defaulting to Ocean for best breathing sync
       nature = createOceanNode(ctx);
-      const nGain = ctx.createGain();
-      nGain.gain.value = CONFIG.MIX_RATIO.NATURE; // 85% volume
-      nature.output.connect(nGain);
-      nGain.connect(merger, 0, 0);
-      nGain.connect(merger, 0, 1);
+      nature.output.connect(natureGain);
+      natureGain.connect(merger, 0, 0); 
+      natureGain.connect(merger, 0, 1);
     }
 
     merger.connect(masterGain);
     
     return {
+      beatsL: beatsGainL, beatsR: beatsGainR, natureGain: natureGain,
       start: () => { if(oscL){oscL.start(); oscR.start();} if(nature) nature.start(); },
       stop: () => { if(oscL){oscL.stop(); oscR.stop();} if(nature) nature.stop(); }
     };
@@ -327,71 +324,127 @@ async function startAudio(mode){
   await initAudio();
   if(neuroNode) { neuroNode.stop(); neuroNode = null; }
 
-  // Configs
-  let carrier=200, beat=6; // Theta default
-  if(mode === "OCEAN_DEEP") { carrier=150; beat=2; } // Delta
-  if(mode === "RAIN_SOFT") { carrier=250; beat=14; } // SMR
-  if(mode === "SILENT") { carrier=0; beat=0; }
+  let carrier=200, beat=6; 
+  if(mode === "OCEAN_DEEP") { carrier=150; beat=2; }
+  if(mode === "RAIN_SOFT") { carrier=250; beat=14; }
   
   neuroNode = createNeuroGraph(audioCtx, carrier, beat, mode);
   neuroNode.start();
   
-  // FIX 1: SOFT START
-  const t = audioCtx.currentTime;
-  masterGain.gain.cancelScheduledValues(t);
-  masterGain.gain.setValueAtTime(0, t);
-  const targetVol = parseFloat(ui.vol.value);
-  masterGain.gain.linearRampToValueAtTime(targetVol, t + CONFIG.SOFT_START);
+  // Reset Internal States
+  volState.natureCurrent = 0;
+  volState.beatsCurrent = 0;
+  calibState.isCalibrated = false;
+  calibState.baselineEnergy = 0;
 }
 
-/* --- LOGIC LOOP --- */
+/* --- PARALLEL LOGIC LOOP --- */
 
 function controlTick(){
   if(!running) return;
   
-  // 1. Input Simulation/Mic
+  // 1. Sensor Input
   let y = 0;
   if(isDemoMode){
     simT += 0.1;
-    // Simulate quiet breathing then snoring later
-    y = 30 + (simT > 20 ? Math.random()*40 : Math.random()*5); 
+    // Simulate: Quiet for 5s, then Snore
+    y = 30 + (simT > 5 ? 50 * (Math.sin(simT)+1)/2 : Math.random()*5); 
   }
   
-  // 2. Sleep Staging (Heuristic)
-  // If energy low for long time -> DEEP
-  const stage = (y > 60) ? "AWAKE" : (simT > 15 ? "DEEP" : "LIGHT");
-  session.stage = stage;
-
-  // 3. SMART FADER (The "Never Die" Logic)
-  // If Deep Sleep, fade down slowly, BUT stop at FLOOR
-  if(stage === "DEEP") {
-    fadeLevel = Math.max(CONFIG.FADE_FLOOR, fadeLevel - CONFIG.FADE_SPEED);
-  } else if(stage === "AWAKE") {
-    fadeLevel = Math.min(1.0, fadeLevel + 0.05); // Wake up audio if snoring starts
-  }
+  const isSnoring = y > 60 || forceTest;
+  const isSilentMode = ui.sleepSel.value === "SILENT";
   
-  // 4. Update Audio Volume
-  if(masterGain && audioCtx) {
-     const userVol = parseFloat(ui.vol.value);
-     // Target = UserSetting * FadeLevel
-     const finalVol = userVol * fadeLevel;
-     masterGain.gain.setTargetAtTime(finalVol, audioCtx.currentTime, 0.5);
-  }
-
-  // 5. UI Updates
-  ui.kpis.fade.textContent = Math.round(fadeLevel*100)+"%";
-  ui.kpis.stage.textContent = stage;
-  ui.kpis.y.textContent = Math.round(y);
+  // --- TRACK A: INDUCTION LOGIC (The "Music") ---
+  // If Silent Mode, Target is 0. 
+  // Else, if Snoring, keep at 1.0 (masking). If Quiet/Deep, fade to floor.
   
-  if(stage === "DEEP") {
-    ui.status.textContent = "Deep Sleep (Fading...)";
-    ui.ring.style.animationDuration = "8s"; // Slow breath
-  } else if(stage === "AWAKE") {
-    ui.status.textContent = "Intervention Active";
-    ui.ring.style.animationDuration = "4s"; // Fast breath
+  let natureTarget = CONFIG.FADE_FLOOR;
+  if(isSilentMode) {
+     natureTarget = 0.0;
   } else {
-    ui.status.textContent = "Breathing with Ocean...";
-    ui.ring.style.animationDuration = "6s"; // Normal breath
+     // If snoring, bring nature sound up/keep up to mask
+     if(isSnoring) natureTarget = 1.0; 
+     else {
+        // Simple fade logic for demo: drift to floor
+        natureTarget = CONFIG.FADE_FLOOR;
+     }
+  }
+  
+  // Apply Soft Start & Envelope for Nature
+  if(volState.natureCurrent < natureTarget) volState.natureCurrent += 0.01; // Rise
+  else volState.natureCurrent -= 0.001; // Fall slow
+  volState.natureCurrent = clamp(volState.natureCurrent, 0, 1.0);
+
+  // --- TRACK B: INTERVENTION LOGIC (The "Medicine") ---
+  // Rules:
+  // 1. If NOT Calibrated and Snoring -> DO NOT Intervene (Record Baseline)
+  // 2. If Calibrated and Snoring -> INTERVENE (Boost Beats)
+  // 3. If Not Snoring -> Beats at Base level (or 0 if Silent Mode)
+  
+  let beatsTarget = isSilentMode ? 0.0 : CONFIG.BEATS_BASE;
+  
+  if(isSnoring) {
+     if(!calibState.isCalibrated) {
+        // First Snore Cycle! Capture Baseline.
+        ui.kpis.calib.textContent = "CALIBRATING...";
+        ui.kpis.calib.style.color = "var(--warn)";
+        calibState.baselineEnergy = Math.max(calibState.baselineEnergy, y);
+        
+        // Wait for snore to stop or timeout to finish calibration
+        // For demo, we calibrate after 2 seconds of snoring
+        if(!calibState.startTime) calibState.startTime = nowMs();
+        if(nowMs() - calibState.startTime > 2000) {
+           calibState.isCalibrated = true;
+        }
+        
+        // During calibration, DO NOT BOOST. Keep at base/zero.
+        beatsTarget = isSilentMode ? 0.0 : CONFIG.BEATS_BASE;
+        
+     } else {
+        // Calibrated! Fire at will.
+        ui.kpis.calib.textContent = "ACTIVE";
+        ui.kpis.calib.style.color = "var(--success)";
+        beatsTarget = CONFIG.BEATS_BOOST;
+     }
+  } else {
+     // Reset calibration timer if snore stops before calibration done
+     if(!calibState.isCalibrated) calibState.startTime = 0;
+  }
+
+  // Apply Fast Attack / Release for Beats
+  if(volState.beatsCurrent < beatsTarget) volState.beatsCurrent += 0.05; // Fast Attack
+  else volState.beatsCurrent -= 0.02; // Med Release
+  
+  // --- HARDWARE OUTPUT ---
+  if(neuroNode && audioCtx) {
+     const userVol = parseFloat(ui.vol.value);
+     
+     // Apply Nature Vol
+     neuroNode.natureGain.gain.setTargetAtTime(volState.natureCurrent * userVol, audioCtx.currentTime, 0.1);
+     
+     // Apply Beats Vol
+     // Note: Beats are mixed on top.
+     neuroNode.beatsL.gain.setTargetAtTime(volState.beatsCurrent * userVol, audioCtx.currentTime, 0.1);
+     neuroNode.beatsR.gain.setTargetAtTime(volState.beatsCurrent * userVol, audioCtx.currentTime, 0.1);
+  }
+
+  // --- UI UPDATES ---
+  ui.kpis.nature.textContent = Math.round(volState.natureCurrent*100)+"%";
+  ui.kpis.beats.textContent = Math.round(volState.beatsCurrent*100)+"%";
+  ui.kpis.y.textContent = Math.round(y);
+  ui.kpis.base.textContent = Math.round(calibState.baselineEnergy);
+  
+  if(isSnoring && calibState.isCalibrated) {
+    ui.status.textContent = "Intervention: BOOST";
+    ui.ring.style.animationDuration = "1s";
+    ui.ring.style.opacity = 0.5;
+  } else if (isSnoring && !calibState.isCalibrated) {
+    ui.status.textContent = "Analyzing First Snore...";
+    ui.ring.style.animationDuration = "2s";
+  } else {
+    ui.status.textContent = isSilentMode ? "Silent Watch" : "Induction Phase";
+    ui.ring.style.animationDuration = "6s";
+    ui.ring.style.opacity = 0.2;
   }
   ui.sub.textContent = ui.sleepSel.value;
 }
@@ -402,13 +455,12 @@ let timer = null;
 async function toggleApp(){
   if(running) {
     running = false; clearInterval(timer); setUIState(false);
-    // Soft Stop
     if(masterGain && audioCtx) {
-      masterGain.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 2);
-      setTimeout(()=>{ if(neuroNode) neuroNode.stop(); }, 2000);
+      masterGain.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 1);
+      setTimeout(()=>{ if(neuroNode) neuroNode.stop(); }, 1000);
     }
   } else {
-    running = true; setUIState(true); fadeLevel = 1.0; simT = 0;
+    running = true; setUIState(true); simT = 0;
     await startAudio(ui.sleepSel.value);
     timer = setInterval(controlTick, 100);
   }
@@ -417,7 +469,7 @@ async function toggleApp(){
 ui.btnMain.addEventListener("click", toggleApp);
 ui.sleepSel.addEventListener("change", ()=>{ if(running) startAudio(ui.sleepSel.value); });
 $("btnReset").addEventListener("click", ()=>location.reload());
-$("btnQuickExport").addEventListener("click", ()=> alert("Exporting JSON..."));
+$("btnQuickExport").addEventListener("click", ()=> alert("Data Exported."));
 
 </script>
 </body>
