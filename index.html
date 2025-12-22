@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no" />
-  <title>SnoreField — WaveFrame Research Core (Full Stack)</title>
+  <title>SnoreField — WaveFrame Research Core (v7.1 Full Stack)</title>
   <style>
     :root{
       --bg:#050505; --surface:#111; --txt:#eee; --accent:#0a84ff;
@@ -44,7 +44,7 @@
     .btn-power.active { border-color:var(--accent); background: radial-gradient(circle, #003060, #000); box-shadow:0 0 60px rgba(10,132,255,0.25); }
     .btn-power svg { width:40px; height:40px; fill:currentColor; }
 
-    .controls { width:min(460px, 92vw); display:flex; flex-direction:column; gap:10px; }
+    .controls { width:min(520px, 94vw); display:flex; flex-direction:column; gap:10px; }
     .row { display:flex; gap:10px; }
     .col { flex:1; display:flex; flex-direction:column; gap:6px; }
     .label { font-size:11px; color:#888; display:flex; justify-content:space-between; align-items:center; }
@@ -64,13 +64,20 @@
       user-select:none;
     }
     .btn-test:active { background:var(--snore); color:#000; }
+    .btn-mini{
+      background:#0b0b0b; color:#cfe; border:1px solid #2b5; padding:12px; width:100%;
+      border-radius:10px; cursor:pointer; font-family:monospace; font-size:12px;
+      user-select:none;
+    }
+    .btn-mini.blue{ border-color:#59f; color:#def; }
+    .btn-mini.amber{ border-color:#fa3; color:#ffe; }
     .toggles { display:flex; justify-content:space-between; gap:10px; }
     .toggle { display:flex; gap:8px; align-items:center; color:#aaa; font-size:11px; }
     .toggle input{ transform:scale(1.1); }
 
-    details { width:min(720px, 92vw); border:1px solid #333; border-radius:10px; padding:10px; background:#0a0a0a; }
+    details { width:min(820px, 94vw); border:1px solid #333; border-radius:10px; padding:10px; background:#0a0a0a; }
     summary { cursor:pointer; color:#888; font-size:11px; }
-    pre { margin:8px 0 0; padding:10px; border-radius:10px; background:#060606; border:1px solid #222; max-height:200px; overflow:auto; font-size:10px; color:#9aa; }
+    pre { margin:8px 0 0; padding:10px; border-radius:10px; background:#060606; border:1px solid #222; max-height:240px; overflow:auto; font-size:10px; color:#9aa; }
 
     .debug { position:fixed; bottom:0; width:100%; padding:8px; background:#0a0a0a; font-size:10px; color:#666; text-align:center; border-top:1px solid #222; }
     .debug a{ color:#8bb; text-decoration:none; margin-left:12px; }
@@ -172,6 +179,15 @@
       <label class="toggle"><input type="checkbox" id="autoBackup" checked> Auto Backup on Stop</label>
     </div>
 
+    <!-- NEW: report save/export buttons -->
+    <div class="row">
+      <button class="btn-mini" id="btnExportReport">EXPORT REPORT (Session JSON)</button>
+      <button class="btn-mini blue" id="btnExportLocal">EXPORT LOCAL DB (All CIEU)</button>
+    </div>
+    <div class="row">
+      <button class="btn-mini amber" id="btnSaveSnapshot">SAVE SNAPSHOT TO LOCAL</button>
+    </div>
+
     <button class="btn-test" id="btnTest">HOLD TO SIMULATE SNORE</button>
 
     <details>
@@ -182,49 +198,48 @@
 </div>
 
 <div class="debug" id="debug">
-  v7.0 WaveFrame Full-Stack
+  v7.1 WaveFrame Full-Stack
   <a href="#" id="exportBtn">EXPORT JSON</a>
   <a href="#" id="clearBtn">CLEAR LOCAL</a>
 </div>
 
 <script>
 /* ============================================================
-   SnoreField v7.0 — WaveFrame Full Stack
+   SnoreField v7.1 — WaveFrame Full Stack
    - Sleep induction: fade-in + timed fade-down + ducking
    - Multi-scale field Φ_short/mid/long
    - Dynamic Y*: Φ -> τ(Φ,phase,stress) -> Y*(t)
+   - Δ metrics: EΔ/DΔ/TΔ in session + reward uses EΔ
    - Safe RL: Options + Hierarchical LinUCB (Level + Action)
    - CIEU five-tuple (event-level) + persistent storage
    - IF Probe Level 1 (STABLE+CALM, <=5/h, abort)
    ============================================================ */
 
-/* ------------------- utilities ------------------- */
+/* ---------------- utilities ---------------- */
 const $ = id => document.getElementById(id);
 const clamp = (x,a,b) => Math.max(a, Math.min(b,x));
 const nowMs = () => performance.now();
 const wallNow = () => Date.now();
 const fmt = (x,d=3) => (typeof x==="number" ? x.toFixed(d) : String(x));
 
-/* ------------------- persistent storage ------------------- */
-const STORE = {
-  DB: "snorefield_v7_db"
-};
+/* ---------------- storage ---------------- */
+const STORE = { DB: "snorefield_v7_1_db" };
 function loadJSON(key, fallback){
   try{ const raw = localStorage.getItem(key); return raw ? JSON.parse(raw) : fallback; }catch(e){ return fallback; }
 }
 function saveJSON(key, obj){ try{ localStorage.setItem(key, JSON.stringify(obj)); }catch(e){} }
 let DB = loadJSON(STORE.DB, []);
 
-/* ------------------- config ------------------- */
+/* ---------------- config ---------------- */
 const CFG = {
   LOGIC_HZ: 20,
   SCOPE_N: 320,
-  CALIB_TIME_MS: 12_000,       // 环境校准
-  MASTER_FADE_IN: 5.0,         // 总输出软启动
-  ONSET_MIN_SEC: 180,          // 入睡判定：持续 calm 180s
-  ONSET_DUCK_AFTER_SEC: 15*60, // 入睡引导 15min 后自动降为背景
-  ONSET_BG_LEVEL: 0.35,        // 降为背景后的助眠系数
-  THR_MARGIN: 15,              // 校准后动态阈值 = noise + margin
+  CALIB_TIME_MS: 12_000,
+  MASTER_FADE_IN: 5.0,
+  ONSET_MIN_SEC: 180,
+  ONSET_DUCK_AFTER_SEC: 15*60,
+  ONSET_BG_LEVEL: 0.35,
+  THR_MARGIN: 15,
   PHI_SHORT: 8.0,
   PHI_MID: 60.0,
   PHI_LONG: 600.0,
@@ -232,29 +247,25 @@ const CFG = {
   BUDGET_WIN: 600.0,
   MAX_DU_PER_TICK: 0.015,
   STRONG_MAX_PER_MIN: 3,
-  // IF Probe L1
   PROBE_MAX_PER_H: 5,
   PROBE_ABORT_MARGIN: 35
 };
 
-/* ------------------- UI binding ------------------- */
+/* ---------------- UI binding ---------------- */
 const ui = {
   btnPower: $("btnPower"),
   btnText: $("btnText"),
   stMain: $("stMain"),
   stSub: $("stSub"),
   mathStat: $("mathStat"),
-
   modeSel: $("modeSel"),
   sleepSel: $("sleepSel"),
-
   capRange: $("capRange"),
   sleepVolRange: $("sleepVolRange"),
   thrRange: $("thrRange"),
   optRange: $("optRange"),
   alphaRange: $("alphaRange"),
   sqwRange: $("sqwRange"),
-
   modeVal: $("modeVal"),
   sleepVal: $("sleepVal"),
   capVal: $("capVal"),
@@ -263,19 +274,20 @@ const ui = {
   optVal: $("optVal"),
   alphaVal: $("alphaVal"),
   sqwVal: $("sqwVal"),
-
   ifProbe: $("ifProbe"),
   autoBackup: $("autoBackup"),
   btnTest: $("btnTest"),
-
   pillAudio: $("pillAudio"),
   pillMic: $("pillMic"),
-
   cvs: $("scope"),
   debugView: $("debugView"),
   debugBar: $("debug"),
   exportBtn: $("exportBtn"),
-  clearBtn: $("clearBtn")
+  clearBtn: $("clearBtn"),
+  // NEW buttons
+  btnExportReport: $("btnExportReport"),
+  btnExportLocal: $("btnExportLocal"),
+  btnSaveSnapshot: $("btnSaveSnapshot")
 };
 
 function syncUI(){
@@ -300,7 +312,7 @@ function syncUI(){
 });
 syncUI();
 
-/* ------------------- getters ------------------- */
+/* ---------------- getters ---------------- */
 function getTHR(){ return parseInt(ui.thrRange.value,10); }
 function getCap(){ return parseFloat(ui.capRange.value); }
 function getSleepVol(){ return parseFloat(ui.sleepVolRange.value); }
@@ -315,17 +327,18 @@ function getMode(){
   return "standard";
 }
 
-/* ------------------- audio engine ------------------- */
-let ctx=null, mic=null, analyser=null, fftData=null;
-let outMaster=null, busSleep=null, busNeuro=null;
-let sleepGraph=null, neuroGraph=null;
-let currentSleepName="", currentNeuroToken="";
-
+/* ---------------- pills ---------------- */
 function setPill(el, kind, text){
   el.classList.remove("ok","warn","bad");
   el.classList.add(kind);
   el.textContent = text;
 }
+
+/* ---------------- audio engine ---------------- */
+let ctx=null, mic=null, analyser=null, fftData=null;
+let outMaster=null, busSleep=null, busNeuro=null;
+let sleepGraph=null, neuroGraph=null;
+let currentSleepName="", currentNeuroToken="";
 
 function ensureAudio(){
   if(ctx) return;
@@ -454,7 +467,6 @@ function buildSleepTemplate(name){
   const main = ctx.createGain(); main.gain.value = 1.0;
   main.connect(hp); hp.connect(lp); lp.connect(notch); notch.connect(out);
 
-  // swell
   const swell=ctx.createOscillator(); swell.type="sine"; swell.frequency.value=0.09;
   const swellG=ctx.createGain(); swellG.gain.value=0.22;
   const swellAmp=ctx.createGain(); swellAmp.gain.value=0.72;
@@ -525,9 +537,8 @@ function buildSleepTemplate(name){
   };
 }
 
-/* --- neuro intervention token graph (binaural beat) --- */
+/* --- neuro token graph --- */
 function buildNeuroToken(token){
-  // token: NEURO_THETA6 / NEURO_DELTA2 / NEURO_SMR14 / MASK_PINK / MASK_OCEAN fallback
   const out = ctx.createGain(); out.gain.value = 1.0;
 
   const hp=ctx.createBiquadFilter(); hp.type="highpass"; hp.frequency.value=35;
@@ -543,10 +554,10 @@ function buildNeuroToken(token){
   amp.connect(main);
 
   const sources=[];
-  let oscL=null, oscR=null, merger=null;
+  let oscL=null, oscR=null;
 
   function startOsc(carrier, beat){
-    merger = ctx.createChannelMerger(2);
+    const merger = ctx.createChannelMerger(2);
     oscL = ctx.createOscillator(); oscR=ctx.createOscillator();
     oscL.type="sine"; oscR.type="sine";
     oscL.frequency.value = carrier - beat/2;
@@ -562,7 +573,6 @@ function buildNeuroToken(token){
   else if(token==="NEURO_DELTA2"){ startOsc(150,2); }
   else if(token==="NEURO_SMR14"){ startOsc(240,14); }
   else if(token==="MASK_OCEAN"){
-    // soft masking fallback inside neuro bus (rare)
     const b=brownNoise(ctx); const p=pinkNoise(ctx);
     b.connect(amp); p.connect(amp); sources.push(b,p);
   }else{
@@ -604,7 +614,7 @@ function applyNeuro(token){
   currentNeuroToken = token;
 }
 
-/* ------------------- signal processing (Y) ------------------- */
+/* ---------------- signal processing (Y) ---------------- */
 function computeSpectrumFeatures(){
   analyser.getFloatFrequencyData(fftData);
   const sr = ctx.sampleRate;
@@ -649,7 +659,7 @@ function computeY(f){
   return Math.round(clamp(y,0,1)*255);
 }
 
-/* ------------------- multi-scale field Φ ------------------- */
+/* ---------------- multi-scale field Φ ---------------- */
 let bufS=[], bufM=[], bufL=[];
 function pushBuf(buf, winSec, s){
   buf.push(s);
@@ -696,7 +706,6 @@ let sleepLatencySec=null, onsetStable=0;
 function updateSleepLatency(phiM, t, dt){
   if(sleepLatencySec!=null) return;
   const thr=getTHR();
-  // asleep-ish: 60s 平稳 + 干预很低
   const asleepish = (phiM.Ymean < thr*0.95) && (phiM.snoreRatio < 0.12) && (busNeuro.gain.value < getCap()*0.25);
   onsetStable = asleepish ? (onsetStable+dt) : Math.max(0, onsetStable-0.5*dt);
   if(onsetStable>=CFG.ONSET_MIN_SEC){
@@ -714,7 +723,7 @@ function updatePhase(phiM, phiL){
   phase = stable ? "STABLE" : "EVENT";
 }
 
-/* ------------------- dynamic Y* via functional τ(Φ) ------------------- */
+/* ---------------- dynamic Y* via functional τ(Φ) ---------------- */
 function tauOf(phiS,phiM,phiL){
   const cap=getCap();
   const bNorm=clamp(budgetUsed()/Math.max(1e-9,(CFG.BUDGET_WIN*cap*cap*0.25)),0,2);
@@ -740,7 +749,7 @@ function computeYStar(elapsed, startY, phiS,phiM,phiL){
   return {ys,tau};
 }
 
-/* ------------------- RL: Options + hierarchical LinUCB ------------------- */
+/* ---------------- RL: Options + hierarchical LinUCB ---------------- */
 function zeros(n){ return Array.from({length:n},()=>0); }
 function eye(n){ const m=[]; for(let i=0;i<n;i++){ const r=zeros(n); r[i]=1; m.push(r); } return m; }
 function dot(a,b){ let s=0; for(let i=0;i<a.length;i++) s+=a[i]*b[i]; return s; }
@@ -834,7 +843,7 @@ function chooseMaskedLow(x, level){
   return best || "NEURO_DELTA2::0.00";
 }
 
-/* ------------------- Safety DSL ------------------- */
+/* ---------------- Safety DSL ---------------- */
 let lastU=0;
 let strongTimes=[];
 function applySafety(uEff, cap, t, dt){
@@ -846,7 +855,6 @@ function applySafety(uEff, cap, t, dt){
   if(du<-CFG.MAX_DU_PER_TICK) u = lastU - CFG.MAX_DU_PER_TICK;
   pushDu(t,dt,absDu);
 
-  // budget scaling
   const budget=budgetUsed();
   const thr=0.9*CFG.BUDGET_WIN*(cap*cap)*0.25;
   if(budget>thr){
@@ -854,7 +862,6 @@ function applySafety(uEff, cap, t, dt){
     u*=scale;
   }
 
-  // strong freq rule
   const strong = u > 0.75*cap;
   if(strong){
     const w=wallNow();
@@ -863,7 +870,6 @@ function applySafety(uEff, cap, t, dt){
     if(strongTimes.length>CFG.STRONG_MAX_PER_MIN) u*=0.65;
   }
 
-  // phase protection
   if(phase==="ONSET") u*=0.72;
   if(phase==="AROUSAL") u*=0.60;
 
@@ -871,9 +877,9 @@ function applySafety(uEff, cap, t, dt){
   return u;
 }
 
-/* ------------------- IF Probe L1 ------------------- */
+/* ---------------- IF Probe L1 ---------------- */
 let probe={enabled:false, perHour:0, hourStart:0, inProbe:false, tEnd:0, key:null, accE:0, accD:0, accT:0, abort:0};
-const motifTable=new Map(); // key -> {eCycle,dCycle,tCycle}
+const motifTable=new Map();
 function resetProbeHour(){
   const w=wallNow();
   if(probe.hourStart===0) probe.hourStart=w;
@@ -919,7 +925,7 @@ function finishProbe(){
   probe.inProbe=false;
 }
 
-/* ------------------- CIEU + Session ------------------- */
+/* ---------------- CIEU + Session ---------------- */
 let session=null;
 let currentCIEU=null;
 
@@ -929,20 +935,33 @@ function newSession(t0){
     t0, t0Wall:Date.now(),
     thr:getTHR(), cap:getCap(), mode:getMode(),
     sleepLatencySec:null,
-    // Real totals
+
+    // exceedance vs threshold (real)
     E_real:0, D_real:0, T_real:0,
+
+    // Δ metrics vs Y* (control error)
+    E_delta:0, D_delta:0, T_delta:0, deltaE_ratio:0,
+
+    // actuation
     uEnergy:0, uPeak:0,
+
     // IF totals
     E_if:0, D_if:0, T_if:0,
-    // deltas
+
+    // deltas vs IF
     deltaE:0, deltaD:0, deltaT:0,
+
     // probe stats
     probeEnabled:false, probePerHour:0, probeAbort:0, motifsProbed:0, motifCoverage:0,
     _tMotifKnown:0,
+
     // event state
     inEvent:false, _eventT0:0, _eventStartY:0, _below:null,
+
     // calibration
-    dynThr:null, ambientYmean:null
+    dynThr:null, ambientYmean:null,
+
+    _calibStartWall:0
   };
   currentCIEU=null;
   sleepLatencySec=null; onsetStable=0;
@@ -950,16 +969,16 @@ function newSession(t0){
   probe.abort=0; probe.perHour=0; probe.hourStart=0; probe.inProbe=false;
 }
 
-function startCIEU(t, x, startY){
+function startCIEU(t, x, startY, phiS, phiM, phiL){
   currentCIEU = {
     id:`cieu_${Date.now()}_${Math.floor(Math.random()*1e6)}`,
     t0_wall: Date.now(),
     t0: t,
-    // five-tuple
-    x_t: { ctx:x, phiS0:null, phiM0:null, phiL0:null, phase0:phase, stage0:stage, mode0:getMode() },
-    u_t: { level:null, actionKey:null, token:null, rho:null },
+    // five-tuple (engineered)
+    x_t: { ctx:x, phiS0:phiS, phiM0:phiM, phiL0:phiL, phase0:phase, stage0:stage, mode0:getMode() },
+    u_t: { level:opt.level, actionKey:opt.actionKey, token:opt.token, rho:opt.rho },
     yStar_t: { startY, tau0:null },
-    yOut_t: { peakY:startY, E_exceed:0, D_exceed:0, T_exceed:0, uEnergy:0, uPeak:0, durationSec:0 },
+    yOut_t: { peakY:startY, E_exceed:0, D_exceed:0, T_exceed:0, E_delta:0, D_delta:0, T_delta:0, uEnergy:0, uPeak:0, durationSec:0 },
     r_t: { rewardNorm:0, components:{} },
     if_t: { motifKnownSec:0 }
   };
@@ -969,39 +988,37 @@ function finishCIEU(t){
   if(!currentCIEU) return;
   currentCIEU.yOut_t.durationSec = t - currentCIEU.t0;
 
-  // Reward: benefit (lower exceedance) - cost (sleep quality)
-  // Here: benefit ~ normalized (E_exceed reduction vs a baseline proxy). We'll use session-level IF delta as a weak proxy,
-  // but for stability we mostly penalize strong u and du.
+  // Reward uses EΔ (more stable), plus sleep-quality cost
+  const sqw=getSQW();
   const cap=getCap();
+
   const uMean = currentCIEU.yOut_t.durationSec>0 ? (currentCIEU.yOut_t.uEnergy/currentCIEU.yOut_t.durationSec) : 0;
   const uPeakN = cap>0 ? clamp(currentCIEU.yOut_t.uPeak/cap,0,2) : 0;
   const strongPenalty = clamp(strongTimes.length/3,0,2);
   const duPenalty = clamp(duUsed()/0.8,0,2);
 
-  const sqw=getSQW();
   const cost = sqw*(0.42*uMean + 0.35*uPeakN + 0.25*duPenalty + 0.25*strongPenalty);
 
-  // benefit: smaller mean exceedance is better
-  const meanEx = currentCIEU.yOut_t.durationSec>0 ? (currentCIEU.yOut_t.D_exceed/currentCIEU.yOut_t.durationSec) : 0; // ~ (Y-THR)
-  const benefit = clamp(1 - (meanEx/60), 0, 1); // heuristic scaling
+  const meanEdelta = currentCIEU.yOut_t.durationSec>0 ? (currentCIEU.yOut_t.E_delta/currentCIEU.yOut_t.durationSec) : 0;
+  const benefit = clamp(1 - (meanEdelta/0.04), 0, 1); // stable scale
 
   const r = clamp(benefit - cost, -1, 1);
   currentCIEU.r_t.rewardNorm = r;
-  currentCIEU.r_t.components = {benefit, cost, uMean, uPeakN, duPenalty, strongPenalty};
+  currentCIEU.r_t.components = {benefit, cost, uMean, uPeakN, duPenalty, strongPenalty, meanEdelta};
 
   DB.push({type:"CIEU", ...currentCIEU});
   currentCIEU = null;
   saveJSON(STORE.DB, DB);
 }
 
-/* ------------------- scope rendering ------------------- */
+/* ---------------- scope rendering (3 traces preserved) ---------------- */
 const cvs = ui.cvs;
 const cCtx = cvs.getContext("2d");
 let bufIn = new Array(CFG.SCOPE_N).fill(0);
 let bufStar = new Array(CFG.SCOPE_N).fill(0);
 let bufU = new Array(CFG.SCOPE_N).fill(0);
 
-function drawScope(y, yStar, u, dynThr){
+function drawScope(y, yStar, u, thr){
   const w = cvs.width = cvs.offsetWidth;
   const h = cvs.height = cvs.offsetHeight;
   cCtx.clearRect(0,0,w,h);
@@ -1010,15 +1027,12 @@ function drawScope(y, yStar, u, dynThr){
   bufStar.push(yStar); bufStar.shift();
   bufU.push(u*255); bufU.shift();
 
-  // threshold line
-  if(dynThr!=null){
-    const yT = h - (dynThr/255)*h;
-    cCtx.strokeStyle="#333"; cCtx.setLineDash([5,5]);
-    cCtx.beginPath(); cCtx.moveTo(0,yT); cCtx.lineTo(w,yT); cCtx.stroke();
-    cCtx.setLineDash([]);
-  }
+  const yT = h - (thr/255)*h;
+  cCtx.strokeStyle="#333"; cCtx.setLineDash([5,5]);
+  cCtx.beginPath(); cCtx.moveTo(0,yT); cCtx.lineTo(w,yT); cCtx.stroke();
+  cCtx.setLineDash([]);
 
-  // INPUT
+  // BLUE: Y
   cCtx.strokeStyle="var(--snore)";
   cCtx.lineWidth=1;
   cCtx.beginPath();
@@ -1029,7 +1043,7 @@ function drawScope(y, yStar, u, dynThr){
   }
   cCtx.stroke();
 
-  // Y*
+  // ORANGE: Y*
   cCtx.strokeStyle="var(--target)";
   cCtx.lineWidth=2;
   cCtx.beginPath();
@@ -1040,7 +1054,7 @@ function drawScope(y, yStar, u, dynThr){
   }
   cCtx.stroke();
 
-  // u fill
+  // RED: u
   if(Math.max(...bufU) > 2){
     cCtx.fillStyle="rgba(255,59,48,0.22)";
     cCtx.beginPath();
@@ -1056,7 +1070,7 @@ function drawScope(y, yStar, u, dynThr){
   }
 }
 
-/* ------------------- runtime control ------------------- */
+/* ---------------- runtime control ---------------- */
 let running=false;
 let lastTick=0;
 let t=0, dt=1/CFG.LOGIC_HZ;
@@ -1065,28 +1079,34 @@ let ambientYmean=0, ambientSamples=0;
 let dynThr=null;
 let state="IDLE";
 
+let pidI=0;
+
 // option RL
-let opt={active:false, tEnd:0, x:null, level:"SOFT", actionKey:null, token:"NEURO_DELTA2", rho:0, stats:{sumDelta:0,sumU:0,sumT:0,uPeak:0,strong:0}};
+let opt={active:false, tEnd:0, x:null, level:"SOFT", actionKey:null, token:"NEURO_DELTA2", rho:0,
+  stats:{sumT:0, E_delta:0, D_delta:0, sumU:0, uPeak:0, strong:0}
+};
 
 function rewardOption(stats){
   const cap=getCap();
-  const uMean=stats.sumT>0 ? stats.sumU/stats.sumT : 0;
+  const sqw=getSQW();
+
+  const uMean=stats.sumT>0 ? (stats.sumU/stats.sumT) : 0;
   const uPeakN=cap>0 ? clamp(stats.uPeak/cap,0,2) : 0;
   const strongPenalty=clamp(stats.strong/2,0,2);
   const duPenalty=clamp(duUsed()/0.8,0,2);
-  const sqw=getSQW();
   const cost=sqw*(0.42*uMean+0.35*uPeakN+0.25*duPenalty+0.25*strongPenalty);
 
-  const meanDelta=stats.sumT>0 ? stats.sumDelta/stats.sumT : 0;
-  const benefit=1-clamp(meanDelta,0,1);
+  const meanE = stats.sumT>0 ? (stats.E_delta/stats.sumT) : 0;
+  const benefit = clamp(1 - (meanE/0.04), 0, 1);
 
   return clamp(benefit - cost, -1, 1);
 }
+
 function beginOption(t,x){
   opt.active=true;
   opt.tEnd=t+getOptSec();
   opt.x=x;
-  opt.stats={sumDelta:0,sumU:0,sumT:0,uPeak:0,strong:0};
+  opt.stats={sumT:0, E_delta:0, D_delta:0, sumU:0, uPeak:0, strong:0};
 
   banditLevel.alpha = getAlpha() * ((phase==="ONSET"||phase==="AROUSAL")?0.7:1);
   banditLow.alpha   = getAlpha();
@@ -1100,6 +1120,7 @@ function beginOption(t,x){
 
   applyNeuro(opt.token);
 }
+
 function endOption(){
   if(!opt.active) return;
   opt.active=false;
@@ -1107,15 +1128,13 @@ function endOption(){
   banditLow.update(opt.actionKey, opt.x, r);
 }
 
+// AUTO sleep decision throttling
 let lastSleepDecisionT=0;
 let autoSleepName="OCEAN_SOFT";
-
 function decideSleep(x){
   const sel = ui.sleepSel.value;
   if(sel==="OFF") return "OFF";
   if(sel!=="AUTO") return sel;
-
-  // avoid churn: decide every 10s
   if(t-lastSleepDecisionT > 10 || currentSleepName===""){
     sleepBandit.alpha = getAlpha();
     autoSleepName = sleepBandit.choose(x);
@@ -1124,18 +1143,17 @@ function decideSleep(x){
   return autoSleepName;
 }
 
-/* sleep induction fade-down timer */
 function sleepBaseLevel(){
   if(phase==="ONSET") return 0.78;
-  // after ONSET, reduce further after 15min from session start
   const elapsed = t - session.t0;
   if(elapsed > CFG.ONSET_DUCK_AFTER_SEC) return CFG.ONSET_BG_LEVEL;
   return 0.50;
 }
 
-/* main loop */
+/* ---------------- main loop ---------------- */
 function loopTick(){
   if(!running) return;
+
   const tNow = nowMs()/1000;
   dt = (lastTick>0) ? (tNow-lastTick) : (1/CFG.LOGIC_HZ);
   lastTick=tNow;
@@ -1144,7 +1162,6 @@ function loopTick(){
   const feat = computeSpectrumFeatures();
   const Y = computeY(feat);
 
-  // multi-scale buffers
   pushBuf(bufS, CFG.PHI_SHORT, {t,dt,Y});
   pushBuf(bufM, CFG.PHI_MID,   {t,dt,Y});
   pushBuf(bufL, CFG.PHI_LONG,  {t,dt,Y});
@@ -1162,21 +1179,19 @@ function loopTick(){
   if(state==="CALIB"){
     ambientSamples++;
     ambientYmean += (Y - ambientYmean)/Math.max(1, ambientSamples);
-    if((t*1000 - session._calibStartWall) > CFG.CALIB_TIME_MS){
-      dynThr = Math.max(getTHR(), Math.round(ambientYmean + CFG.THR_MARGIN));
+    if((nowMs() - session._calibStartWall) > CFG.CALIB_TIME_MS){
+      dynThr = Math.max(thr, Math.round(ambientYmean + CFG.THR_MARGIN));
       session.dynThr = dynThr;
       session.ambientYmean = ambientYmean;
       state="RUN";
     }
   }
 
-  // context
   const x = ctxVec(phiS,phiM,phiL);
 
   // sleep template apply
   const sleepName = decideSleep(x);
   if(sleepName==="OFF"){
-    // stop sleep graph
     if(currentSleepName!=="OFF"){
       stopGraph(sleepGraph); sleepGraph=null; currentSleepName="OFF";
     }
@@ -1198,12 +1213,8 @@ function loopTick(){
     session.inEvent=true;
     session._eventT0=t;
     session._eventStartY=Y;
-    // create CIEU
-    startCIEU(t, x, Y);
-    if(currentCIEU){
-      currentCIEU.x_t.phiS0=phiS; currentCIEU.x_t.phiM0=phiM; currentCIEU.x_t.phiL0=phiL;
-      currentCIEU.u_t.level=opt.level; currentCIEU.u_t.actionKey=opt.actionKey; currentCIEU.u_t.token=opt.token; currentCIEU.u_t.rho=opt.rho;
-    }
+
+    startCIEU(t, x, Y, phiS, phiM, phiL);
   }
 
   if(session.inEvent && !wantEvent){
@@ -1212,13 +1223,12 @@ function loopTick(){
       session.inEvent=false;
       session._below=null;
       finishCIEU(t);
-      // duck neuro down quickly
     }
   }else{
     session._below=null;
   }
 
-  // compute Y* (true target)
+  // compute Y* and Δ
   let Ystar = thr, tau=0;
   if(session.inEvent){
     const elapsed = t - session._eventT0;
@@ -1229,7 +1239,7 @@ function loopTick(){
     Ystar=res.ys; tau=res.tau;
   }
 
-  // update stats
+  // threshold exceedance metrics (real)
   const exceed = Math.max(0, Y - useThr);
   const eNow = exceed*exceed*dt;
   const dNow = exceed*dt;
@@ -1238,6 +1248,12 @@ function loopTick(){
   session.E_real += eNow;
   session.D_real += dNow;
   session.T_real += tEx;
+
+  // Δ metrics vs Y* (control error)
+  const deltaPlus = Math.max(0, Y - Ystar);
+  session.E_delta += (deltaPlus*deltaPlus)*dt;
+  session.D_delta += deltaPlus*dt;
+  session.T_delta += (Y > Ystar) ? dt : 0;
 
   // IF motif
   const key = motifKeyFrom({centroid:feat.centroid, periodicity:feat.periodicity, nl:feat.nl, nm:feat.nm}, phiM);
@@ -1252,7 +1268,7 @@ function loopTick(){
     if(currentCIEU) currentCIEU.if_t.motifKnownSec += dt;
   }
 
-  // IF probe L1
+  // IF probe
   probe.enabled = ui.ifProbe.checked;
   if(canProbe() && !motifTable.has(key) && Y>useThr){
     const cycle = estimateCycleSec(feat);
@@ -1264,11 +1280,9 @@ function loopTick(){
   const mode = getMode();
 
   if(probe.inProbe){
-    // no intervention
     u=0;
     setNeuroBus(0.0);
 
-    // accumulate probe unit
     probe.accE += eNow;
     probe.accD += dNow;
     probe.accT += tEx;
@@ -1277,14 +1291,12 @@ function loopTick(){
     else if(!(phase==="STABLE"&&stage==="CALM")) abortProbe();
     else if(t>=probe.tEnd) finishProbe();
   }else if(mode==="monitor"){
-    // S0 no intervention
     u=0;
     setNeuroBus(0.0);
   }else{
     const delta = Y - Ystar;
     const e = Math.max(0, clamp(delta/255, -1, 1));
 
-    // PID scaffold (fixed KP/KI for stability; RL acts as residual rho & token choice)
     const kp=0.40, ki=0.04;
     pidI = clamp(pidI + e*dt, 0, 0.9);
     const uPID = clamp(kp*e + ki*pidI, 0, 1);
@@ -1296,21 +1308,22 @@ function loopTick(){
     uEff = applySafety(uEff, cap, t, dt);
     u = uEff;
 
-    // actuation: neuro bus gain
     setNeuroBus(u);
-
     pushBudget(t,dt,u);
+
     session.uEnergy += (u*u)*dt;
     session.uPeak = Math.max(session.uPeak, u);
 
-    // option stats
+    // option stats: use normalized Δ+/255 for E_delta
+    const dNorm = Math.max(0, (Y - Ystar)/255);
     opt.stats.sumT += dt;
-    opt.stats.sumDelta += clamp(Math.max(0, delta)/255, 0, 1)*dt;
+    opt.stats.E_delta += (dNorm*dNorm)*dt;
+    opt.stats.D_delta += dNorm*dt;
     opt.stats.sumU += (cap>0 ? (u/cap) : 0)*dt;
     opt.stats.uPeak = Math.max(opt.stats.uPeak, u);
     if(u>0.75*cap) opt.stats.strong += 1;
 
-    // CIEU accumulation if in event
+    // CIEU accumulation
     if(currentCIEU){
       currentCIEU.yOut_t.peakY = Math.max(currentCIEU.yOut_t.peakY, Y);
       currentCIEU.yOut_t.E_exceed += eNow;
@@ -1318,28 +1331,22 @@ function loopTick(){
       currentCIEU.yOut_t.T_exceed += tEx;
       currentCIEU.yOut_t.uEnergy += (u*u)*dt;
       currentCIEU.yOut_t.uPeak = Math.max(currentCIEU.yOut_t.uPeak, u);
+
+      // event-level Δ
+      currentCIEU.yOut_t.E_delta += (deltaPlus*deltaPlus)*dt;
+      currentCIEU.yOut_t.D_delta += deltaPlus*dt;
+      currentCIEU.yOut_t.T_delta += (Y > Ystar) ? dt : 0;
+
+      currentCIEU.yStar_t.tau0 = tau;
     }
   }
 
-  // ducking: when intervention active, duck sleep a bit
+  // duck sleep during intervention
   if(mode!=="monitor" && (session.inEvent || u>0.05)){
     setSleepBus(Math.min(sleepBaseLevel(), 0.25));
   }
 
-  // update UI
-  ui.stMain.textContent = (state==="CALIB") ? "CALIBRATING..." : (session.inEvent ? "INTERVENTION ACTIVE" : "MONITORING / INDUCTION");
-  ui.stMain.style.color = session.inEvent ? "var(--intv)" : (phase==="ONSET" ? "var(--accent)" : "#ddd");
-  ui.stSub.textContent = `Phase=${phase} | Stage=${stage} | Thr=${useThr}${dynThr?` (dyn=${dynThr})`:""} | SleepLatency=${sleepLatencySec??"--"}s`;
-
-  // math overlay
-  const actStr = `${opt.level} / ${opt.actionKey}`;
-  const deltaE = session.E_if - session.E_real;
-  ui.mathStat.innerHTML =
-    `Phase: <span class="highlight">${phase}</span> | Stage: <span class="highlight">${stage}</span><br>`+
-    `RL(Level): <span class="highlight">${opt.level}</span> | RL(Action): <span class="highlight">${opt.actionKey}</span><br>`+
-    `CIEU: <span class="highlight">${DB.filter(x=>x.type==="CIEU").length}</span> | IF ΔE: <span class="highlight">${isFinite(deltaE)?deltaE.toFixed(1):"--"}</span>`;
-
-  // debug summary
+  // session summary updates
   session.sleepLatencySec = sleepLatencySec;
   session.probeEnabled = probe.enabled;
   session.probePerHour = probe.perHour;
@@ -1349,6 +1356,19 @@ function loopTick(){
   session.deltaD = session.D_if - session.D_real;
   session.deltaT = session.T_if - session.T_real;
   session.motifCoverage = clamp(session._tMotifKnown/Math.max(1e-9, session.T_real), 0, 1);
+  session.deltaE_ratio = session.E_real > 1e-9 ? (session.E_delta / session.E_real) : 0;
+
+  // UI text
+  ui.stMain.textContent = (state==="CALIB") ? "CALIBRATING..." : (session.inEvent ? "INTERVENTION ACTIVE" : "MONITORING / INDUCTION");
+  ui.stMain.style.color = session.inEvent ? "var(--intv)" : (phase==="ONSET" ? "var(--accent)" : "#ddd");
+  ui.stSub.textContent = `Phase=${phase} | Stage=${stage} | Thr=${useThr}${dynThr?` (dyn=${dynThr})`:""} | SleepLatency=${sleepLatencySec??"--"}s`;
+
+  const cieuCount = DB.filter(x=>x.type==="CIEU").length;
+  const deltaEif = session.E_if - session.E_real;
+  ui.mathStat.innerHTML =
+    `Phase: <span class="highlight">${phase}</span> | Stage: <span class="highlight">${stage}</span><br>`+
+    `RL(Level): <span class="highlight">${opt.level}</span> | RL(Action): <span class="highlight">${opt.actionKey}</span><br>`+
+    `CIEU: <span class="highlight">${cieuCount}</span> | IF ΔE: <span class="highlight">${isFinite(deltaEif)?deltaEif.toFixed(1):"--"}</span>`;
 
   ui.debugView.textContent = JSON.stringify({
     state, phase, stage,
@@ -1358,47 +1378,61 @@ function loopTick(){
     thr:useThr, dynThr,
     sleepLatencySec,
     session: {
-      E_if:+session.E_if.toFixed(1), E_real:+session.E_real.toFixed(1), dE:+session.deltaE.toFixed(1),
-      D_if:+session.D_if.toFixed(1), D_real:+session.D_real.toFixed(1), dD:+session.deltaD.toFixed(1),
-      T_if:+session.T_if.toFixed(1), T_real:+session.T_real.toFixed(1), dT:+session.deltaT.toFixed(1),
+      // IF
+      E_if:+session.E_if.toFixed(1), E_real:+session.E_real.toFixed(1), dE_if:+session.deltaE.toFixed(1),
+      D_if:+session.D_if.toFixed(1), D_real:+session.D_real.toFixed(1), dD_if:+session.deltaD.toFixed(1),
+      T_if:+session.T_if.toFixed(1), T_real:+session.T_real.toFixed(1), dT_if:+session.deltaT.toFixed(1),
+      // Δ
+      E_delta:+session.E_delta.toFixed(1), D_delta:+session.D_delta.toFixed(1), T_delta:+session.T_delta.toFixed(1),
+      ratio_Edelta_over_Ereal:+session.deltaE_ratio.toFixed(3),
+      // probe
       probePerHour: probe.perHour, abort: probe.abort, motifs: motifTable.size, coverage:+session.motifCoverage.toFixed(3)
     }
   }, null, 2);
 
-  // scope
   drawScope(Y, Ystar, u, useThr);
 
   // debug bar
-  ui.debugBar.firstChild.textContent = `v7.0 | Y=${Y} | Y*=${Math.round(Ystar)} | u=${u.toFixed(3)} | Phase=${phase} | Mode=${mode}`;
+  ui.debugBar.firstChild.textContent = `v7.1 | Y=${Y} | Y*=${Math.round(Ystar)} | u=${u.toFixed(3)} | Phase=${phase} | Mode=${mode}`;
 
-  // schedule
   setTimeout(loopTick, 1000/CFG.LOGIC_HZ);
 }
 
-/* ------------------- start/stop/export ------------------- */
-function exportJSON(){
+/* ---------------- export / save ---------------- */
+function exportReport(){
   const payload = {
+    type:"REPORT",
     session,
     motifs: Array.from(motifTable.entries()),
-    dbTail: DB.slice(-200) // avoid huge export; you can export full local below
+    dbTail: DB.slice(-300)
   };
   const blob = new Blob([JSON.stringify(payload,null,2)], {type:"application/json"});
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href=url;
-  a.download=`SnoreField_v7_Report_${Date.now()}.json`;
+  a.download=`SnoreField_v7_1_Report_${Date.now()}.json`;
   a.click();
   URL.revokeObjectURL(url);
 }
 
-function exportFullLocal(){
+function exportLocalDB(){
   const blob = new Blob([JSON.stringify(DB,null,2)], {type:"application/json"});
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href=url;
-  a.download=`SnoreField_v7_LOCAL_${Date.now()}.json`;
+  a.download=`SnoreField_v7_1_LOCAL_${Date.now()}.json`;
   a.click();
   URL.revokeObjectURL(url);
+}
+
+function saveSnapshot(){
+  if(!session){
+    alert("No active session.");
+    return;
+  }
+  DB.push({type:"SESSION_SNAPSHOT", ...session, motifTableSize: motifTable.size, savedAt: Date.now()});
+  saveJSON(STORE.DB, DB);
+  alert("Snapshot saved to local storage.");
 }
 
 function clearLocal(){
@@ -1408,11 +1442,11 @@ function clearLocal(){
   alert("已清空。");
 }
 
+/* ---------------- start/stop ---------------- */
 async function startSystem(){
   if(running) return;
   ensureAudio();
   await ctx.resume();
-  setPill(ui.pillAudio, ctx.state==="running"?"ok":"warn", `audio: ${ctx.state}`);
 
   try{
     await ensureMic();
@@ -1421,17 +1455,14 @@ async function startSystem(){
     return;
   }
 
-  // init graphs
   currentSleepName=""; currentNeuroToken="";
   applySleep("OCEAN_SOFT");
   applyNeuro("NEURO_DELTA2");
 
-  // init gains
   masterOn(true);
   setSleepBus(0.78);
   setNeuroBus(0.0);
 
-  // reset states
   running=true;
   lastTick=0;
   state="CALIB";
@@ -1446,14 +1477,11 @@ async function startSystem(){
   ambientYmean=0; ambientSamples=0;
   dynThr=null;
 
-  // probe reset
   probe.inProbe=false; probe.abort=0; probe.perHour=0; probe.hourStart=0;
 
-  // session
   newSession(nowMs()/1000);
   session._calibStartWall = nowMs();
 
-  // option
   opt.active=false;
 
   ui.btnPower.classList.add("active");
@@ -1463,19 +1491,15 @@ async function startSystem(){
 }
 
 function stopSystem(){
-  if(!running){
-    return;
-  }
+  if(!running) return;
   running=false;
 
   try{ endOption(); }catch(e){}
   try{ finishCIEU(t); }catch(e){}
 
-  // persist session summary
   DB.push({type:"SESSION_SUMMARY", ...session, motifTableSize: motifTable.size, savedAt: Date.now()});
   saveJSON(STORE.DB, DB);
 
-  // audio fade out
   if(ctx){
     setNeuroBus(0);
     setSleepBus(0);
@@ -1486,14 +1510,18 @@ function stopSystem(){
   ui.btnText.textContent="ACTIVATE";
 
   if(ui.autoBackup.checked){
-    exportJSON();
+    exportReport();
   }
 }
 
-/* ------------------- events ------------------- */
+/* ---------------- events ---------------- */
 ui.btnPower.addEventListener("click", ()=> running ? stopSystem() : startSystem());
-ui.exportBtn.addEventListener("click", (e)=>{ e.preventDefault(); exportFullLocal(); });
+ui.exportBtn.addEventListener("click", (e)=>{ e.preventDefault(); exportLocalDB(); });
 ui.clearBtn.addEventListener("click", (e)=>{ e.preventDefault(); clearLocal(); });
+
+ui.btnExportReport.addEventListener("click", (e)=>{ e.preventDefault(); exportReport(); });
+ui.btnExportLocal.addEventListener("click", (e)=>{ e.preventDefault(); exportLocalDB(); });
+ui.btnSaveSnapshot.addEventListener("click", (e)=>{ e.preventDefault(); saveSnapshot(); });
 
 ui.btnTest.addEventListener("touchstart", ()=> ui.btnTest.classList.add("active"), {passive:true});
 document.addEventListener("touchend", ()=> ui.btnTest.classList.remove("active"), {passive:true});
@@ -1503,15 +1531,6 @@ document.addEventListener("mouseup", ()=> ui.btnTest.classList.remove("active"))
 /* initial pills */
 setPill(ui.pillMic, "warn", "mic: off");
 setPill(ui.pillAudio, "warn", "audio: suspended");
-setStatus("warn","IDLE");
-
-/* status helpers */
-function setStatus(kind,text){
-  const pill=$("pillStatus");
-  pill.classList.remove("ok","warn","bad");
-  pill.classList.add(kind);
-  $("statusText").textContent=text;
-}
 </script>
 </body>
 </html>
