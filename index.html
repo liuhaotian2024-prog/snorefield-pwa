@@ -102,6 +102,7 @@
     .footer-bar{
       padding:24px; display:flex; justify-content:center;
       background:var(--bg); z-index:20;
+      gap: 20px; /* 增加两个按钮之间的间距 */
     }
     .icon-btn{
       background:var(--surface); border:none; color:var(--muted); cursor:pointer; padding:12px;
@@ -194,6 +195,14 @@
   <button class="icon-btn" id="btnSettings">
     <svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
   </button>
+  
+  <button class="icon-btn" id="btnQuickExport">
+    <svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+      <polyline points="7 10 12 15 17 10"/>
+      <line x1="12" y1="15" x2="12" y2="3"/>
+    </svg>
+  </button>
 </div>
 
 <div class="advanced-panel" id="advPanel">
@@ -274,10 +283,7 @@
 
 <script>
 /* =========================================
-   SnoreField v2.1 Ultimate
-   - Fixed: Audio Memory Leaks
-   - Added: Heuristic Sleep Staging (Deep/Light/Awake)
-   - Added: "Shadow Energy" Calculation for valid IF comparison
+   SnoreField v2.1 Ultimate + Quick Export UI
    ========================================= */
 
 const $=(id)=>document.getElementById(id);
@@ -302,7 +308,9 @@ const ui = {
   btnMain: $("btnMain"), iconPlay: $("iconPlay"), iconStop: $("iconStop"),
   status: $("mainStatus"), sub: $("subStatus"), ring: $("stageRing"),
   sleepSel: $("sleepSel"), vol: $("sleepVol"), volDisp: $("volDisplay"),
-  btnSettings: $("btnSettings"), btnCloseAdv: $("btnCloseAdv"), advPanel: $("advPanel"),
+  btnSettings: $("btnSettings"), 
+  btnQuickExport: $("btnQuickExport"), // 新增绑定
+  btnCloseAdv: $("btnCloseAdv"), advPanel: $("advPanel"),
   // Advanced
   mode: $("modeSel"), thr: $("thr"), cap: $("cap"), ifProbe: $("ifProbe"), autoBackup: $("autoBackup"),
   vals: { thr: $("thrVal"), cap: $("capVal") },
@@ -319,6 +327,7 @@ function updateVals(){
   [ui.thr, ui.cap, ui.vol].forEach(el => el.addEventListener(ev, updateVals));
 });
 ui.btnSettings.addEventListener("click", ()=> ui.advPanel.classList.add("open"));
+ui.btnQuickExport.addEventListener("click", exportJSON); // 新增监听
 ui.btnCloseAdv.addEventListener("click", ()=> ui.advPanel.classList.remove("open"));
 
 function setUIState(active){
@@ -397,7 +406,7 @@ function buildSleepTemplate(name){
   const out = ctx.createGain();
   // Filter chain
   const lp = ctx.createBiquadFilter(); lp.type="lowpass"; lp.frequency.value=1800;
-  out.connect(lp); // Connect out via filter is not right, logic: source -> filter -> out
+  out.connect(lp); 
   
   const sources = [];
   const mix = ctx.createGain(); mix.connect(lp); lp.connect(out);
@@ -457,10 +466,6 @@ let lastY = 0;
 let probe = { active:false, startT:0, lastBaseline:0 };
 
 function getSleepStage(avgY, varY){
-  // Heuristic: 
-  // Low Energy + Low Variance = Deep
-  // Low Energy + High Variance = Light
-  // High Energy = Awake/Snore
   if(avgY > 60) return "AWAKE"; // Snoring or moving
   if(varY < 5) return "DEEP";
   return "LIGHT";
@@ -480,7 +485,6 @@ function controlTick(){
   if(bufEnergy.length > 200) bufEnergy.shift(); // Keep last 20s
   
   // 3. Estimate Sleep Stage
-  // Avg and Variance
   const avg = bufEnergy.reduce((a,b)=>a+b,0)/bufEnergy.length;
   const variance = bufEnergy.reduce((a,b)=>a+Math.pow(b-avg,2),0)/bufEnergy.length;
   const stage = getSleepStage(avg, variance);
@@ -499,14 +503,10 @@ function controlTick(){
   const isSnoring = y > thr;
   let u = 0;
   
-  // 5. IF Probe Logic (Shadow Energy Calculation)
-  // If we are probing, we are NOT interfering. The observed Y is the "Baseline".
-  // If we ARE interfering, we estimate "Shadow Energy" based on the last known baseline or current Y + attenuation.
-  
+  // 5. IF Probe Logic
   const enableProbe = ui.ifProbe.checked;
   const t = nowMs()/1000;
   
-  // Randomly trigger probe if snoring
   if(enableProbe && isSnoring && !probe.active && Math.random() < 0.02){
     probe.active = true;
     probe.startT = t;
@@ -514,24 +514,16 @@ function controlTick(){
   if(probe.active && t - probe.startT > 4) probe.active = false; // 4s probe
   
   if(probe.active){
-    // PROBING: We do nothing.
-    // Real Energy = Y (High)
-    // IF (Shadow) Energy = Y (High) -> because IF assumes "What if no AI". Here IS no AI.
+    // PROBING
     session.e_real += y;
     session.e_if += y;
-    probe.lastBaseline = y; // Remember this as the potential snore intensity
+    probe.lastBaseline = y;
   } else {
     // INTERVENING
     if(isSnoring && ui.mode.value !== "monitor"){
        const err = (y - thr) / 255;
        u = clamp(err * 3.0, 0, parseFloat(ui.cap.value));
-       
-       // Energy Logic:
-       // Real Energy = Y (Suppressed, hopefully lower)
-       // IF Energy = The Baseline we measured earlier (or current Y projected higher)
-       // *Simplification*: Assume IF Energy is at least max(y, probe.lastBaseline)
        const shadow = Math.max(y, probe.lastBaseline > 0 ? probe.lastBaseline : y*1.2);
-       
        session.e_real += y;
        session.e_if += shadow;
     } else {
@@ -541,7 +533,6 @@ function controlTick(){
     }
   }
   
-  // Decay baseline slowly so we don't assume giant snores forever
   probe.lastBaseline *= 0.99; 
 
   // 6. Apply Output
@@ -600,18 +591,20 @@ function stopApp(){
 }
 
 function exportJSON(){
+  if(!session) { alert("No session data to export yet."); return; }
+  const totalFrames = session.stats.DEEP+session.stats.LIGHT+session.stats.AWAKE;
   const report = {
     date: new Date().toISOString(),
-    durationSec: (Date.now() - session.start)/1000,
+    durationSec: Math.round((Date.now() - session.start)/1000),
     energy: { 
-      real_observed: Math.round(session.e_real),
-      counterfactual_est: Math.round(session.e_if),
-      saved: Math.round(session.e_if - session.e_real)
+      real_observed_k: Math.round(session.e_real/1000),
+      counterfactual_est_k: Math.round(session.e_if/1000),
+      saved_k: Math.round((session.e_if - session.e_real)/1000)
     },
-    sleep_stages: {
-      deep_pct: Math.round(session.stats.DEEP / (session.stats.DEEP+session.stats.LIGHT+session.stats.AWAKE)*100),
-      light_pct: Math.round(session.stats.LIGHT / (session.stats.DEEP+session.stats.LIGHT+session.stats.AWAKE)*100),
-      awake_pct: Math.round(session.stats.AWAKE / (session.stats.DEEP+session.stats.LIGHT+session.stats.AWAKE)*100)
+    sleep_stages_pct: {
+      deep: Math.round(session.stats.DEEP / totalFrames * 100) || 0,
+      light: Math.round(session.stats.LIGHT / totalFrames * 100) || 0,
+      awake: Math.round(session.stats.AWAKE / totalFrames * 100) || 0
     }
   };
   const blob = new Blob([JSON.stringify(report,null,2)], {type:"application/json"});
