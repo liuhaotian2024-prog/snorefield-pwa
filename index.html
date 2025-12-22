@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=1" />
-  <title>SnoreField — Clean UI + Ocean Sleep + IF Probe L1</title>
+  <title>SnoreField — Clean UI + Ocean Sleep + IF Probe L1 (Fixed Audio)</title>
   <style>
     :root{
       --bg:#0b0f17; --card:#101826; --line:#223044;
@@ -95,9 +95,9 @@
 </head>
 <body>
 <header>
-  <h1>SnoreField — Clean UI + “海浪包裹”助眠 + IF Probe Level 1</h1>
+  <h1>SnoreField — Clean UI + “海浪包裹”助眠 + IF Probe Level 1（已修复无声问题）</h1>
   <p>
-    已修复：助眠音色改为“海浪/风”的包裹感（可选海浪+柔和和声），并把 UI 清理成只显示必要控件；高级调试与学习细节折叠隐藏。
+    说明：上一版“没声音”是音频链路 bug（模板输出增益为 0 + 每帧重建音频图）导致。本版已修复：模板输出稳定、只在需要时切换。
     安全提示：从低音量开始；任何不适立刻停止。本页面是个人实验原型，不是医疗设备。
   </p>
 </header>
@@ -238,12 +238,13 @@
   </div>
   <div class="tiny mono" id="clock">--:--:--</div>
 </div>
+
 <script>
+/* ---------------- utils ---------------- */
 const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
 const nowMs=()=>performance.now();
 const wallNow=()=>Date.now();
 const fmt=(x,d=3)=> (typeof x==="number"? x.toFixed(d): String(x));
-
 function tickClock(){
   const d=new Date();
   const hh=String(d.getHours()).padStart(2,"0");
@@ -268,10 +269,11 @@ function setPill(id,kind,text){
 }
 function logLine(s){
   const el=document.getElementById("log");
-  el.textContent=(s+"\n"+el.textContent).split("\n").slice(0,40).join("\n");
+  el.textContent=(s+"\n"+el.textContent).split("\n").slice(0,50).join("\n");
 }
 
-const STORE={CIEU:"snorefield_cieu_v4"};
+/* ---------------- storage ---------------- */
+const STORE={CIEU:"snorefield_cieu_v4_fixedaudio"};
 function loadJSON(key,fallback){
   try{const raw=localStorage.getItem(key); return raw?JSON.parse(raw):fallback;}catch(e){return fallback;}
 }
@@ -280,7 +282,7 @@ function saveJSON(key,obj){
 }
 let DB=loadJSON(STORE.CIEU,[]);
 
-// UI
+/* ---------------- UI ---------------- */
 const ui={
   start:document.getElementById("btnStart"),
   stop:document.getElementById("btnStop"),
@@ -318,11 +320,6 @@ const ui={
   mDD:document.getElementById("mDD"),
   mProbe:document.getElementById("mProbe"),
   sessionJSON:document.getElementById("sessionJSON"),
-  audioText:document.getElementById("audioText"),
-  pillAudio:document.getElementById("pillAudio"),
-  pillMic:document.getElementById("pillMic"),
-  pillTpl:document.getElementById("pillTpl"),
-  pillTok:document.getElementById("pillTok"),
 };
 
 function syncNums(){
@@ -355,20 +352,25 @@ function getMode(){
   return "standard";
 }
 
-/* Audio */
+/* ---------------- Audio (FIXED) ---------------- */
 let audioCtx=null,micStream=null,micSource=null,analyser=null,fftData=null;
 let outMaster=null,busSleep=null,busInt=null;
 let sleepGraph=null,intGraph=null;
+let currentSleepName=""; // NEW: avoid rebuilding each tick
+let currentTokenName="";
 
 function ensureAudio(){
   if(audioCtx) return;
   audioCtx=new (window.AudioContext||window.webkitAudioContext)({latencyHint:"interactive"});
   outMaster=audioCtx.createGain(); outMaster.gain.value=0;
+
   busSleep=audioCtx.createGain(); busSleep.gain.value=0;
   busInt=audioCtx.createGain(); busInt.gain.value=0;
+
   busSleep.connect(outMaster);
   busInt.connect(outMaster);
   outMaster.connect(audioCtx.destination);
+
   setPill("pillAudio", audioCtx.state==="running"?"ok":"warn", `audio: ${audioCtx.state}`);
   audioCtx.onstatechange=()=> setPill("pillAudio", audioCtx.state==="running"?"ok":"warn", `audio: ${audioCtx.state}`);
 }
@@ -394,14 +396,14 @@ function setMaster(on){
   const t=audioCtx.currentTime;
   outMaster.gain.cancelScheduledValues(t);
   outMaster.gain.setValueAtTime(outMaster.gain.value,t);
-  outMaster.gain.linearRampToValueAtTime(on?1:0, t+(on?0.5:0.35));
+  outMaster.gain.linearRampToValueAtTime(on?1:0, t+(on?0.45:0.35));
 }
 function setSleepGain(target){
   const t=audioCtx.currentTime;
   const vol=parseFloat(ui.sleepVol.value);
   busSleep.gain.cancelScheduledValues(t);
   busSleep.gain.setValueAtTime(busSleep.gain.value,t);
-  busSleep.gain.linearRampToValueAtTime(target*vol, t+0.6);
+  busSleep.gain.linearRampToValueAtTime(target*vol, t+0.35);
 }
 function setIntGain(target){
   const t=audioCtx.currentTime;
@@ -410,7 +412,7 @@ function setIntGain(target){
   busInt.gain.linearRampToValueAtTime(target, t+0.08);
 }
 
-// Noise sources
+/* ---------------- Noise sources ---------------- */
 function whiteNoise(ctx){
   const n=2*ctx.sampleRate;
   const b=ctx.createBuffer(1,n,ctx.sampleRate);
@@ -453,7 +455,7 @@ function brownNoise(ctx){
   return s;
 }
 function softPad(ctx){
-  const g=ctx.createGain(); g.gain.value=0.0;
+  const g=ctx.createGain(); g.gain.value=0.25;
   const lp=ctx.createBiquadFilter(); lp.type="lowpass"; lp.frequency.value=700; lp.Q.value=0.7;
   const mix=ctx.createGain(); mix.gain.value=0.22;
   const base=110;
@@ -472,55 +474,61 @@ function softPad(ctx){
   mix.connect(lp); lp.connect(amp); amp.connect(g);
   return {node:g, start:()=>{oscs.forEach(o=>o.start()); lfo.start();}, stop:()=>{oscs.forEach(o=>o.stop()); lfo.stop();}};
 }
+
+/* ---------------- Sleep template builder (FIXED out.gain) ---------------- */
 function buildSleepTemplate(name){
   const ctx=audioCtx;
-  const out=ctx.createGain(); out.gain.value=0.0;
+  const out=ctx.createGain();
+  out.gain.value = 1.0; // FIX: template output must not be zero
+
   const hp=ctx.createBiquadFilter(); hp.type="highpass"; hp.frequency.value=25;
   const lp=ctx.createBiquadFilter(); lp.type="lowpass"; lp.frequency.value=1800; lp.Q.value=0.7;
   const notch=ctx.createBiquadFilter(); notch.type="peaking"; notch.frequency.value=3200; notch.Q.value=1.2; notch.gain.value=-10;
+
   const main=ctx.createGain(); main.gain.value=1.0;
   main.connect(hp); hp.connect(lp); lp.connect(notch); notch.connect(out);
 
+  // slow swell
   const swell=ctx.createOscillator(); swell.type="sine"; swell.frequency.value=0.09;
   const swellG=ctx.createGain(); swellG.gain.value=0.22;
   const swellAmp=ctx.createGain(); swellAmp.gain.value=0.72;
   swell.connect(swellG); swellG.connect(swellAmp.gain);
   swellAmp.connect(main);
 
+  const sources=[];
+  let pad=null;
+  let crest=null, crestLFO=null;
+
   if(name==="OCEAN_SOFT" || name==="OCEAN_PAD"){
     const brown=brownNoise(ctx);
     const pink=pinkNoise(ctx);
+
+    const rumbleBP=ctx.createBiquadFilter(); rumbleBP.type="bandpass"; rumbleBP.frequency.value=140; rumbleBP.Q.value=0.8;
+    const rumbleG=ctx.createGain(); rumbleG.gain.value=0.28;
+
     const foamHP=ctx.createBiquadFilter(); foamHP.type="highpass"; foamHP.frequency.value=180;
     const foamLP=ctx.createBiquadFilter(); foamLP.type="lowpass"; foamLP.frequency.value=1400;
     const foamG=ctx.createGain(); foamG.gain.value=0.65;
-    const rumbleBP=ctx.createBiquadFilter(); rumbleBP.type="bandpass"; rumbleBP.frequency.value=140; rumbleBP.Q.value=0.8;
-    const rumbleG=ctx.createGain(); rumbleG.gain.value=0.28;
 
     brown.connect(rumbleBP); rumbleBP.connect(rumbleG); rumbleG.connect(swellAmp);
     pink.connect(foamHP); foamHP.connect(foamLP); foamLP.connect(foamG); foamG.connect(swellAmp);
 
-    const crest=whiteNoise(ctx);
+    // optional gentle crest
+    crest=whiteNoise(ctx);
     const crestBP=ctx.createBiquadFilter(); crestBP.type="bandpass"; crestBP.frequency.value=900; crestBP.Q.value=0.7;
     const crestG=ctx.createGain(); crestG.gain.value=0.0;
     crest.connect(crestBP); crestBP.connect(crestG); crestG.connect(swellAmp);
-    const crestLFO=ctx.createOscillator(); crestLFO.type="triangle"; crestLFO.frequency.value=0.18;
+    crestLFO=ctx.createOscillator(); crestLFO.type="triangle"; crestLFO.frequency.value=0.18;
     const crestDepth=ctx.createGain(); crestDepth.gain.value=0.12;
     crestLFO.connect(crestDepth); crestDepth.connect(crestG.gain);
 
-    let pad=null;
+    sources.push(brown,pink,crest);
+
     if(name==="OCEAN_PAD"){
       pad=softPad(ctx);
-      pad.node.gain.value=0.25;
       pad.node.connect(swellAmp);
     }
-    return {
-      node: out,
-      start: ()=>{swell.start(); crestLFO.start(); brown.start(); pink.start(); crest.start(); if(pad) pad.start();},
-      stop: ()=>{try{swell.stop();}catch(e){} try{crestLFO.stop();}catch(e){} [brown,pink,crest].forEach(s=>{try{s.stop();}catch(e){}}); if(pad) pad.stop();}
-    };
-  }
-
-  if(name==="RAIN_SOFT"){
+  }else if(name==="RAIN_SOFT"){
     const base=pinkNoise(ctx);
     const rain=whiteNoise(ctx);
     const rHP=ctx.createBiquadFilter(); rHP.type="highpass"; rHP.frequency.value=650;
@@ -528,23 +536,40 @@ function buildSleepTemplate(name){
     const rG=ctx.createGain(); rG.gain.value=0.22;
     base.connect(swellAmp);
     rain.connect(rHP); rHP.connect(rLP); rLP.connect(rG); rG.connect(swellAmp);
-    return {node:out, start:()=>{swell.start(); base.start(); rain.start();}, stop:()=>{try{swell.stop();}catch(e){} [base,rain].forEach(s=>{try{s.stop();}catch(e){}});} };
-  }
-
-  if(name==="PINK_SOFT"){
+    sources.push(base,rain);
+  }else if(name==="PINK_SOFT"){
     const p=pinkNoise(ctx);
     p.connect(swellAmp);
-    return {node:out, start:()=>{swell.start(); p.start();}, stop:()=>{try{swell.stop();}catch(e){} try{p.stop();}catch(e){};}};
+    sources.push(p);
+  }else{
+    // OFF
   }
 
-  return {node:out, start:()=>{}, stop:()=>{}};
+  return {
+    node: out,
+    start: ()=>{
+      try{swell.start();}catch(e){}
+      if(crestLFO){ try{crestLFO.start();}catch(e){} }
+      sources.forEach(s=>{ try{s.start();}catch(e){} });
+      if(pad) pad.start();
+    },
+    stop: ()=>{
+      try{swell.stop();}catch(e){}
+      if(crestLFO){ try{crestLFO.stop();}catch(e){} }
+      sources.forEach(s=>{ try{s.stop();}catch(e){} });
+      if(pad) pad.stop();
+    }
+  };
 }
+
+/* ---------------- Intervention token builder ---------------- */
 function buildInterventionToken(token){
   const ctx=audioCtx;
   const out=ctx.createGain(); out.gain.value=1.0;
   const hp=ctx.createBiquadFilter(); hp.type="highpass"; hp.frequency.value=40;
   const lp=ctx.createBiquadFilter(); lp.type="lowpass"; lp.frequency.value=1900;
   const notch=ctx.createBiquadFilter(); notch.type="peaking"; notch.frequency.value=3200; notch.Q.value=1.2; notch.gain.value=-10;
+
   const main=ctx.createGain(); main.gain.value=1.0;
   main.connect(hp); hp.connect(lp); lp.connect(notch); notch.connect(out);
 
@@ -577,26 +602,36 @@ function buildInterventionToken(token){
     const p=pinkNoise(ctx); p.connect(amp); srcs=[p];
   }
 
-  return {node:out, start:()=>{lfo.start(); srcs.forEach(s=>s.start());}, stop:()=>{try{lfo.stop();}catch(e){} srcs.forEach(s=>{try{s.stop();}catch(e){}});} };
+  return {
+    node:out,
+    start:()=>{ try{lfo.start();}catch(e){} srcs.forEach(s=>{try{s.start();}catch(e){}}); },
+    stop:()=>{ try{lfo.stop();}catch(e){} srcs.forEach(s=>{try{s.stop();}catch(e){}}); }
+  };
 }
+
+/* ---------------- apply functions (FIXED: only when changed) ---------------- */
 function applySleep(name){
   if(!audioCtx) return;
+  if(name===currentSleepName && sleepGraph) return; // FIX: no rebuild
   stopGraph(sleepGraph);
   sleepGraph=buildSleepTemplate(name);
   sleepGraph.node.connect(busSleep);
   sleepGraph.start();
+  currentSleepName=name;
   setPill("pillTpl","ok",`sleep: ${name}`);
 }
 function applyToken(token){
   if(!audioCtx) return;
+  if(token===currentTokenName && intGraph) return;
   stopGraph(intGraph);
   intGraph=buildInterventionToken(token);
   intGraph.node.connect(busInt);
   intGraph.start();
+  currentTokenName=token;
   setPill("pillTok","ok",`token: ${token}`);
 }
 
-/* Signal features */
+/* ---------------- Signal features ---------------- */
 function computeFeatures(){
   analyser.getFloatFrequencyData(fftData);
   const sr=audioCtx.sampleRate;
@@ -632,7 +667,7 @@ function computeY(f){
   return Math.round(clamp(y,0,1)*255);
 }
 
-/* Multi-scale buffers */
+/* ---------------- Multi-scale buffers & metrics ---------------- */
 const LOGIC_HZ=20;
 const PHI_SHORT=8, PHI_MID=60, PHI_LONG=600;
 const BUDGET_SEC=600;
@@ -645,14 +680,13 @@ function phiFrom(buf,thr){
   return {Ymean:div(sumY,total), snoreRatio:div(snoreT,total)};
 }
 
-/* Budget + slew */
 let budgetBuf=[], duBuf=[];
 function pushBudget(t,dt,u){budgetBuf.push({t,dt,u2:(u*u)*dt}); while(budgetBuf.length && (t-budgetBuf[0].t)>BUDGET_SEC) budgetBuf.shift();}
 function budgetUsed(){let s=0; for(const x of budgetBuf) s+=x.u2; return s;}
 function pushDu(t,dt,absDu){duBuf.push({t,dt,val:absDu*dt}); while(duBuf.length && (t-duBuf[0].t)>30) duBuf.shift();}
 function duUsed(){let s=0; for(const x of duBuf) s+=x.val; return s;}
 
-/* Stage/phase */
+/* stage/phase & sleep latency proxy */
 let stage="CALM", phase="ONSET";
 let sleepLatencySec=null, onsetStable=0;
 function estimateStage(phiM,y){
@@ -679,7 +713,7 @@ function updatePhase(phiM,phiL){
   phase=stable?"STABLE":"EVENT";
 }
 
-/* Simple contextual bandit (kept minimal) */
+/* ---------------- Simple bandits (unchanged) ---------------- */
 function zeros(n){return Array.from({length:n},()=>0);}
 function eye(n){const m=[]; for(let i=0;i<n;i++){const r=zeros(n); r[i]=1; m.push(r);} return m;}
 function dot(a,b){let s=0; for(let i=0;i<a.length;i++) s+=a[i]*b[i]; return s;}
@@ -716,7 +750,6 @@ class LinUCB{
     m.n++; m.rSum+=r;
   }
 }
-
 const TOKENS=["MASK_PINK","MASK_OCEAN","MASK_RAIN","MASK_WHITE"];
 const RHOS=[-0.20,-0.10,0.00,+0.10,+0.20];
 const LEVELS=["SOFT","NORMAL","ASSERTIVE"];
@@ -730,8 +763,6 @@ function ctx(phiS,phiM,phiL){
   const cap=getCAP();
   const bNorm=clamp(budgetUsed()/Math.max(1e-9,(BUDGET_SEC*cap*cap*0.25)),0,2);
   const duNorm=clamp(duUsed()/1.2,0,2);
-  const pVal=(phase==="ONSET")?0:((phase==="STABLE")?0.33:((phase==="EVENT")?0.66:1));
-  const mVal=(getMode()==="monitor")?0:((getMode()==="gentle")?0.5:1);
   return [1, clamp(phiS.Ymean/255,0,1), clamp(phiS.snoreRatio,0,1), clamp(phiM.Ymean/255,0,1), clamp(phiM.snoreRatio,0,1), clamp(phiL.snoreRatio,0,1), clamp(bNorm/2,0,1), clamp(duNorm/2,0,1)];
 }
 function allowed(level){
@@ -783,7 +814,7 @@ function yStar(elapsed,startY,phiS,phiM,phiL){
 /* Safety DSL */
 let lastU=0;
 let strongTimes=[];
-function applySafety(uEff, cap){
+function applySafety(uEff, cap, t, dt){
   let u=clamp(uEff,0,cap);
   const maxDu=0.015;
   const du=u-lastU;
@@ -813,11 +844,10 @@ function applySafety(uEff, cap){
 }
 
 /* IF Probe L1 */
-const STRONG_MAX_PER_H=5;
+const MAX_PROBE_PER_H=5;
 const PROBE_ABORT_MARGIN=35;
 let probe={enabled:false, perHour:0, hourStart:0, inProbe:false, tEnd:0, motifKey:null, accE:0, accD:0, accT:0, abort:0};
-const motifTable=new Map(); // motifKey -> {eCycle,dCycle,tCycle}
-
+const motifTable=new Map();
 function resetProbeHour(){
   const w=wallNow();
   if(probe.hourStart===0) probe.hourStart=w;
@@ -843,11 +873,11 @@ function canProbe(){
   if(sleepLatencySec==null) return false;
   if(!(phase==="STABLE" && stage==="CALM")) return false;
   resetProbeHour();
-  if(probe.perHour>=STRONG_MAX_PER_H) return false;
+  if(probe.perHour>=MAX_PROBE_PER_H) return false;
   if(probe.inProbe) return false;
   return true;
 }
-function startProbe(key,cycleSec){
+function startProbe(key,cycleSec,t){
   probe.inProbe=true;
   probe.tEnd=t+cycleSec;
   probe.motifKey=key;
@@ -879,7 +909,10 @@ function newSession(t0){
     E_if:0, D_if:0, T_if:0,
     deltaE:0, deltaD:0, deltaT:0,
     probeEnabled:false, probePerHour:0, probeAbort:0, motifsProbed:0, motifCoverage:0,
-    _tMotifKnown:0
+    _tMotifKnown:0,
+    _eventT0:0,
+    _eventStartY:0,
+    _below:null
   };
   motifTable.clear();
   probe.abort=0; probe.perHour=0; probe.hourStart=0; probe.inProbe=false;
@@ -910,7 +943,12 @@ function updateReport(){
   ui.kPhase.textContent=phase;
   ui.kStage.textContent=stage;
 
-  const dbg={phase,stage,sleepLatencySec, ifProbe:{enabled:probe.enabled, perHour:probe.perHour, abort:probe.abort, motifs:motifTable.size, coverage:fmt(session.motifCoverage,3)}};
+  const dbg={
+    audioState: audioCtx?audioCtx.state:"none",
+    phase,stage,sleepLatencySec,
+    sleepTemplate: currentSleepName,
+    ifProbe:{enabled:probe.enabled, perHour:probe.perHour, abort:probe.abort, motifs:motifTable.size, coverage:fmt(session.motifCoverage,3)}
+  };
   ui.reportView.textContent=JSON.stringify(dbg,null,2);
 }
 
@@ -952,13 +990,18 @@ function endOption(){
   const r=rewardOption(opt.stats);
   banditLow.update(opt.actionKey,opt.x,r);
 }
-function chooseSleep(x){
+function chooseSleepTemplate(x, t){
   const sel=ui.sleep.value;
   if(sel==="OFF") return "OFF";
   if(sel!=="AUTO") return sel;
+  // AUTO: choose slowly (not every tick) to avoid churn
   sleepBandit.alpha=parseFloat(ui.alpha.value);
   return sleepBandit.choose(x);
 }
+
+/* ---- change throttling for AUTO sleep ---- */
+let lastSleepDecisionT = 0;
+let autoSleepName = "OCEAN_SOFT";
 
 function controlTick(){
   if(!running) return;
@@ -990,13 +1033,23 @@ function controlTick(){
 
   const x=ctx(phiS,phiM,phiL);
 
-  // sleep template (pleasant)
-  const sName=chooseSleep(x);
-  if(sName==="OFF"){
+  // ---- Sleep template (FIXED: do not rebuild every tick) ----
+  let desiredSleep = ui.sleep.value;
+  if(desiredSleep === "AUTO"){
+    if(t - lastSleepDecisionT > 10 || currentSleepName===""){
+      autoSleepName = chooseSleepTemplate(x, t);
+      lastSleepDecisionT = t;
+    }
+    desiredSleep = autoSleepName;
+  }
+  if(desiredSleep === "OFF"){
     setSleepGain(0);
-    setPill("pillTpl","warn","sleep: OFF");
+    if(currentSleepName !== "OFF"){
+      stopGraph(sleepGraph); sleepGraph=null; currentSleepName="OFF";
+      setPill("pillTpl","warn","sleep: OFF");
+    }
   }else{
-    applySleep(sName);
+    applySleep(desiredSleep);
     setSleepGain(phase==="ONSET"?0.78:0.50);
   }
 
@@ -1032,7 +1085,7 @@ function controlTick(){
     session._below=null;
   }
 
-  // update IF probe enable
+  // IF probe enable
   probe.enabled=ui.ifProbe.checked;
 
   // compute real metrics
@@ -1040,13 +1093,12 @@ function controlTick(){
   const eNow=exceed*exceed*dt;
   const dNow=exceed*dt;
   const tEx=(y>thr)?dt:0;
-
   session.E_real+=eNow;
   session.D_real+=dNow;
   session.T_real+=tEx;
 
   // motif
-  const key=motifKeyFrom({centroid:feat.centroid, periodicity:feat.periodicity, nl:feat.nl, nm:feat.nm}, phiM);
+  const key=motifKeyFrom(feat, phiM);
 
   // IF accumulate when motif known
   if(motifTable.has(key) && y>thr){
@@ -1061,7 +1113,7 @@ function controlTick(){
   // trigger probe for unknown motif
   if(canProbe() && !motifTable.has(key) && y>thr){
     const cycle=estimateCycleSec(feat);
-    startProbe(key,cycle);
+    startProbe(key,cycle,t);
   }
 
   // Control / probe
@@ -1069,10 +1121,10 @@ function controlTick(){
   if(probe.inProbe){
     u=0;
     setIntGain(0);
-    // accumulate probe unit
     probe.accE+=eNow;
     probe.accD+=dNow;
     probe.accT+=tEx;
+
     if(y>thr+PROBE_ABORT_MARGIN) abortProbe("Y spike");
     else if(!(phase==="STABLE"&&stage==="CALM")) abortProbe("state changed");
     else if(t>=probe.tEnd) finishProbe();
@@ -1090,7 +1142,7 @@ function controlTick(){
       const allow=allowed(level);
       const cap=getCAP()*allow.capScale;
       let uEff=uPID*(1+rho);
-      uEff=applySafety(uEff,cap);
+      uEff=applySafety(uEff,cap,t,dt);
       u=uEff;
       setIntGain(u);
 
@@ -1114,7 +1166,7 @@ function controlTick(){
   else setStatus("warn","RUN");
 }
 
-/* Export */
+/* export */
 function exportReport(){
   const payload={session, motifTable:Array.from(motifTable.entries())};
   const blob=new Blob([JSON.stringify(payload,null,2)],{type:"application/json"});
@@ -1135,6 +1187,7 @@ function exportDB(){
   URL.revokeObjectURL(url);
 }
 
+/* lifecycle */
 async function start(){
   try{
     ensureAudio();
@@ -1142,8 +1195,10 @@ async function start(){
     await ensureMic();
 
     stopGraph(sleepGraph); stopGraph(intGraph);
+    currentSleepName=""; currentTokenName="";
     applySleep("OCEAN_SOFT");
     applyToken("MASK_OCEAN");
+
     setMaster(true);
     setSleepGain(0.78);
     setIntGain(0);
@@ -1160,7 +1215,7 @@ async function start(){
     newSession(nowMs()/1000);
 
     timer=setInterval(controlTick,1000/LOGIC_HZ);
-    logLine("Started.");
+    logLine("Started. (Audio fixed)");
   }catch(e){
     console.error(e);
     logLine("Start failed: "+(e?.message||e));
@@ -1173,7 +1228,6 @@ function stop(){
   endOption();
   updateReport();
 
-  // persist session
   DB.push({type:"SESSION_SUMMARY", ...session, motifTableSize: motifTable.size, savedAt: Date.now()});
   saveJSON(STORE.CIEU, DB);
 
@@ -1199,6 +1253,12 @@ ui.stop.addEventListener("click", stop);
 ui.export.addEventListener("click", ()=>{ exportDB(); });
 ui.reset.addEventListener("click", resetAll);
 
+// Initialize status pills
+setPill("pillMic","warn","mic: off");
+setPill("pillTpl","warn","sleep: -");
+setPill("pillTok","warn","token: -");
+setPill("pillAudio","warn","audio: suspended");
+setStatus("warn","IDLE");
 </script>
 </body>
 </html>
