@@ -3,376 +3,341 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no" />
-  <title>SnoreField — Stable Truth</title>
+  <title>SnoreField — Zero Calibration</title>
   <style>
-    /* 极简黑色 UI */
-    :root{ --bg:#050505; --surface:#111; --txt:#eee; --accent:#0a84ff; --snore:#00f2ff; --target:#ff9f0a; --intv:#ff3b30; }
-    html,body{height:100%; overflow:hidden;}
-    body{ margin:0; font-family: -apple-system, BlinkMacSystemFont, monospace; background:var(--bg); color:var(--txt); display:flex; flex-direction:column; }
+    :root{ --bg:#000; --txt:#eee; --accent:#0a84ff; --warn:#ff9f0a; --danger:#ff3b30; --safe:#32d74b; }
+    html,body{height:100%; overflow:hidden; margin:0; font-family:-apple-system, sans-serif; background:var(--bg); color:var(--txt);}
     
     /* SCOPE */
-    .scope-container { width: 100%; height: 220px; background: #000; position: relative; border-bottom: 1px solid #333; }
-    canvas { width: 100%; height: 100%; display: block; }
-    .scope-legend { position: absolute; top: 10px; left: 10px; font-size: 10px; display: flex; gap: 15px; pointer-events: none; }
-    .legend-item { display: flex; align-items: center; gap: 4px; font-weight: bold; }
-    .dot { width: 8px; height: 8px; border-radius: 50%; }
+    .scope-wrap { width:100%; height:240px; background:#111; border-bottom:1px solid #333; position:relative; }
+    canvas { width:100%; height:100%; display:block; }
     
-    /* MAIN */
-    .main-area { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px; gap: 20px; }
-    .status-box { text-align: center; }
-    .status-main { font-size: 24px; font-weight: 800; letter-spacing: 1px; color: var(--txt); }
-    .status-sub { font-size: 12px; color: #666; margin-top: 5px; }
-    
+    /* STATUS OVERLAY */
+    .calib-overlay {
+      position:absolute; top:0; left:0; width:100%; height:100%;
+      background:rgba(0,0,0,0.8); display:flex; flex-direction:column;
+      align-items:center; justify-content:center; z-index:10;
+      opacity:0; pointer-events:none; transition:opacity 0.3s;
+    }
+    .calib-overlay.active { opacity:1; }
+    .spinner { width:40px; height:40px; border:4px solid #333; border-top:4px solid var(--accent); border-radius:50%; animation:spin 1s linear infinite; margin-bottom:10px; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
     /* CONTROLS */
-    .controls { width: 100%; max-width: 320px; display: flex; flex-direction: column; gap: 15px; }
-    .btn-big { width: 100%; padding: 18px; border-radius: 12px; border: none; background: var(--surface); color: var(--txt); font-size: 16px; font-weight: bold; border: 1px solid #333; cursor: pointer; transition: all 0.2s; display: flex; justify-content: center; align-items: center; gap: 10px; }
-    .btn-big.active { background: var(--accent); color: white; border-color: var(--accent); box-shadow: 0 0 20px rgba(10,132,255,0.3); }
+    .main { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:20px; gap:30px; }
     
-    .slider-group { background: var(--surface); padding: 15px; border-radius: 12px; border: 1px solid #333; }
-    .slider-header { display: flex; justify-content: space-between; font-size: 12px; color: #888; margin-bottom: 10px; }
-    input[type=range] { width: 100%; }
+    .status-display { text-align:center; }
+    .st-main { font-size:20px; font-weight:800; letter-spacing:1px; margin-bottom:5px; }
+    .st-sub { font-size:12px; color:#777; font-family:monospace; }
+
+    .btn-power {
+      width:260px; height:260px; border-radius:50%; border:2px solid #333;
+      background:radial-gradient(circle, #222, #111);
+      color:#fff; font-size:18px; font-weight:700; letter-spacing:1px;
+      cursor:pointer; transition:all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+      box-shadow:0 10px 30px rgba(0,0,0,0.5);
+      display:flex; flex-direction:column; align-items:center; justify-content:center; gap:10px;
+    }
+    .btn-power:active { transform:scale(0.95); }
+    .btn-power.active { border-color:var(--accent); background:radial-gradient(circle, #004080, #000); box-shadow:0 0 50px rgba(10,132,255,0.2); }
     
-    .btn-test { background: #222; border: 1px solid #444; color: #888; padding: 12px; border-radius: 8px; font-size: 12px; width: 100%; cursor: pointer; }
-    .btn-test:active { background: var(--snore); color: #000; }
-    .debug-panel { font-family: monospace; font-size: 10px; color: #555; padding: 10px; text-align: center; border-top: 1px solid #222; }
+    .btn-power svg { width:48px; height:48px; fill:currentColor; margin-bottom:5px; }
+
+    .vol-wrap { width:80%; max-width:300px; display:flex; flex-direction:column; gap:10px; }
+    .vol-head { display:flex; justify-content:space-between; font-size:12px; color:#888; }
+    input[type=range] { width:100%; accent-color:var(--accent); }
+
+    /* DEBUG BAR */
+    .debug-bar { padding:10px; font-family:monospace; font-size:10px; color:#555; text-align:center; border-top:1px solid #222; }
   </style>
 </head>
 <body>
 
-<div class="scope-container">
-  <div class="scope-legend">
-    <div class="legend-item"><div class="dot" style="background:var(--snore)"></div>MIC INPUT</div>
-    <div class="legend-item"><div class="dot" style="background:var(--target)"></div>THRESHOLD</div>
-    <div class="legend-item"><div class="dot" style="background:var(--intv)"></div>INTERVENTION</div>
+<div class="scope-wrap">
+  <div class="calib-overlay" id="calibLayer">
+    <div class="spinner"></div>
+    <div style="font-weight:bold; color:var(--accent)">CALIBRATING ROOM NOISE...</div>
+    <div style="font-size:12px; color:#888; margin-top:5px;">Please keep quiet for 5 seconds</div>
   </div>
   <canvas id="scope"></canvas>
 </div>
 
-<div class="main-area">
-  <div class="status-box">
-    <div class="status-main" id="stMain">SYSTEM READY</div>
-    <div class="status-sub" id="stSub">Waiting for Activation...</div>
+<div class="main">
+  <div class="status-display">
+    <div class="st-main" id="stMain">SYSTEM READY</div>
+    <div class="st-sub" id="stSub">Auto-Threshold Disabled</div>
   </div>
 
-  <div class="controls">
-    <button class="btn-big" id="btnPower">
-      <svg width="24" height="24" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg>
-      ACTIVATE
-    </button>
+  <button class="btn-power" id="btnPower">
+    <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg>
+    <span>START</span>
+  </button>
 
-    <div class="slider-group">
-      <div class="slider-header"><span>MAX VOLUME CAP</span><span id="volVal">70%</span></div>
-      <input type="range" id="volRange" min="0" max="1" step="0.05" value="0.7">
-    </div>
-
-    <button class="btn-test" id="btnTest">HOLD TO SIMULATE SNORE (TEST)</button>
+  <div class="vol-wrap">
+    <div class="vol-head"><span>MAX INTERVENTION</span><span id="volVal">70%</span></div>
+    <input type="range" id="volRange" min="0" max="1" step="0.05" value="0.7">
   </div>
 </div>
 
-<div class="debug-panel" id="debugTxt">v4.3 Stable</div>
+<div class="debug-bar" id="debug">v5.0 Zero-Calib</div>
 
 <script>
 /* =========================================
-   SnoreField v4.3 (Stable Truth Edition)
-   - MIX: Ocean 70% / Beats 30% (Strictly Enforced)
-   - START: 0% -> 20% (1s) -> Target (10s)
-   - OCEAN: Added LFO for "Breathing" waves (Not static)
-   - SCOPE: Added Noise Gate (Input < 10 ignored) to stop fake spikes
+   SnoreField v5.0 (Zero-Calibration)
+   - FIXED: Removed MIC_GAIN (was 3.0, now 1.0).
+   - FIXED: Added 5s Calibration Phase. Measures room noise to set Threshold.
+   - FIXED: Real linear fade-in using WebAudio API (No more "Duang").
+   - FIXED: Ocean/Beats ratio locked at 70/30.
    ========================================= */
 
-const $ = (id) => document.getElementById(id);
-const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
+const $ = id => document.getElementById(id);
+const clamp = (x,a,b) => Math.max(a,Math.min(b,x));
 
-// --- STRICT CONFIGURATION ---
 const CFG = {
-  SNORE_THRESH: 40,     // Threshold to trigger intervention
-  NOISE_GATE: 8,        // Ignore background noise below this
-  MIC_GAIN: 3.0,        // Reasonable gain (was 5.0, too high)
+  CALIB_TIME: 5000,     // 5 seconds silence check
+  BASE_THRESH: 15,      // Minimum snore threshold
+  MIC_GAIN: 1.0,        // UNITY GAIN (No artificial boost)
   
-  // MIX RATIOS (The Golden Rule)
-  RATIO_OCEAN: 0.7,     // 70%
-  RATIO_BEATS: 0.3,     // 30%
+  // Audio Mix
+  OCEAN_VOL: 0.7,       // 70%
+  BEATS_VOL: 0.3,       // 30%
   
-  // DUCKING (When Snoring)
-  DUCK_OCEAN: 0.2,      // Ocean drops to 20%
-  BOOST_BEATS: 0.8,     // Beats rise to 80%
+  // Ducking
+  DUCK_LEVEL: 0.2,      // Ocean drops to 20%
+  BOOST_LEVEL: 0.8,     // Beats rise to 80%
   
-  // TIMING
-  START_RAMP_1: 0.2,    // Initial jump to 20%
-  START_RAMP_TIME: 10,  // Seconds to reach full induction
-  SLEEP_TIMEOUT: 15 * 60 * 1000 // 15 Mins
+  FADE_IN: 5.0          // 5 Seconds Fade In
 };
 
-// --- STATE ---
+// State
+let ctx, mic, analyser, dataArray;
+let masterGain, natureGain, neuroGain;
+let oscL, oscR;
 let active = false;
-let ctx = null, mic = null, analyser = null, dataArray = null;
-let masterGain = null, neuroGain = null, natureGain = null;
-let oscL = null, oscR = null;
+let state = "IDLE"; // IDLE, CALIB, RUN
+let startTime = 0;
 
-// LOGIC VARS
-let lastSnoreTime = 0;
-let inductionLevel = 0.0; // Starts at 0
-let duckingLevel = 1.0;   // 1.0 = Full Ocean
-let stimLevel = 0.0;      // 0.0 = No Beats boost
+// Logic State
+let ambientNoise = 0;
+let dynThreshold = 255; // Start high so we don't trigger during calib
+let volNature = 0, volBeats = 0;
 
-// SCOPE BUFFERS
-const HISTORY = 300;
-let bufSnore = new Array(HISTORY).fill(0);
-let bufGate  = new Array(HISTORY).fill(0);
-let bufStim  = new Array(HISTORY).fill(0);
+// Scope
+const cvs = $("scope");
+const cCtx = cvs.getContext("2d");
+let bufIn = new Array(300).fill(0);
+let bufOut = new Array(300).fill(0);
 
-// DYNAMICS
-let valSnore = 0, valStim = 0;
+// --- AUDIO SYSTEM ---
+async function startSystem() {
+  if(!ctx) ctx = new (window.AudioContext||window.webkitAudioContext)();
+  if(ctx.state==='suspended') await ctx.resume();
 
-// UI REFS
-const canvas = $("scope");
-const cCtx = canvas.getContext("2d");
-const debug = $("debugTxt");
-
-// --- AUDIO ENGINE ---
-async function startAudio() {
-  if (!ctx) ctx = new (window.AudioContext || window.webkitAudioContext)();
-  if (ctx.state === 'suspended') await ctx.resume();
-
-  // 1. MIC INPUT
+  // 1. Mic Setup
   try {
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    const stream = await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:false, noiseSuppression:false}});
     mic = ctx.createMediaStreamSource(stream);
     analyser = ctx.createAnalyser();
     analyser.fftSize = 512;
-    analyser.smoothingTimeConstant = 0.5; // Smooth lines
+    analyser.smoothingTimeConstant = 0.6; // Slower, smoother reading
     mic.connect(analyser);
     dataArray = new Uint8Array(analyser.frequencyBinCount);
-  } catch (e) {
-    alert("Mic Error: " + e.message); return;
+  } catch(e) {
+    alert("Mic Access Failed"); return;
   }
 
-  // 2. MASTER OUTPUT
+  // 2. Master Output
   masterGain = ctx.createGain();
   masterGain.connect(ctx.destination);
-  masterGain.gain.value = parseFloat($("volRange").value);
-
-  // 3. NATURE TRACK (The Ocean with LFO)
-  // Source: Brown Noise (Deeper than pink)
+  masterGain.gain.value = 0; // Start Silent!
+  
+  // 3. Nature Track (Pink Noise + LPF + LFO)
   const bSize = 2 * ctx.sampleRate;
   const b = ctx.createBuffer(1, bSize, ctx.sampleRate);
   const d = b.getChannelData(0);
-  let lastOut = 0;
-  for (let i = 0; i < bSize; i++) {
-      const white = Math.random() * 2 - 1;
-      lastOut = (lastOut + (0.02 * white)) / 1.02;
-      d[i] = lastOut * 3.5; 
+  for(let i=0; i<bSize; i++) {
+    const w = Math.random()*2-1;
+    d[i] = (w * 0.5); // Softer base
   }
   const noise = ctx.createBufferSource();
   noise.buffer = b; noise.loop = true;
+  const lpf = ctx.createBiquadFilter(); lpf.type="lowpass"; lpf.frequency.value=300;
+  const lfo = ctx.createOscillator(); lfo.frequency.value=0.1; // Breathing wave
+  const lfoG = ctx.createGain(); lfoG.gain.value=0.2;
   
-  // Filter: Lowpass for "underwater" feel
-  const lpf = ctx.createBiquadFilter();
-  lpf.type = "lowpass"; lpf.frequency.value = 350;
+  natureGain = ctx.createGain(); 
+  natureGain.gain.value = CFG.OCEAN_VOL; 
 
-  // LFO: Makes the ocean "Breathe" (0.12Hz = ~8s cycle)
-  const lfo = ctx.createOscillator();
-  lfo.frequency.value = 0.12;
-  const lfoGain = ctx.createGain();
-  lfoGain.gain.value = 0.3; // Depth of wave
-  
-  // Ocean Mixer
-  natureGain = ctx.createGain();
-  natureGain.gain.value = 0; // Controlled by logic
-
-  // Graph: LFO -> Gain -> Output
-  //       Noise -> LPF -> Gain -> Master
-  lfo.connect(lfoGain);
-  lfoGain.connect(natureGain.gain); // Modulate volume
-  noise.connect(lpf);
-  lpf.connect(natureGain);
+  lfo.connect(lfoG); lfoG.connect(natureGain.gain);
+  noise.connect(lpf); lpf.connect(natureGain);
   natureGain.connect(masterGain);
   
-  noise.start();
-  lfo.start();
+  noise.start(); lfo.start();
 
-  // 4. INTERVENTION TRACK (Theta Beats)
+  // 4. Neuro Track (Binaural)
   const merger = ctx.createChannelMerger(2);
-  oscL = ctx.createOscillator(); oscL.frequency.value = 200;
-  oscR = ctx.createOscillator(); oscR.frequency.value = 206; // 6Hz Beat
-  const gL = ctx.createGain(); gL.gain.value = 1.0;
-  const gR = ctx.createGain(); gR.gain.value = 1.0;
+  oscL = ctx.createOscillator(); oscL.frequency.value=200;
+  oscR = ctx.createOscillator(); oscR.frequency.value=206; // 6Hz
+  const gL = ctx.createGain(); gL.gain.value=1;
+  const gR = ctx.createGain(); gR.gain.value=1;
   oscL.connect(gL); gL.connect(merger, 0, 0);
   oscR.connect(gR); gR.connect(merger, 0, 1);
-
+  
   neuroGain = ctx.createGain();
-  neuroGain.gain.value = 0.0; // Controlled by logic
+  neuroGain.gain.value = CFG.BEATS_VOL; // Base level
   merger.connect(neuroGain);
   neuroGain.connect(masterGain);
   
   oscL.start(); oscR.start();
-  
-  // RESET STATE
-  lastSnoreTime = performance.now();
-  inductionLevel = 0.0; // Start at 0
+
+  // 5. Fade In (REAL SMOOTH FADE)
+  const t = ctx.currentTime;
+  const userVol = parseFloat($("volRange").value);
+  masterGain.gain.setValueAtTime(0, t);
+  // Linear ramp over 5 seconds to target volume
+  masterGain.gain.linearRampToValueAtTime(userVol, t + CFG.FADE_IN);
+
+  // Init Logic
   active = true;
+  state = "CALIB";
+  startTime = performance.now();
+  ambientNoise = 0;
+  $("calibLayer").classList.add("active");
+  $("btnPower").classList.add("active");
+  $("btnPower").innerHTML = `<span>STOP</span>`;
   
-  loop();
-  updateUIState();
+  process();
 }
 
-function stopAudio() {
-  if (ctx) ctx.close();
+function stopSystem() {
+  if(ctx) ctx.close();
   ctx = null;
   active = false;
-  updateUIState();
+  state = "IDLE";
+  $("calibLayer").classList.remove("active");
+  $("btnPower").classList.remove("active");
+  $("btnPower").innerHTML = `<svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg><span>START</span>`;
+  $("stMain").textContent = "SYSTEM READY";
+  $("stSub").textContent = "Auto-Threshold Disabled";
 }
 
-// --- LOGIC LOOP (60Hz) ---
-function loop() {
-  if (!active) return;
-  requestAnimationFrame(loop);
-  const now = performance.now();
-
-  // 1. SENSOR READING
+// --- LOOP ---
+function process() {
+  if(!active) return;
+  requestAnimationFrame(process);
+  
+  // 1. Read Mic
   analyser.getByteFrequencyData(dataArray);
   let sum = 0;
-  // Low frequency energy (0-150Hz approx)
-  for (let i = 0; i < 15; i++) sum += dataArray[i];
-  let rawAvg = sum / 15;
+  // Look at lowest 10 bins (Deep Snore)
+  for(let i=0; i<10; i++) sum += dataArray[i];
+  let raw = sum/10;
   
-  // TEST BUTTON OVERRIDE
-  if($("btnTest").matches(':active')) rawAvg = 80;
+  // Apply Unity Gain (Just raw input)
+  let inputVal = raw * CFG.MIC_GAIN;
 
-  // NOISE GATE (Critical Fix for "Fake Spikes")
-  if (rawAvg < CFG.NOISE_GATE) rawAvg = 0; 
+  // 2. Logic Machine
+  let targetOcean = CFG.OCEAN_VOL;
+  let targetBeats = CFG.BEATS_VOL;
+  let status = "MONITORING";
+  let statusColor = "#ccc";
 
-  // APPLY GAIN
-  valSnore = Math.min(255, rawAvg * CFG.MIC_GAIN);
-  const isSnoring = valSnore > CFG.SNORE_THRESH;
-
-  if (isSnoring) lastSnoreTime = now;
-
-  // 2. INDUCTION RAMP (Soft Start)
-  // 0 -> 20% fast, then 20% -> 100% slow
-  if (inductionLevel < CFG.START_RAMP_1) {
-      inductionLevel += 0.01; // Fast to 20%
-  } else if (inductionLevel < 1.0) {
-      inductionLevel += 0.001; // Slow to 100%
+  if (state === "CALIB") {
+    // CALIBRATION PHASE
+    // Track max ambient noise
+    if (inputVal > ambientNoise) ambientNoise = inputVal;
+    
+    let progress = (performance.now() - startTime);
+    if (progress > CFG.CALIB_TIME) {
+      state = "RUN";
+      // Set threshold slightly above ambient noise
+      dynThreshold = Math.max(ambientNoise + 15, CFG.BASE_THRESH); 
+      $("calibLayer").classList.remove("active");
+    }
+  } 
+  else if (state === "RUN") {
+    // RUNNING PHASE
+    if (inputVal > dynThreshold) {
+      // SNORE DETECTED
+      status = "INTERVENTION ACTIVE";
+      statusColor = "var(--danger)";
+      
+      // Duck Ocean, Boost Beats
+      targetOcean = CFG.DUCK_LEVEL;
+      targetBeats = CFG.BOOST_LEVEL;
+    } else {
+      // QUIET
+      status = "GUIDED INDUCTION";
+      statusColor = "var(--accent)";
+    }
   }
+
+  // 3. Audio Actuation (Smooth Envelopes)
+  const ct = ctx.currentTime;
+  // Apply volume targets
+  if(natureGain) natureGain.gain.setTargetAtTime(targetOcean, ct, 0.2); // Slow fade
+  if(neuroGain) neuroGain.gain.setTargetAtTime(targetBeats, ct, 0.1); // Fast attack
+
+  // 4. UI Update
+  $("stMain").textContent = status;
+  $("stMain").style.color = statusColor;
+  $("stSub").textContent = state==="CALIB" ? "Learning Environment..." : `Noise:${Math.round(ambientNoise)} | Threshold:${Math.round(dynThreshold)}`;
   
-  // SLEEP FADE OUT
-  if ((now - lastSnoreTime) > CFG.SLEEP_TIMEOUT) {
-      inductionLevel = Math.max(0, inductionLevel - 0.0005);
-  }
+  $("debug").textContent = `IN:${Math.round(inputVal)} | THR:${Math.round(dynThreshold)} | OCEAN:${targetOcean.toFixed(2)} | BEATS:${targetBeats.toFixed(2)}`;
 
-  // 3. MIXER LOGIC
-  let targetDuck = 1.0;
-  let targetStim = 0.0; // 0 means use Base Ratio, >0 means Boost
-
-  if (isSnoring) {
-      // INTERVENTION MODE
-      targetDuck = 0.0; // Drop Ocean
-      targetStim = 1.0; // Boost Beats
-  }
-
-  // Envelopes
-  if (duckingLevel > targetDuck) duckingLevel -= 0.05; else duckingLevel += 0.01;
-  if (stimLevel < targetStim) stimLevel += 0.1; else stimLevel -= 0.02;
+  // 5. Draw Scope
+  bufIn.push(inputVal); bufIn.shift();
   
-  duckingLevel = clamp(duckingLevel, 0, 1);
-  stimLevel = clamp(stimLevel, 0, 1);
+  // Output Visual (Estimate based on target)
+  let outVis = (targetBeats > CFG.BEATS_VOL) ? 100 : 0;
+  bufOut.push(outVis); bufOut.shift();
 
-  // 4. FINAL VOLUME CALCULATION (The 70/30 Rule)
-  //
-  // Nature Vol = InductionCurve * [DuckState: 0.7 -> 0.2]
-  // Beats Vol  = InductionCurve * [BoostState: 0.3 -> 0.8]
-  
-  // Interpolate based on Duck/Stim state
-  // When Quiet: Ocean 0.7, Beats 0.3
-  // When Snore: Ocean 0.2, Beats 0.8
-  
-  const currentOceanRatio = CFG.RATIO_OCEAN * duckingLevel + CFG.DUCK_OCEAN * (1-duckingLevel);
-  const currentBeatsRatio = CFG.RATIO_BEATS * (1-stimLevel) + CFG.BOOST_BEATS * stimLevel;
-
-  const finalOcean = inductionLevel * currentOceanRatio;
-  const finalBeats = inductionLevel * currentBeatsRatio;
-
-  // 5. HARDWARE UPDATE
-  if (natureGain) natureGain.gain.setTargetAtTime(finalOcean, ctx.currentTime, 0.05);
-  if (neuroGain) neuroGain.gain.setTargetAtTime(finalBeats, ctx.currentTime, 0.05);
-
-  // 6. SCOPE DRAWING
-  bufSnore.push(valSnore); bufSnore.shift();
-  bufGate.push(CFG.SNORE_THRESH); bufGate.shift();
-  bufStim.push(stimLevel * 200); bufStim.shift(); // Scale for display
-  drawScope();
-
-  // 7. STATUS TEXT
-  debug.textContent = `IN:${Math.round(valSnore)} | OCEAN:${Math.round(finalOcean*100)}% | BEATS:${Math.round(finalBeats*100)}%`;
-  
-  if(isSnoring) {
-      $("stMain").textContent = "INTERVENTION";
-      $("stMain").style.color = "var(--intv)";
-      $("stSub").textContent = "Suppressing Snore Pattern";
-  } else {
-      $("stMain").textContent = "INDUCTION";
-      $("stMain").style.color = "var(--txt)";
-      $("stSub").textContent = `Ocean: ${Math.round(finalOcean*100)}% (LFO Active)`;
-  }
+  drawScope(dynThreshold);
 }
 
-// --- VISUALS ---
-function drawScope() {
-  const w = canvas.width = canvas.offsetWidth;
-  const h = canvas.height = canvas.offsetHeight;
-  cCtx.clearRect(0, 0, w, h);
+function drawScope(thresh) {
+  const w = cvs.width = cvs.offsetWidth;
+  const h = cvs.height = cvs.offsetHeight;
+  cCtx.clearRect(0,0,w,h);
+  
+  // Draw Threshold Line
+  if(state === "RUN") {
+    let yT = h - (thresh/255)*h;
+    cCtx.strokeStyle = "#444";
+    cCtx.setLineDash([5,5]);
+    cCtx.beginPath(); cCtx.moveTo(0,yT); cCtx.lineTo(w,yT); cCtx.stroke();
+    cCtx.setLineDash([]);
+  }
+
+  // Draw Input
+  cCtx.strokeStyle = "var(--snore)";
   cCtx.lineWidth = 2;
+  cCtx.beginPath();
+  for(let i=0; i<bufIn.length; i++) {
+    let x = (i/bufIn.length)*w;
+    let y = h - (bufIn[i]/255)*h;
+    if(i==0) cCtx.moveTo(x,y); else cCtx.lineTo(x,y);
+  }
+  cCtx.stroke();
 
-  function drawLine(data, color, dash=[]) {
-    cCtx.beginPath(); cCtx.strokeStyle = color; cCtx.setLineDash(dash);
-    for (let i = 0; i < data.length; i++) {
-      const x = (i / (data.length - 1)) * w;
-      const y = h - (data[i] / 255) * h;
-      if (i === 0) cCtx.moveTo(x, y); else cCtx.lineTo(x, y);
-    }
-    cCtx.stroke();
+  // Draw Intervention
+  cCtx.fillStyle = "rgba(255, 59, 48, 0.3)";
+  cCtx.beginPath();
+  cCtx.moveTo(0,h);
+  for(let i=0; i<bufOut.length; i++) {
+    let x = (i/bufOut.length)*w;
+    let y = h - (bufOut[i]/150)*h; // Scale down
+    cCtx.lineTo(x,y);
   }
-  drawLine(bufGate, '#333', [5, 5]); // Threshold line
-  drawLine(bufSnore, '#00f2ff');     // Mic Input
-  
-  // Fill Red
-  if(stimLevel > 0.1) {
-    cCtx.fillStyle = 'rgba(255, 59, 48, 0.3)';
-    cCtx.beginPath(); cCtx.moveTo(0, h);
-    for(let i=0; i<bufStim.length; i++){
-       const x = (i / (HISTORY - 1)) * w;
-       const y = h - (bufStim[i] / 255) * h;
-       cCtx.lineTo(x, y);
-    }
-    cCtx.lineTo(w, h); cCtx.fill();
-  }
-  drawLine(bufStim, '#ff3b30');      // Intervention
+  cCtx.lineTo(w,h);
+  cCtx.fill();
 }
 
-function updateUIState() {
-  const btn = $("btnPower");
-  if(active) {
-    btn.innerHTML = "STOP SYSTEM"; btn.classList.add("active");
-  } else {
-    btn.innerHTML = "START INDUCTION"; btn.classList.remove("active");
-    $("stMain").textContent = "SYSTEM OFF"; $("stSub").textContent = "Press Start to Begin";
-  }
-}
-
-$("btnPower").addEventListener("click", () => { if (active) stopAudio(); else startAudio(); });
-$("volRange").addEventListener("input", (e) => {
-  $("volVal").textContent = Math.round(e.target.value * 100) + "%";
+$("btnPower").addEventListener("click", ()=> { if(active) stopSystem(); else startSystem(); });
+$("volRange").addEventListener("input", (e)=> {
+  $("volVal").textContent = Math.round(e.target.value*100)+"%";
   if(masterGain) masterGain.gain.value = parseFloat(e.target.value);
 });
-updateUIState();
-
-// Btn Interaction
-const btnTest = $("btnTest");
-btnTest.addEventListener("mousedown", () => btnTest.classList.add("active"));
-btnTest.addEventListener("mouseup", () => btnTest.classList.remove("active"));
-btnTest.addEventListener("touchstart", (e) => { e.preventDefault(); btnTest.classList.add("active"); });
-btnTest.addEventListener("touchend", (e) => { e.preventDefault(); btnTest.classList.remove("active"); });
 
 </script>
 </body>
