@@ -3,73 +3,47 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no" />
-  <title>SnoreField — Visual Truth</title>
+  <title>SnoreField — Smart Fade</title>
   <style>
+    /* 保持 v4.1 极简黑色 UI 不变 */
     :root{ --bg:#050505; --surface:#111; --txt:#eee; --accent:#0a84ff; --snore:#00f2ff; --target:#ff9f0a; --intv:#ff3b30; }
     html,body{height:100%; overflow:hidden;}
     body{ margin:0; font-family: -apple-system, BlinkMacSystemFont, monospace; background:var(--bg); color:var(--txt); display:flex; flex-direction:column; }
-    
-    /* SCOPE AREA */
-    .scope-container {
-      width: 100%; height: 220px; background: #000;
-      position: relative; border-bottom: 1px solid #333;
-    }
+    .scope-container { width: 100%; height: 220px; background: #000; position: relative; border-bottom: 1px solid #333; }
     canvas { width: 100%; height: 100%; display: block; }
-    .scope-legend {
-      position: absolute; top: 10px; left: 10px; font-size: 10px; display: flex; gap: 15px; pointer-events: none;
-    }
+    .scope-legend { position: absolute; top: 10px; left: 10px; font-size: 10px; display: flex; gap: 15px; pointer-events: none; }
     .legend-item { display: flex; align-items: center; gap: 4px; font-weight: bold; }
     .dot { width: 8px; height: 8px; border-radius: 50%; }
-    
-    /* MAIN CONTROLS */
     .main-area { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px; gap: 20px; }
-    
     .status-box { text-align: center; }
     .status-main { font-size: 24px; font-weight: 800; letter-spacing: 1px; color: var(--txt); }
     .status-sub { font-size: 12px; color: #666; margin-top: 5px; }
-    
     .controls { width: 100%; max-width: 320px; display: flex; flex-direction: column; gap: 15px; }
-    
-    .btn-big {
-      width: 100%; padding: 18px; border-radius: 12px; border: none;
-      background: var(--surface); color: var(--txt); font-size: 16px; font-weight: bold;
-      border: 1px solid #333; cursor: pointer; transition: all 0.2s;
-      display: flex; justify-content: center; align-items: center; gap: 10px;
-    }
+    .btn-big { width: 100%; padding: 18px; border-radius: 12px; border: none; background: var(--surface); color: var(--txt); font-size: 16px; font-weight: bold; border: 1px solid #333; cursor: pointer; transition: all 0.2s; display: flex; justify-content: center; align-items: center; gap: 10px; }
     .btn-big.active { background: var(--accent); color: white; border-color: var(--accent); box-shadow: 0 0 20px rgba(10,132,255,0.3); }
-    
     .slider-group { background: var(--surface); padding: 15px; border-radius: 12px; border: 1px solid #333; }
     .slider-header { display: flex; justify-content: space-between; font-size: 12px; color: #888; margin-bottom: 10px; }
     input[type=range] { width: 100%; }
-    
-    /* TEST BUTTON */
-    .btn-test {
-      background: #222; border: 1px solid #444; color: #888; padding: 12px; border-radius: 8px; font-size: 12px; width: 100%; cursor: pointer;
-    }
+    .btn-test { background: #222; border: 1px solid #444; color: #888; padding: 12px; border-radius: 8px; font-size: 12px; width: 100%; cursor: pointer; }
     .btn-test:active { background: var(--snore); color: #000; }
-
-    /* DEBUG PANEL */
-    .debug-panel {
-      font-family: monospace; font-size: 10px; color: #555; padding: 10px; text-align: center; border-top: 1px solid #222;
-    }
+    .debug-panel { font-family: monospace; font-size: 10px; color: #555; padding: 10px; text-align: center; border-top: 1px solid #222; }
   </style>
 </head>
 <body>
 
 <div class="scope-container">
   <div class="scope-legend">
-    <div class="legend-item"><div class="dot" style="background:var(--snore)"></div>SNORE (Input)</div>
-    <div class="legend-item"><div class="dot" style="background:var(--target)"></div>Y* (Field)</div>
-    <div class="legend-item"><div class="dot" style="background:var(--intv)"></div>STIM (Output)</div>
+    <div class="legend-item"><div class="dot" style="background:var(--snore)"></div>SNORE</div>
+    <div class="legend-item"><div class="dot" style="background:var(--target)"></div>Y* FIELD</div>
+    <div class="legend-item"><div class="dot" style="background:var(--intv)"></div>STIMULUS</div>
   </div>
   <canvas id="scope"></canvas>
 </div>
 
 <div class="main-area">
-  
   <div class="status-box">
     <div class="status-main" id="stMain">SYSTEM READY</div>
-    <div class="status-sub" id="stSub">Waiting for Mic Input...</div>
+    <div class="status-sub" id="stSub">Waiting for Mic...</div>
   </div>
 
   <div class="controls">
@@ -79,10 +53,7 @@
     </button>
 
     <div class="slider-group">
-      <div class="slider-header">
-        <span>INTERVENTION STRENGTH</span>
-        <span id="volVal">70%</span>
-      </div>
+      <div class="slider-header"><span>INTERVENTION STRENGTH</span><span id="volVal">70%</span></div>
       <input type="range" id="volRange" min="0" max="1" step="0.05" value="0.7">
     </div>
 
@@ -94,10 +65,11 @@
 
 <script>
 /* =========================================
-   SnoreField v4.1 (Visual Truth)
-   - Scope: Real-time Canvas drawing of Snore(Blue), Target(Orange), Output(Red).
-   - Mic: 5.0x Gain Boost for sensitivity.
-   - Ducking: Extreme compression (100% -> 20%) to make Intervention audible.
+   SnoreField v4.2 (Smart Fade Edition)
+   - FIXED: Induction starts at 50% volume immediately.
+   - FIXED: Sleep Timeout (15 mins). If no snore, nature fades to 0.
+   - FIXED: Ocean weight boosted to 0.8.
+   - PRESERVED: All Scope, Mic, and Intervention logic from v4.1.
    ========================================= */
 
 const $ = (id) => document.getElementById(id);
@@ -105,30 +77,37 @@ const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
 
 // --- CONFIG ---
 const CFG = {
-  SNORE_THRESH: 35,    // Sensitivity threshold
-  MIC_GAIN: 5.0,       // Digital Pre-amp
-  NATURE_DUCK: 0.20,   // Nature volume when snoring (20%)
-  BEATS_BOOST: 0.80,   // Intervention volume when snoring (80%!)
-  FIELD_TAU: 0.1       // Field stiffness (Y* lag)
+  SNORE_THRESH: 35,
+  MIC_GAIN: 5.0,
+  NATURE_DUCK: 0.20,
+  BEATS_BOOST: 0.80,
+  FIELD_TAU: 0.1,
+  
+  // NEW AUDIO CONFIGS
+  OCEAN_WEIGHT: 0.8,        // Increased from 0.5
+  SLEEP_TIMEOUT: 15 * 60 * 1000, // 15 Minutes in ms
+  FADE_OUT_RATE: 0.0005,    // Speed of sleep fade out
+  START_VOL: 0.5            // Start induction at 50%
 };
 
 // --- STATE ---
 let active = false;
 let ctx = null, mic = null, analyser = null, dataArray = null;
 let masterGain = null, neuroGain = null, natureGain = null;
-let oscL = null, oscR = null, lfo = null; // Audio Nodes
+let oscL = null, oscR = null;
 
-// DATA BUFFERS FOR SCOPE
+// LOGIC STATE
+let lastSnoreTime = 0; // Timestamp of last activity
+let volInduction = 0.5; // Master Induction Volume (Starts at 50%)
+
+// BUFFERS
 const HISTORY = 300;
 let bufSnore = new Array(HISTORY).fill(0);
 let bufYStar = new Array(HISTORY).fill(0);
 let bufStim  = new Array(HISTORY).fill(0);
 
 // DYNAMICS
-let valSnore = 0;
-let valYStar = 0; // The Field Target
-let valStim = 0;  // The Red Line
-let volNature = 1.0; // The Ducking Envelope
+let valSnore = 0, valYStar = 0, valStim = 0, volDucking = 1.0;
 
 // UI
 const canvas = $("scope");
@@ -140,27 +119,23 @@ async function startAudio() {
   if (!ctx) ctx = new (window.AudioContext || window.webkitAudioContext)();
   if (ctx.state === 'suspended') await ctx.resume();
 
-  // 1. Microphone (The Ear)
   try {
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
     mic = ctx.createMediaStreamSource(stream);
     analyser = ctx.createAnalyser();
     analyser.fftSize = 512;
-    analyser.smoothingTimeConstant = 0.3; // Fast reaction
+    analyser.smoothingTimeConstant = 0.3;
     mic.connect(analyser);
     dataArray = new Uint8Array(analyser.frequencyBinCount);
   } catch (e) {
-    alert("Mic Error: " + e.message);
-    return;
+    alert("Mic Error: " + e.message); return;
   }
 
-  // 2. Output Graph
   masterGain = ctx.createGain();
   masterGain.connect(ctx.destination);
   masterGain.gain.value = parseFloat($("volRange").value);
 
-  // 3. Nature Track (Pink Noise + LPF) -> Ocean
-  // We use simple noise here to ensure browser compatibility and speed
+  // 1. Nature Track (Pink Noise + LPF)
   const bSize = 2 * ctx.sampleRate;
   const b = ctx.createBuffer(1, bSize, ctx.sampleRate);
   const d = b.getChannelData(0);
@@ -169,35 +144,35 @@ async function startAudio() {
   const noise = ctx.createBufferSource();
   noise.buffer = b; noise.loop = true;
   const lpf = ctx.createBiquadFilter();
-  lpf.type = "lowpass"; lpf.frequency.value = 400; // Deep Ocean
+  lpf.type = "lowpass"; lpf.frequency.value = 400;
+  
   natureGain = ctx.createGain();
-  natureGain.gain.value = 0.5; // Start volume
+  // FIXED: Set Initial Weight
+  natureGain.gain.value = CFG.START_VOL * CFG.OCEAN_WEIGHT; 
 
   noise.connect(lpf);
   lpf.connect(natureGain);
   natureGain.connect(masterGain);
   noise.start();
 
-  // 4. Neuro-Intervention (Binaural Beats)
-  // Left: 200Hz, Right: 206Hz (Theta 6Hz)
-  // We use a Merger to force stereo separation
+  // 2. Intervention Track
   const merger = ctx.createChannelMerger(2);
   oscL = ctx.createOscillator(); oscL.frequency.value = 200;
   oscR = ctx.createOscillator(); oscR.frequency.value = 206;
-  
-  // Connect Oscillators to Merger
   const gL = ctx.createGain(); gL.gain.value = 1.0;
   const gR = ctx.createGain(); gR.gain.value = 1.0;
   oscL.connect(gL); gL.connect(merger, 0, 0);
   oscR.connect(gR); gR.connect(merger, 0, 1);
 
-  // Neuro Control Gain
   neuroGain = ctx.createGain();
-  neuroGain.gain.value = 0.0; // Start Silent
+  neuroGain.gain.value = 0.0;
   merger.connect(neuroGain);
   neuroGain.connect(masterGain);
-
   oscL.start(); oscR.start();
+  
+  // RESET STATE
+  lastSnoreTime = performance.now();
+  volInduction = CFG.START_VOL; // Reset to 50%
   
   active = true;
   loop();
@@ -211,81 +186,95 @@ function stopAudio() {
   updateUIState();
 }
 
-// --- CORE LOGIC LOOP (60fps) ---
+// --- CORE LOGIC LOOP ---
 function loop() {
   if (!active) return;
   requestAnimationFrame(loop);
 
-  // 1. READ SENSOR (The Blue Line)
+  // Time
+  const now = performance.now();
+
+  // 1. INPUT
   analyser.getByteFrequencyData(dataArray);
   let sum = 0;
-  // Focus on low freq (Snore range)
   for (let i = 0; i < 30; i++) sum += dataArray[i];
   let rawAvg = sum / 30;
-  
-  // FORCE BUTTON OVERRIDE
   if($("btnTest").matches(':active')) rawAvg = 100;
-
-  // APPLY DIGITAL GAIN
   valSnore = Math.min(255, rawAvg * CFG.MIC_GAIN);
 
-  // 2. CALCULATE Y* FIELD (The Orange Line)
-  // Simple dynamics: Y* follows Snore but with lag
-  // dy = (target - y) * tau
+  // 2. FIELD DYNAMICS
   valYStar += (valSnore - valYStar) * CFG.FIELD_TAU;
-
-  // 3. DECISION LOGIC (The Brain)
   const isSnoring = valSnore > CFG.SNORE_THRESH;
 
-  // Target Volumes
-  let targetNature = 1.0;
-  let targetStim = 0.0; // Default: No intervention
+  // 3. TARGET CALCULATION
+  let targetDucking = 1.0;
+  let targetStim = 0.0;
 
   if (isSnoring) {
-    // INTERVENTION MODE
-    targetNature = CFG.NATURE_DUCK; // Duck the ocean
-    
-    // Dynamic Stimulation: Proportional to how much we exceed Y*
-    // Stim = (Snore - Threshold) scaled up
+    // SNORE DETECTED
+    lastSnoreTime = now; // Reset sleep timer
+    targetDucking = CFG.NATURE_DUCK;
     let severity = (valSnore - CFG.SNORE_THRESH) / 100;
-    targetStim = clamp(severity * 2.0, 0.1, CFG.BEATS_BOOST); 
+    targetStim = clamp(severity * 2.0, 0.1, CFG.BEATS_BOOST);
+    
+    // WAKE UP INDUCTION IF FADED
+    // If user snores, we bring back the ocean slightly to mask it
+    if(volInduction < 0.5) volInduction += 0.01;
   }
 
-  // 4. APPLY ENVELOPES (Smooth Transitions)
-  // Nature moves slow (Attack 0.01)
-  if(volNature < targetNature) volNature += 0.01; else volNature -= 0.05;
+  // 4. SMART FADE LOGIC (The New Logic)
+  // A. Initial Ramp Up (50% -> 100% over first 10s)
+  if (volInduction < 1.0 && (now - lastSnoreTime) < 10000) {
+      volInduction += 0.002;
+  }
   
-  // Stim moves fast (Attack 0.1)
-  if(valStim < targetStim) valStim += 0.1; else valStim -= 0.02;
+  // B. Sleep Fade Out (After 15 mins of silence)
+  const timeSinceSnore = now - lastSnoreTime;
+  if (timeSinceSnore > CFG.SLEEP_TIMEOUT) {
+      volInduction = Math.max(0, volInduction - CFG.FADE_OUT_RATE);
+  }
 
-  // Clamp
-  volNature = clamp(volNature, 0, 1);
+  // 5. ENVELOPES
+  // Ducking Envelope (Fast down, Slow up)
+  if(volDucking < targetDucking) volDucking += 0.01; else volDucking -= 0.05;
+  volDucking = clamp(volDucking, 0, 1);
+  
+  // Stim Envelope
+  if(valStim < targetStim) valStim += 0.1; else valStim -= 0.02;
   valStim = clamp(valStim, 0, 1);
 
-  // 5. UPDATE HARDWARE
-  if(natureGain) natureGain.gain.setTargetAtTime(volNature, ctx.currentTime, 0.05);
+  // 6. APPLY TO HARDWARE
+  // Nature Volume = InductionCurve * DuckingFactor * BoostWeight
+  const finalNatureVol = volInduction * volDucking * CFG.OCEAN_WEIGHT;
+  
+  if(natureGain) natureGain.gain.setTargetAtTime(finalNatureVol, ctx.currentTime, 0.05);
   if(neuroGain) neuroGain.gain.setTargetAtTime(valStim, ctx.currentTime, 0.05);
 
-  // 6. UPDATE BUFFERS (For Chart)
+  // 7. BUFFERS & DRAWING
   bufSnore.push(valSnore); bufSnore.shift();
   bufYStar.push(valYStar); bufYStar.shift();
-  bufStim.push(valStim * 255); bufStim.shift(); // Scale 0-1 to 0-255 for chart
-
-  // 7. DRAW SCOPE
+  bufStim.push(valStim * 255); bufStim.shift();
   drawScope();
   
-  // 8. TEXT UPDATE
-  debug.textContent = `IN:${Math.round(valSnore)} | Y*:${Math.round(valYStar)} | OUT:${Math.round(valStim*100)}% | DUCK:${Math.round(volNature*100)}%`;
+  // 8. STATUS UPDATE
+  let statusText = "MONITORING";
+  let subText = `Induction Vol: ${Math.round(volInduction*100)}%`;
   
   if(isSnoring) {
-    $("stMain").textContent = "INTERVENTION ACTIVE";
-    $("stMain").style.color = "var(--intv)";
-    $("stSub").textContent = "Neuro-Modulation Injected";
+      statusText = "INTERVENTION ACTIVE";
+      $("stMain").style.color = "var(--intv)";
+  } else if (timeSinceSnore > CFG.SLEEP_TIMEOUT) {
+      statusText = "USER ASLEEP";
+      subText = "Fading out audio...";
+      $("stMain").style.color = "#4cd964";
   } else {
-    $("stMain").textContent = "MONITORING";
-    $("stMain").style.color = "var(--txt)";
-    $("stSub").textContent = "Induction Phase (Ocean)";
+      $("stMain").style.color = "var(--txt)";
   }
+  
+  $("stMain").textContent = statusText;
+  $("stSub").textContent = subText;
+  
+  debug.textContent = `IN:${Math.round(valSnore)} | OUT:${Math.round(valStim*100)}% | IND:${Math.round(volInduction*100)}% | T:${Math.round(timeSinceSnore/1000)}s`;
 }
 
 // --- VISUALIZATION ---
@@ -296,9 +285,7 @@ function drawScope() {
   cCtx.lineWidth = 2;
 
   function drawLine(data, color, dash=[]) {
-    cCtx.beginPath();
-    cCtx.strokeStyle = color;
-    cCtx.setLineDash(dash);
+    cCtx.beginPath(); cCtx.strokeStyle = color; cCtx.setLineDash(dash);
     for (let i = 0; i < data.length; i++) {
       const x = (i / (data.length - 1)) * w;
       const y = h - (data[i] / 255) * h;
@@ -306,51 +293,37 @@ function drawScope() {
     }
     cCtx.stroke();
   }
-
-  // Draw Order matters: Stim on top
-  drawLine(bufYStar, '#ff9f0a', [5, 5]); // Orange Dashed
-  drawLine(bufSnore, '#00f2ff');         // Blue Solid
+  drawLine(bufYStar, '#ff9f0a', [5, 5]);
+  drawLine(bufSnore, '#00f2ff');
   
-  // Fill Red area when active
   if(valStim > 0.01) {
     cCtx.fillStyle = 'rgba(255, 59, 48, 0.2)';
-    cCtx.beginPath();
-    cCtx.moveTo(0, h);
+    cCtx.beginPath(); cCtx.moveTo(0, h);
     for(let i=0; i<bufStim.length; i++){
        const x = (i / (HISTORY - 1)) * w;
        const y = h - (bufStim[i] / 255) * h;
        cCtx.lineTo(x, y);
     }
-    cCtx.lineTo(w, h);
-    cCtx.fill();
+    cCtx.lineTo(w, h); cCtx.fill();
   }
-  drawLine(bufStim, '#ff3b30');          // Red Solid
+  drawLine(bufStim, '#ff3b30');
 }
 
-// --- UI HANDLERS ---
 function updateUIState() {
   const btn = $("btnPower");
   if(active) {
-    btn.innerHTML = "STOP SYSTEM";
-    btn.classList.add("active");
+    btn.innerHTML = "STOP SYSTEM"; btn.classList.add("active");
   } else {
-    btn.innerHTML = "ACTIVATE BAT-MIND";
-    btn.classList.remove("active");
-    $("stMain").textContent = "SYSTEM OFF";
-    $("stSub").textContent = "Press Activate to Start";
+    btn.innerHTML = "ACTIVATE BAT-MIND"; btn.classList.remove("active");
+    $("stMain").textContent = "SYSTEM OFF"; $("stSub").textContent = "Press Activate to Start";
   }
 }
 
-$("btnPower").addEventListener("click", () => {
-  if (active) stopAudio(); else startAudio();
-});
-
+$("btnPower").addEventListener("click", () => { if (active) stopAudio(); else startAudio(); });
 $("volRange").addEventListener("input", (e) => {
   $("volVal").textContent = Math.round(e.target.value * 100) + "%";
   if(masterGain) masterGain.gain.value = parseFloat(e.target.value);
 });
-
-// Init
 updateUIState();
 
 </script>
