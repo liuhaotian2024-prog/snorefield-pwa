@@ -1,366 +1,380 @@
-index_IFProbe_Level1.html
 <!doctype html>
 <html lang="zh-CN">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
-  <title>SnoreField OS Kernel — IF Probe L1 + CIEU + Safe RL</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=1" />
+  <title>SnoreField — Clean UI + Ocean Sleep + IF Probe L1</title>
   <style>
     :root{
-      --bg:#0b0e14; --card:#111827; --muted:#9aa4b2; --txt:#e6edf3;
-      --ok:#22c55e; --warn:#f59e0b; --bad:#ef4444; --line:#263042;
-      --btn:#1f2937; --btn2:#0f172a;
+      --bg:#0b0f17; --card:#101826; --line:#223044;
+      --txt:#e8eef6; --muted:#9db0c8; --accent:#6aa6ff;
+      --ok:#31c48d; --warn:#f6ad55; --bad:#fc8181;
     }
-    body{ margin:0; font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial; background:var(--bg); color:var(--txt); }
-    header{ padding:16px 16px 8px; border-bottom:1px solid var(--line); }
-    header h1{ margin:0; font-size:16px; font-weight:800; }
-    header p{ margin:6px 0 0; color:var(--muted); font-size:12px; line-height:1.45; }
-    main{ padding:12px 16px 96px; display:grid; gap:12px; }
-    .grid{ display:grid; gap:12px; grid-template-columns: 1fr; }
-    @media (min-width: 980px){ .grid{ grid-template-columns: 1.2fr 1fr; } }
+    *{box-sizing:border-box}
+    body{margin:0; font-family: ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Arial; background:var(--bg); color:var(--txt);}
+    header{padding:18px 18px 10px; border-bottom:1px solid var(--line);}
+    header h1{margin:0; font-size:16px; font-weight:800;}
+    header p{margin:8px 0 0; color:var(--muted); font-size:12px; line-height:1.45; max-width:1100px}
+    main{padding:14px 18px 96px; display:grid; gap:12px; grid-template-columns: 1fr;}
+    @media (min-width: 980px){ main{ grid-template-columns: 1.05fr 0.95fr; } }
     .card{
-      background:linear-gradient(180deg, rgba(17,24,39,0.98), rgba(15,23,42,0.98));
-      border:1px solid var(--line); border-radius:14px; padding:12px;
-      box-shadow: 0 10px 30px rgba(0,0,0,.25);
+      background: linear-gradient(180deg, rgba(16,24,38,.98), rgba(13,21,34,.98));
+      border:1px solid var(--line);
+      border-radius:16px;
+      padding:14px;
+      box-shadow: 0 16px 40px rgba(0,0,0,.35);
     }
-    .row{ display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
-    label{ font-size:12px; color:var(--muted); display:block; margin-bottom:6px; }
-    input[type="range"]{ width: 190px; }
-    input[type="number"], select{
-      background:var(--btn2); color:var(--txt); border:1px solid var(--line);
-      border-radius:10px; padding:8px 10px; font-size:13px;
+    .row{display:flex; gap:10px; flex-wrap:wrap; align-items:center;}
+    .btn{
+      border:1px solid var(--line);
+      background: rgba(255,255,255,0.03);
+      color: var(--txt);
+      border-radius:12px;
+      padding:10px 12px;
+      font-weight:800;
+      cursor:pointer;
     }
-    button{
-      background:var(--btn); color:var(--txt); border:1px solid var(--line);
-      border-radius:12px; padding:10px 12px; font-weight:700; cursor:pointer;
+    .btn:hover{border-color: rgba(106,166,255,.55)}
+    .btn.primary{background: rgba(106,166,255,.18); border-color: rgba(106,166,255,.55)}
+    .btn.danger{background: rgba(252,129,129,.14); border-color: rgba(252,129,129,.45)}
+    label{display:block; font-size:12px; color:var(--muted); margin-bottom:6px}
+    select,input[type="number"]{
+      width:100%;
+      padding:10px 10px;
+      border-radius:12px;
+      border:1px solid var(--line);
+      background: rgba(0,0,0,.22);
+      color: var(--txt);
+      font-size:13px;
     }
-    button:hover{ border-color:#3b82f6; }
-    button.primary{ background:#0b3a7a; border-color:#1d4ed8; }
-    button.danger{ background:#3a0b0b; border-color:#7f1d1d; }
-    .kv{ display:grid; grid-template-columns: 1fr 1fr; gap:10px; margin-top:8px; }
-    .k{ color:var(--muted); font-size:12px; }
-    .v{ font-size:14px; font-weight:800; }
-    .pill{ font-size:12px; padding:4px 10px; border-radius:999px; border:1px solid var(--line); }
-    .pill.ok{ border-color:rgba(34,197,94,.6); color:rgba(34,197,94,.95); }
-    .pill.warn{ border-color:rgba(245,158,11,.6); color:rgba(245,158,11,.95); }
-    .pill.bad{ border-color:rgba(239,68,68,.6); color:rgba(239,68,68,.95); }
+    input[type="range"]{width:100%}
+    .grid2{display:grid; gap:10px; grid-template-columns: 1fr;}
+    @media (min-width: 980px){ .grid2{grid-template-columns: 1fr 1fr;} }
+    .grid3{display:grid; gap:10px; grid-template-columns: 1fr;}
+    @media (min-width: 980px){ .grid3{grid-template-columns: 1fr 1fr 1fr;} }
+    .pill{
+      display:inline-flex; align-items:center; gap:8px;
+      padding:6px 10px; border-radius:999px; border:1px solid var(--line);
+      font-size:12px; color:var(--muted);
+    }
+    .dot{width:8px; height:8px; border-radius:999px; background:var(--warn);}
+    .pill.ok .dot{background:var(--ok)}
+    .pill.warn .dot{background:var(--warn)}
+    .pill.bad .dot{background:var(--bad)}
+    .mono{font-family: ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;}
+    .tiny{font-size:12px; color:var(--muted)}
+    .kpis{display:grid; gap:10px; grid-template-columns: 1fr 1fr;}
+    @media (min-width: 980px){ .kpis{grid-template-columns: 1fr 1fr 1fr 1fr;} }
+    .kpi{border:1px solid var(--line); background: rgba(0,0,0,.18); border-radius:14px; padding:10px;}
+    .kpi .k{font-size:12px; color:var(--muted);}
+    .kpi .v{margin-top:6px; font-size:15px; font-weight:900;}
+    details{border:1px solid var(--line); border-radius:14px; background: rgba(0,0,0,.14); padding:10px;}
+    summary{cursor:pointer; color:var(--muted); font-size:12px; font-weight:800;}
     pre{
-      background:rgba(0,0,0,.25); border:1px solid var(--line);
-      padding:10px; border-radius:12px; overflow:auto; max-height:300px;
-      color:#cbd5e1; font-size:12px;
+      margin:10px 0 0;
+      padding:10px;
+      border-radius:14px;
+      border:1px solid var(--line);
+      background: rgba(0,0,0,.22);
+      color: #cbd5e1;
+      font-size:12px;
+      max-height:280px;
+      overflow:auto;
     }
-    .small{ font-size:12px; color:var(--muted); }
-    .split{ display:grid; grid-template-columns:1fr; gap:10px; }
-    @media (min-width: 980px){ .split{ grid-template-columns:1fr 1fr; } }
-    .footerbar{
+    .footer{
       position:fixed; left:0; right:0; bottom:0; z-index:10;
-      background:rgba(10,14,20,.88); border-top:1px solid var(--line);
-      padding:10px 16px; backdrop-filter: blur(10px);
-      display:flex; gap:10px; align-items:center; justify-content:space-between;
+      padding:10px 18px;
+      border-top:1px solid var(--line);
+      background: rgba(11,15,23,.78);
+      backdrop-filter: blur(10px);
+      display:flex; justify-content:space-between; align-items:center; gap:10px;
     }
-    .footerbar .left{ display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
-    .mono{ font-family: ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace; }
-    .chk{ display:flex; gap:8px; align-items:center; }
-    .chk input{ transform: scale(1.1); }
+    .switch{display:flex; gap:10px; align-items:center;}
+    .switch input{transform: scale(1.15);}
   </style>
 </head>
 <body>
 <header>
-  <h1>SnoreField OS Kernel — IF Probe Level 1 + CIEU + Safe RL</h1>
+  <h1>SnoreField — Clean UI + “海浪包裹”助眠 + IF Probe Level 1</h1>
   <p>
-    这是完整可运行单文件（index.html）。包含：A/B/C/D + IF Probe Level 1（同夜平行世界估计）。
-    安全提示：本系统为个人实验原型，不是医疗设备；请从低音量开始，如有不适立即停止。
+    已修复：助眠音色改为“海浪/风”的包裹感（可选海浪+柔和和声），并把 UI 清理成只显示必要控件；高级调试与学习细节折叠隐藏。
+    安全提示：从低音量开始；任何不适立刻停止。本页面是个人实验原型，不是医疗设备。
   </p>
 </header>
 
-<main class="grid">
+<main>
   <section class="card">
     <div class="row">
-      <button id="btnStart" class="primary">启动</button>
-      <button id="btnStop">停止</button>
-      <button id="btnReset" class="danger">重置RL/参数</button>
-      <button id="btnExport">导出CIEU(JSON)</button>
-      <button id="btnClear">清空本地CIEU</button>
-      <span id="statusPill" class="pill warn">IDLE</span>
+      <button class="btn primary" id="btnStart">启动</button>
+      <button class="btn" id="btnStop">停止</button>
+      <button class="btn" id="btnExport">导出数据(JSON)</button>
+      <button class="btn danger" id="btnReset">重置RL/参数</button>
+      <span class="pill warn" id="pillStatus"><span class="dot"></span><span id="statusText">IDLE</span></span>
     </div>
 
-    <div class="row" style="margin-top:10px;">
-      <div class="chk">
-        <input id="autoBackup" type="checkbox" checked />
-        <label for="autoBackup" style="margin:0;">停止时自动备份（建议开启）</label>
-      </div>
-      <div class="chk">
-        <input id="enableIFProbe" type="checkbox" />
-        <label for="enableIFProbe" style="margin:0;">启用 IF Probe Level 1（最安全）</label>
-      </div>
-    </div>
-
-    <div class="split" style="margin-top:10px;">
+    <div class="grid2" style="margin-top:12px;">
       <div>
-        <label>策略模式（L4）</label>
+        <label>运行模式</label>
         <select id="modeSel">
           <option value="auto">AUTO（推荐）</option>
-          <option value="monitor">MONITOR（只助眠/不抗呼噜）</option>
-          <option value="gentle">GENTLE（温柔抗呼噜）</option>
-          <option value="standard">STANDARD（标准抗呼噜）</option>
+          <option value="monitor">S0 观察不干预（MONITOR）</option>
+          <option value="gentle">GENTLE（更温柔）</option>
+          <option value="standard">STANDARD（更强抑制）</option>
         </select>
       </div>
-
       <div>
-        <label>入睡模板（L1）</label>
-        <select id="sleepTplSel">
-          <option value="AUTO">AUTO（Sleep Bandit 选择）</option>
-          <option value="PINK_SOFTGUIDE">PINK_SOFTGUIDE</option>
-          <option value="MULTI_RAIN">MULTI_RAIN</option>
-          <option value="BROWN_DEEPMASK">BROWN_DEEPMASK</option>
-          <option value="WHITE_MASK">WHITE_MASK</option>
-          <option value="BINAURAL_OPTIONAL">BINAURAL_OPTIONAL（实验）</option>
-          <option value="OFF">OFF</option>
+        <label>助眠声音</label>
+        <select id="sleepSel">
+          <option value="AUTO">AUTO（自适应）</option>
+          <option value="OCEAN_SOFT">海浪包裹（推荐）</option>
+          <option value="OCEAN_PAD">海浪 + 柔和和声</option>
+          <option value="RAIN_SOFT">细雨（更轻）</option>
+          <option value="PINK_SOFT">粉红噪音（更柔）</option>
+          <option value="OFF">关闭助眠声</option>
         </select>
       </div>
     </div>
 
-    <div class="split" style="margin-top:10px;">
+    <div class="grid3" style="margin-top:12px;">
       <div>
-        <label>阈值 THRESHOLD（0–255）</label>
-        <input id="thr" type="range" min="40" max="210" value="120" />
-        <div class="small">当前：<span id="thrVal" class="mono"></span></div>
+        <label>阈值 THR</label>
+        <input id="thr" type="range" min="45" max="210" value="120" />
+        <div class="tiny">当前：<span class="mono" id="thrVal">120</span></div>
       </div>
       <div>
-        <label>干预输出上限 GAIN_CAP（安全上限）</label>
+        <label>干预上限 GAIN_CAP</label>
         <input id="cap" type="range" min="0.00" max="0.20" step="0.005" value="0.10" />
-        <div class="small">当前：<span id="capVal" class="mono"></span></div>
+        <div class="tiny">当前：<span class="mono" id="capVal">0.10</span></div>
+      </div>
+      <div>
+        <label>助眠音量 SLEEP_VOL</label>
+        <input id="sleepVol" type="range" min="0.00" max="1.00" step="0.02" value="0.70" />
+        <div class="tiny">当前：<span class="mono" id="sleepVolVal">0.70</span></div>
       </div>
     </div>
 
-    <div class="split" style="margin-top:10px;">
+    <div class="grid3" style="margin-top:12px;">
       <div>
-        <label>Bandit 探索强度 α</label>
-        <input id="alpha" type="range" min="0.05" max="2.5" step="0.05" value="0.70" />
-        <div class="small">当前：<span id="alphaVal" class="mono"></span></div>
+        <label>Option 时长（秒）</label>
+        <input id="optSec" type="range" min="10" max="30" step="1" value="15" />
+        <div class="tiny">当前：<span class="mono" id="optVal">15</span></div>
       </div>
       <div>
-        <label>RL Option 时长（秒）</label>
-        <input id="optSec" type="range" min="8" max="30" step="1" value="15" />
-        <div class="small">当前：<span id="optSecVal" class="mono"></span></div>
-      </div>
-    </div>
-
-    <div class="split" style="margin-top:10px;">
-      <div>
-        <label>PID：KP / KI（脚手架）</label>
-        <div class="row">
-          <input id="kp" type="number" min="0" max="2" step="0.01" value="0.40"/>
-          <input id="ki" type="number" min="0" max="1" step="0.005" value="0.04"/>
-        </div>
-        <div class="small">建议：先让 RL 收敛再动 PID。</div>
+        <label>探索强度 α</label>
+        <input id="alpha" type="range" min="0.05" max="2.5" step="0.05" value="0.65" />
+        <div class="tiny">当前：<span class="mono" id="alphaVal">0.65</span></div>
       </div>
       <div>
-        <label>睡眠质量优先权重（越大越温柔）</label>
-        <input id="sqw" type="range" min="0.5" max="2.5" step="0.1" value="1.4" />
-        <div class="small">当前：<span id="sqwVal" class="mono"></span></div>
+        <label>睡眠质量优先权重</label>
+        <input id="sqw" type="range" min="0.7" max="2.5" step="0.1" value="1.4" />
+        <div class="tiny">当前：<span class="mono" id="sqwVal">1.4</span></div>
       </div>
     </div>
 
-    <div class="kv">
-      <div><div class="k">Y（当前）</div><div class="v"><span id="yNow" class="mono">0</span></div></div>
-      <div><div class="k">Y* / τ(Φ)</div><div class="v"><span id="yStar" class="mono">0</span> <span class="small">/</span> <span id="tauNow" class="mono">-</span></div></div>
-      <div><div class="k">uPID / ρ / uEff</div><div class="v"><span id="uPid" class="mono">0</span> <span class="small">/</span> <span id="rhoNow" class="mono">0</span> <span class="small">/</span> <span id="uEff" class="mono">0</span></div></div>
-      <div><div class="k">Phase</div><div class="v"><span id="phaseNow" class="mono">ONSET</span></div></div>
-      <div><div class="k">Stage</div><div class="v"><span id="stageNow" class="mono">CALM</span></div></div>
-      <div><div class="k">IF Probe</div><div class="v"><span id="probeNow" class="mono">OFF</span></div></div>
+    <div class="row" style="margin-top:12px; justify-content:space-between;">
+      <div class="switch">
+        <input type="checkbox" id="ifProbe" />
+        <label for="ifProbe" style="margin:0;">启用 IF Probe Level 1（最安全）</label>
+      </div>
+      <div class="switch">
+        <input type="checkbox" id="autoBackup" checked />
+        <label for="autoBackup" style="margin:0;">停止时自动备份</label>
+      </div>
     </div>
 
-    <div style="margin-top:10px;">
-      <div class="k">调试日志</div>
-      <pre id="log"></pre>
+    <div class="kpis" style="margin-top:12px;">
+      <div class="kpi"><div class="k">Y 当前</div><div class="v mono" id="kY">0</div></div>
+      <div class="kpi"><div class="k">Y* / τ</div><div class="v mono" id="kYStar">0</div><div class="tiny mono" id="kTau">-</div></div>
+      <div class="kpi"><div class="k">uEff</div><div class="v mono" id="kU">0.000</div></div>
+      <div class="kpi"><div class="k">相位 / 阶段</div><div class="v mono" id="kPhase">ONSET</div><div class="tiny mono" id="kStage">CALM</div></div>
     </div>
+
+    <details style="margin-top:12px;">
+      <summary>高级面板（调试/学习状态/覆盖率）</summary>
+      <pre id="reportView">{}</pre>
+    </details>
   </section>
 
   <section class="card">
-    <h2 style="margin:0 0 10px; font-size:14px;">Session Summary（含 IF 日报）</h2>
-    <pre id="sessionView"></pre>
-    <div class="split" style="margin-top:10px;">
+    <div class="row" style="justify-content:space-between;">
       <div>
-        <div class="k">Bandit（摘要）</div>
-        <pre id="banditView"></pre>
+        <div class="tiny">日报（Session Summary）</div>
+        <div style="font-weight:900; margin-top:4px;">IF 平行世界 vs 现实干预世界</div>
       </div>
-      <div>
-        <div class="k">最近一个 CIEU（摘要）</div>
-        <pre id="lastCIEU"></pre>
-      </div>
+      <span class="pill warn" id="pillAudio"><span class="dot"></span><span class="mono" id="audioText">audio: suspended</span></span>
     </div>
-    <div class="small" style="margin-top:10px;">
-      IF 指标解释：E_real/D_real/T_real 为现实世界（实际测得）的超阈能量/剂量/时间；
-      E_IF/D_IF/T_IF 为同夜平行世界（无干预）估计；Delta* = IF - real。
-      Level 1 probe 仅在 STABLE+CALM 时触发，并限制每小时 ≤ 5 次。
+
+    <div class="kpis" style="margin-top:12px;">
+      <div class="kpi"><div class="k">E_IF</div><div class="v mono" id="mEif">0</div></div>
+      <div class="kpi"><div class="k">E_real</div><div class="v mono" id="mEreal">0</div></div>
+      <div class="kpi"><div class="k">ΔE</div><div class="v mono" id="mDE">0</div></div>
+      <div class="kpi"><div class="k">ΔT (sec)</div><div class="v mono" id="mDT">0</div></div>
     </div>
+
+    <div class="kpis" style="margin-top:12px;">
+      <div class="kpi"><div class="k">D_IF</div><div class="v mono" id="mDif">0</div></div>
+      <div class="kpi"><div class="k">D_real</div><div class="v mono" id="mDreal">0</div></div>
+      <div class="kpi"><div class="k">ΔD</div><div class="v mono" id="mDD">0</div></div>
+      <div class="kpi"><div class="k">Probe/h</div><div class="v mono" id="mProbe">0</div></div>
+    </div>
+
+    <details style="margin-top:12px;">
+      <summary>查看完整 Session Summary（JSON）</summary>
+      <pre id="sessionJSON">{}</pre>
+    </details>
+
+    <details style="margin-top:12px;">
+      <summary>最近日志</summary>
+      <pre id="log"></pre>
+    </details>
   </section>
 </main>
 
-<div class="footerbar">
-  <div class="left">
-    <span class="small">Audio:</span><span id="audioState" class="pill warn">suspended</span>
-    <span class="small">Mic:</span><span id="micState" class="pill warn">off</span>
-    <span class="small">Template:</span><span id="tplNow" class="pill ok">-</span>
-    <span class="small">Token:</span><span id="tokenNow" class="pill ok">-</span>
+<div class="footer">
+  <div class="row" style="gap:8px;">
+    <span class="pill warn" id="pillMic"><span class="dot"></span><span class="mono" id="micText">mic: off</span></span>
+    <span class="pill warn" id="pillTpl"><span class="dot"></span><span class="mono" id="tplText">sleep: -</span></span>
+    <span class="pill warn" id="pillTok"><span class="dot"></span><span class="mono" id="tokText">token: -</span></span>
   </div>
-  <div class="small mono" id="clock">--:--:--</div>
+  <div class="tiny mono" id="clock">--:--:--</div>
 </div>
-
 <script>
-/* =========================================================
-   SnoreField OS Kernel — IF Probe Level 1 integrated
-   - A/B/C/D baseline: multi-scale field + phase-aware Y* + safe options RL
-   - IF Probe L1: same-night counterfactual estimate via short "no-intervention" probes
-   ========================================================= */
+const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
+const nowMs=()=>performance.now();
+const wallNow=()=>Date.now();
+const fmt=(x,d=3)=> (typeof x==="number"? x.toFixed(d): String(x));
 
-/* ---------------- Utilities ---------------- */
-const clamp = (x,a,b)=>Math.max(a,Math.min(b,x));
-const nowMs = ()=>performance.now();
-const wallNow= ()=>Date.now();
-const fmt=(x,d=3)=> (typeof x==="number" ? x.toFixed(d) : String(x));
-function logLine(s){
-  const el=document.getElementById("log");
-  el.textContent=(s+"\n"+el.textContent).split("\n").slice(0,34).join("\n");
-}
-function setPill(id, text, kind){
-  const el=document.getElementById(id);
-  el.textContent=text;
-  el.classList.remove("ok","warn","bad");
-  el.classList.add(kind);
-}
-function clockTick(){
+function tickClock(){
   const d=new Date();
   const hh=String(d.getHours()).padStart(2,"0");
   const mm=String(d.getMinutes()).padStart(2,"0");
   const ss=String(d.getSeconds()).padStart(2,"0");
   document.getElementById("clock").textContent=`${hh}:${mm}:${ss}`;
 }
-setInterval(clockTick,300);
+setInterval(tickClock,300);
 
-/* ---------------- Constants & Storage ---------------- */
-const STORE={
-  CIEU:"snorefield_cieu_ifprobe_v1",
-  BANDIT:"snorefield_bandit_ifprobe_v1",
-  THETA:"snorefield_theta_ifprobe_v1"
-};
+function setStatus(kind,text){
+  const pill=document.getElementById("pillStatus");
+  pill.classList.remove("ok","warn","bad");
+  pill.classList.add(kind);
+  document.getElementById("statusText").textContent=text;
+}
+function setPill(id,kind,text){
+  const el=document.getElementById(id);
+  el.classList.remove("ok","warn","bad");
+  el.classList.add(kind);
+  const span=el.querySelector("span:last-child");
+  if(span) span.textContent=text;
+}
+function logLine(s){
+  const el=document.getElementById("log");
+  el.textContent=(s+"\n"+el.textContent).split("\n").slice(0,40).join("\n");
+}
 
-const LOGIC_HZ=20;
-const PHI_SHORT=8.0, PHI_MID=60.0, PHI_LONG=600.0;
-const BUDGET_SEC=600.0;
-const STRONG_MAX_PER_MIN=3;
+const STORE={CIEU:"snorefield_cieu_v4"};
+function loadJSON(key,fallback){
+  try{const raw=localStorage.getItem(key); return raw?JSON.parse(raw):fallback;}catch(e){return fallback;}
+}
+function saveJSON(key,obj){
+  try{localStorage.setItem(key,JSON.stringify(obj));}catch(e){}
+}
+let DB=loadJSON(STORE.CIEU,[]);
 
-const PHASE={ ONSET:"ONSET", STABLE:"STABLE", EVENT:"EVENT", AROUSAL:"AROUSAL" };
-
-const INT_TOKENS=["MASK_PINK","MASK_MULTI","MASK_WHITE","BINAURAL"];
-const RHO_SET=[-0.20,-0.10,0.00, +0.10, +0.20];
-const LEVELS=["SOFT","NORMAL","ASSERTIVE"];
-const SLEEP_TEMPLATES=["PINK_SOFTGUIDE","MULTI_RAIN","BROWN_DEEPMASK","WHITE_MASK","BINAURAL_OPTIONAL"];
-
-// IF Probe Level 1
-const PROBE_MAX_PER_HOUR=5;
-const PROBE_DEFAULT_DUR_SEC=0.60;
-const PROBE_ABORT_MARGIN=35; // abort if Y > THR + margin
-
-/* ---------------- UI ---------------- */
+// UI
 const ui={
-  btnStart:document.getElementById("btnStart"),
-  btnStop:document.getElementById("btnStop"),
-  btnReset:document.getElementById("btnReset"),
-  btnExport:document.getElementById("btnExport"),
-  btnClear:document.getElementById("btnClear"),
-  autoBackup:document.getElementById("autoBackup"),
-  enableIFProbe:document.getElementById("enableIFProbe"),
-
-  modeSel:document.getElementById("modeSel"),
-  sleepTplSel:document.getElementById("sleepTplSel"),
+  start:document.getElementById("btnStart"),
+  stop:document.getElementById("btnStop"),
+  export:document.getElementById("btnExport"),
+  reset:document.getElementById("btnReset"),
+  mode:document.getElementById("modeSel"),
+  sleep:document.getElementById("sleepSel"),
   thr:document.getElementById("thr"),
-  thrVal:document.getElementById("thrVal"),
   cap:document.getElementById("cap"),
-  capVal:document.getElementById("capVal"),
-  alpha:document.getElementById("alpha"),
-  alphaVal:document.getElementById("alphaVal"),
+  sleepVol:document.getElementById("sleepVol"),
   optSec:document.getElementById("optSec"),
-  optSecVal:document.getElementById("optSecVal"),
-  kp:document.getElementById("kp"),
-  ki:document.getElementById("ki"),
+  alpha:document.getElementById("alpha"),
   sqw:document.getElementById("sqw"),
+  ifProbe:document.getElementById("ifProbe"),
+  autoBackup:document.getElementById("autoBackup"),
+  thrVal:document.getElementById("thrVal"),
+  capVal:document.getElementById("capVal"),
+  sleepVolVal:document.getElementById("sleepVolVal"),
+  optVal:document.getElementById("optVal"),
+  alphaVal:document.getElementById("alphaVal"),
   sqwVal:document.getElementById("sqwVal"),
-
-  yNow:document.getElementById("yNow"),
-  yStar:document.getElementById("yStar"),
-  tauNow:document.getElementById("tauNow"),
-  uPid:document.getElementById("uPid"),
-  rhoNow:document.getElementById("rhoNow"),
-  uEff:document.getElementById("uEff"),
-  phaseNow:document.getElementById("phaseNow"),
-  stageNow:document.getElementById("stageNow"),
-  probeNow:document.getElementById("probeNow"),
-
-  statusPill:document.getElementById("statusPill"),
-  sessionView:document.getElementById("sessionView"),
-  banditView:document.getElementById("banditView"),
-  lastCIEU:document.getElementById("lastCIEU"),
-
-  audioState:document.getElementById("audioState"),
-  micState:document.getElementById("micState"),
-  tplNow:document.getElementById("tplNow"),
-  tokenNow:document.getElementById("tokenNow"),
+  kY:document.getElementById("kY"),
+  kYStar:document.getElementById("kYStar"),
+  kTau:document.getElementById("kTau"),
+  kU:document.getElementById("kU"),
+  kPhase:document.getElementById("kPhase"),
+  kStage:document.getElementById("kStage"),
+  reportView:document.getElementById("reportView"),
+  mEif:document.getElementById("mEif"),
+  mEreal:document.getElementById("mEreal"),
+  mDE:document.getElementById("mDE"),
+  mDT:document.getElementById("mDT"),
+  mDif:document.getElementById("mDif"),
+  mDreal:document.getElementById("mDreal"),
+  mDD:document.getElementById("mDD"),
+  mProbe:document.getElementById("mProbe"),
+  sessionJSON:document.getElementById("sessionJSON"),
+  audioText:document.getElementById("audioText"),
+  pillAudio:document.getElementById("pillAudio"),
+  pillMic:document.getElementById("pillMic"),
+  pillTpl:document.getElementById("pillTpl"),
+  pillTok:document.getElementById("pillTok"),
 };
-function syncUiNumbers(){
+
+function syncNums(){
   ui.thrVal.textContent=ui.thr.value;
-  ui.capVal.textContent=ui.cap.value;
-  ui.alphaVal.textContent=ui.alpha.value;
-  ui.optSecVal.textContent=ui.optSec.value;
-  ui.sqwVal.textContent=ui.sqw.value;
+  ui.capVal.textContent=Number(ui.cap.value).toFixed(2);
+  ui.sleepVolVal.textContent=Number(ui.sleepVol.value).toFixed(2);
+  ui.optVal.textContent=ui.optSec.value;
+  ui.alphaVal.textContent=Number(ui.alpha.value).toFixed(2);
+  ui.sqwVal.textContent=Number(ui.sqw.value).toFixed(1);
 }
 ["input","change"].forEach(ev=>{
-  ui.thr.addEventListener(ev,syncUiNumbers);
-  ui.cap.addEventListener(ev,syncUiNumbers);
-  ui.alpha.addEventListener(ev,syncUiNumbers);
-  ui.optSec.addEventListener(ev,syncUiNumbers);
-  ui.sqw.addEventListener(ev,syncUiNumbers);
+  ui.thr.addEventListener(ev,syncNums);
+  ui.cap.addEventListener(ev,syncNums);
+  ui.sleepVol.addEventListener(ev,syncNums);
+  ui.optSec.addEventListener(ev,syncNums);
+  ui.alpha.addEventListener(ev,syncNums);
+  ui.sqw.addEventListener(ev,syncNums);
 });
-syncUiNumbers();
+syncNums();
 
-/* ---------------- Storage helpers ---------------- */
-function loadJSON(key,fallback){
-  try{ const raw=localStorage.getItem(key); if(!raw) return fallback; return JSON.parse(raw);}catch(e){ return fallback;}
-}
-function saveJSON(key,obj){ try{ localStorage.setItem(key, JSON.stringify(obj)); }catch(e){} }
-
-/* ---------------- CIEU DB ---------------- */
-let CIEU_DB=loadJSON(STORE.CIEU, []);
-function persistCIEU(){ saveJSON(STORE.CIEU, CIEU_DB); }
-function clearCIEU(){
-  if(!confirm("确定清空本地 CIEU 吗？（不可撤销）")) return;
-  CIEU_DB=[];
-  persistCIEU();
-  ui.lastCIEU.textContent="";
-  logLine("Local CIEU cleared.");
+function getTHR(){return parseInt(ui.thr.value,10);}
+function getCAP(){return parseFloat(ui.cap.value);}
+function getSQW(){return parseFloat(ui.sqw.value);}
+function getOptSec(){return parseFloat(ui.optSec.value);}
+function getMode(){
+  const v=ui.mode.value;
+  if(v!=="auto") return v;
+  if(phase==="ONSET"||phase==="AROUSAL") return "gentle";
+  if(stage==="CALM") return "gentle";
+  return "standard";
 }
 
-/* ---------------- Audio/Mic ---------------- */
-let audioCtx=null, micStream=null, micSource=null, analyser=null, fftData=null;
-let outMaster=null, outBusSleep=null, outBusInt=null;
-let currentSleepGraph=null, currentIntGraph=null;
+/* Audio */
+let audioCtx=null,micStream=null,micSource=null,analyser=null,fftData=null;
+let outMaster=null,busSleep=null,busInt=null;
+let sleepGraph=null,intGraph=null;
 
 function ensureAudio(){
   if(audioCtx) return;
-  audioCtx = new (window.AudioContext || window.webkitAudioContext)({latencyHint:"interactive"});
-  outMaster=audioCtx.createGain(); outMaster.gain.value=0.0;
-  outBusSleep=audioCtx.createGain(); outBusSleep.gain.value=0.0;
-  outBusInt=audioCtx.createGain(); outBusInt.gain.value=0.0;
-  outBusSleep.connect(outMaster);
-  outBusInt.connect(outMaster);
+  audioCtx=new (window.AudioContext||window.webkitAudioContext)({latencyHint:"interactive"});
+  outMaster=audioCtx.createGain(); outMaster.gain.value=0;
+  busSleep=audioCtx.createGain(); busSleep.gain.value=0;
+  busInt=audioCtx.createGain(); busInt.gain.value=0;
+  busSleep.connect(outMaster);
+  busInt.connect(outMaster);
   outMaster.connect(audioCtx.destination);
-  setPill("audioState", audioCtx.state, audioCtx.state==="running"?"ok":"warn");
-  audioCtx.onstatechange=()=> setPill("audioState", audioCtx.state, audioCtx.state==="running"?"ok":"warn");
+  setPill("pillAudio", audioCtx.state==="running"?"ok":"warn", `audio: ${audioCtx.state}`);
+  audioCtx.onstatechange=()=> setPill("pillAudio", audioCtx.state==="running"?"ok":"warn", `audio: ${audioCtx.state}`);
 }
 async function ensureMic(){
   if(micStream) return;
-  const constraints={ audio:{ echoCancellation:false, noiseSuppression:false, autoGainControl:false } };
+  const constraints={audio:{echoCancellation:false,noiseSuppression:false,autoGainControl:false}};
   micStream=await navigator.mediaDevices.getUserMedia(constraints);
   ensureAudio();
   micSource=audioCtx.createMediaStreamSource(micStream);
@@ -369,355 +383,245 @@ async function ensureMic(){
   analyser.smoothingTimeConstant=0.65;
   fftData=new Float32Array(analyser.frequencyBinCount);
   micSource.connect(analyser);
-  setPill("micState","on","ok");
+  setPill("pillMic","ok","mic: on");
+}
+function stopGraph(g){
+  if(!g) return;
+  try{g.stop?.();}catch(e){}
+  try{g.dispose?.();}catch(e){}
+}
+function setMaster(on){
+  const t=audioCtx.currentTime;
+  outMaster.gain.cancelScheduledValues(t);
+  outMaster.gain.setValueAtTime(outMaster.gain.value,t);
+  outMaster.gain.linearRampToValueAtTime(on?1:0, t+(on?0.5:0.35));
+}
+function setSleepGain(target){
+  const t=audioCtx.currentTime;
+  const vol=parseFloat(ui.sleepVol.value);
+  busSleep.gain.cancelScheduledValues(t);
+  busSleep.gain.setValueAtTime(busSleep.gain.value,t);
+  busSleep.gain.linearRampToValueAtTime(target*vol, t+0.6);
+}
+function setIntGain(target){
+  const t=audioCtx.currentTime;
+  busInt.gain.cancelScheduledValues(t);
+  busInt.gain.setValueAtTime(busInt.gain.value,t);
+  busInt.gain.linearRampToValueAtTime(target, t+0.08);
 }
 
-/* ---------------- Noise primitives & graphs ---------------- */
-function createWhiteNoiseNode(ctx){
-  const bufferSize=2*ctx.sampleRate;
-  const buffer=ctx.createBuffer(1,bufferSize,ctx.sampleRate);
-  const data=buffer.getChannelData(0);
-  for(let i=0;i<bufferSize;i++) data[i]=(Math.random()*2-1)*0.35;
-  const src=ctx.createBufferSource(); src.buffer=buffer; src.loop=true;
-  return src;
+// Noise sources
+function whiteNoise(ctx){
+  const n=2*ctx.sampleRate;
+  const b=ctx.createBuffer(1,n,ctx.sampleRate);
+  const d=b.getChannelData(0);
+  for(let i=0;i<n;i++) d[i]=(Math.random()*2-1)*0.35;
+  const s=ctx.createBufferSource(); s.buffer=b; s.loop=true;
+  return s;
 }
-function createPinkNoiseNode(ctx){
-  const bufferSize=2*ctx.sampleRate;
-  const buffer=ctx.createBuffer(1,bufferSize,ctx.sampleRate);
-  const out=buffer.getChannelData(0);
+function pinkNoise(ctx){
+  const n=2*ctx.sampleRate;
+  const b=ctx.createBuffer(1,n,ctx.sampleRate);
+  const out=b.getChannelData(0);
   let b0=0,b1=0,b2=0,b3=0,b4=0,b5=0,b6=0;
-  for(let i=0;i<bufferSize;i++){
+  for(let i=0;i<n;i++){
     const w=Math.random()*2-1;
     b0=0.99886*b0 + w*0.0555179;
     b1=0.99332*b1 + w*0.0750759;
     b2=0.96900*b2 + w*0.1538520;
     b3=0.86650*b3 + w*0.3104856;
-    b4=0.55000*b4 + w*0.5329522;
+    b4=0.55*b4 + w*0.5329522;
     b5=-0.7616*b5 - w*0.0168980;
-    const pink=b0+b1+b2+b3+b4+b5+b6 + w*0.5362;
+    const p=b0+b1+b2+b3+b4+b5+b6 + w*0.5362;
     b6=w*0.115926;
-    out[i]=pink*0.08;
+    out[i]=p*0.08;
   }
-  const src=ctx.createBufferSource(); src.buffer=buffer; src.loop=true;
-  return src;
+  const s=ctx.createBufferSource(); s.buffer=b; s.loop=true;
+  return s;
 }
-function createBrownNoiseNode(ctx){
-  const bufferSize=2*ctx.sampleRate;
-  const buffer=ctx.createBuffer(1,bufferSize,ctx.sampleRate);
-  const out=buffer.getChannelData(0);
+function brownNoise(ctx){
+  const n=2*ctx.sampleRate;
+  const b=ctx.createBuffer(1,n,ctx.sampleRate);
+  const out=b.getChannelData(0);
   let last=0;
-  for(let i=0;i<bufferSize;i++){
+  for(let i=0;i<n;i++){
     const w=Math.random()*2-1;
-    last=(last+0.02*w);
-    last=clamp(last,-1,1);
-    out[i]=last*0.35;
+    last=clamp(last+0.02*w,-1,1);
+    out[i]=last*0.32;
   }
-  const src=ctx.createBufferSource(); src.buffer=buffer; src.loop=true;
-  return src;
+  const s=ctx.createBufferSource(); s.buffer=b; s.loop=true;
+  return s;
 }
-function stopGraph(g){ if(!g) return; try{g.stop?.();}catch(e){} try{g.dispose?.();}catch(e){} }
-
-function buildSleepTemplate(ctx, tpl){
-  const g={ node: ctx.createGain() }; g.node.gain.value=0;
-  const hp=ctx.createBiquadFilter(); hp.type="highpass"; hp.frequency.value=35;
-  const lp=ctx.createBiquadFilter(); lp.type="lowpass"; lp.frequency.value=2200;
-  const gain=ctx.createGain(); gain.gain.value=1;
-
-  const lfo=ctx.createOscillator(); lfo.type="sine"; lfo.frequency.value=0.10;
+function softPad(ctx){
+  const g=ctx.createGain(); g.gain.value=0.0;
+  const lp=ctx.createBiquadFilter(); lp.type="lowpass"; lp.frequency.value=700; lp.Q.value=0.7;
+  const mix=ctx.createGain(); mix.gain.value=0.22;
+  const base=110;
+  const freqs=[base, base*5/4, base*3/2];
+  const oscs=freqs.map(f=>{
+    const o=ctx.createOscillator(); o.type="sine";
+    o.frequency.value=f*(1+(Math.random()*0.004-0.002));
+    return o;
+  });
+  oscs.forEach(o=>o.connect(mix));
+  const lfo=ctx.createOscillator(); lfo.type="sine"; lfo.frequency.value=0.08;
   const lfoG=ctx.createGain(); lfoG.gain.value=0.10;
-  const mod=ctx.createGain(); mod.gain.value=0.85;
-  lfo.connect(lfoG); lfoG.connect(mod.gain);
-
-  const route=(node)=>{ node.connect(hp); hp.connect(lp); lp.connect(mod); mod.connect(gain); gain.connect(g.node); };
-
-  if(tpl==="PINK_SOFTGUIDE"){
-    const src=createPinkNoiseNode(ctx); lp.frequency.value=2100;
-    route(src); lfo.start(); src.start();
-    g.stop=()=>{src.stop(); lfo.stop();}; g.dispose=()=>{};
-    return g;
-  }
-  if(tpl==="MULTI_RAIN"){
-    const base=createPinkNoiseNode(ctx);
-    const rain=createWhiteNoiseNode(ctx);
-    const rainHP=ctx.createBiquadFilter(); rainHP.type="highpass"; rainHP.frequency.value=550;
-    const rainLP=ctx.createBiquadFilter(); rainLP.type="lowpass"; rainLP.frequency.value=5200;
-    const gate=ctx.createGain(); gate.gain.value=0.0;
-    const droplet=ctx.createOscillator(); droplet.type="triangle"; droplet.frequency.value=0.35;
-    const dropletDepth=ctx.createGain(); dropletDepth.gain.value=0.35;
-    droplet.connect(dropletDepth); dropletDepth.connect(gate.gain);
-
-    const mix=ctx.createGain(); mix.gain.value=1.0;
-    base.connect(mix);
-    rain.connect(rainHP); rainHP.connect(rainLP); rainLP.connect(gate); gate.connect(mix);
-    route(mix);
-    lfo.start(); droplet.start(); base.start(); rain.start();
-    g.stop=()=>{base.stop(); rain.stop(); droplet.stop(); lfo.stop();}; g.dispose=()=>{};
-    return g;
-  }
-  if(tpl==="BROWN_DEEPMASK"){
-    const src=createBrownNoiseNode(ctx); lp.frequency.value=1100;
-    route(src); lfo.start(); src.start();
-    g.stop=()=>{src.stop(); lfo.stop();}; g.dispose=()=>{};
-    return g;
-  }
-  if(tpl==="WHITE_MASK"){
-    const src=createWhiteNoiseNode(ctx); lp.frequency.value=1600;
-    route(src); lfo.start(); src.start();
-    g.stop=()=>{src.stop(); lfo.stop();}; g.dispose=()=>{};
-    return g;
-  }
-  if(tpl==="BINAURAL_OPTIONAL"){
-    const carrier=180, diffStart=4.0, diffEnd=1.0;
-    const oscL=ctx.createOscillator(), oscR=ctx.createOscillator();
-    oscL.type="sine"; oscR.type="sine";
-    const t0=ctx.currentTime, t1=t0+12*60;
-    oscL.frequency.setValueAtTime(carrier-diffStart/2,t0);
-    oscR.frequency.setValueAtTime(carrier+diffStart/2,t0);
-    oscL.frequency.linearRampToValueAtTime(carrier-diffEnd/2,t1);
-    oscR.frequency.linearRampToValueAtTime(carrier+diffEnd/2,t1);
-    const gL=ctx.createGain(), gR=ctx.createGain();
-    gL.gain.value=0.22; gR.gain.value=0.22;
-    const merger=ctx.createChannelMerger(2);
-    oscL.connect(gL); oscR.connect(gR);
-    gL.connect(merger,0,0); gR.connect(merger,0,1);
-
-    const bed=createPinkNoiseNode(ctx);
-    const bedG=ctx.createGain(); bedG.gain.value=0.12; bed.connect(bedG);
-    const mix=ctx.createGain(); mix.gain.value=1.0;
-    merger.connect(mix); bedG.connect(mix);
-    route(mix);
-    lfo.start(); oscL.start(); oscR.start(); bed.start();
-    g.stop=()=>{oscL.stop(); oscR.stop(); bed.stop(); lfo.stop();}; g.dispose=()=>{};
-    return g;
-  }
-  g.stop=()=>{}; g.dispose=()=>{};
-  return g;
+  lfo.connect(lfoG);
+  const amp=ctx.createGain(); amp.gain.value=0.8;
+  lfoG.connect(amp.gain);
+  mix.connect(lp); lp.connect(amp); amp.connect(g);
+  return {node:g, start:()=>{oscs.forEach(o=>o.start()); lfo.start();}, stop:()=>{oscs.forEach(o=>o.stop()); lfo.stop();}};
 }
+function buildSleepTemplate(name){
+  const ctx=audioCtx;
+  const out=ctx.createGain(); out.gain.value=0.0;
+  const hp=ctx.createBiquadFilter(); hp.type="highpass"; hp.frequency.value=25;
+  const lp=ctx.createBiquadFilter(); lp.type="lowpass"; lp.frequency.value=1800; lp.Q.value=0.7;
+  const notch=ctx.createBiquadFilter(); notch.type="peaking"; notch.frequency.value=3200; notch.Q.value=1.2; notch.gain.value=-10;
+  const main=ctx.createGain(); main.gain.value=1.0;
+  main.connect(hp); hp.connect(lp); lp.connect(notch); notch.connect(out);
 
-function buildInterventionGraph(ctx, token){
-  const g={ node: ctx.createGain() }; g.node.gain.value=1.0;
-  const hp=ctx.createBiquadFilter(); hp.type="highpass"; hp.frequency.value=45;
-  const lp=ctx.createBiquadFilter(); lp.type="lowpass"; lp.frequency.value=2200;
-  const gain=ctx.createGain(); gain.gain.value=1.0;
+  const swell=ctx.createOscillator(); swell.type="sine"; swell.frequency.value=0.09;
+  const swellG=ctx.createGain(); swellG.gain.value=0.22;
+  const swellAmp=ctx.createGain(); swellAmp.gain.value=0.72;
+  swell.connect(swellG); swellG.connect(swellAmp.gain);
+  swellAmp.connect(main);
+
+  if(name==="OCEAN_SOFT" || name==="OCEAN_PAD"){
+    const brown=brownNoise(ctx);
+    const pink=pinkNoise(ctx);
+    const foamHP=ctx.createBiquadFilter(); foamHP.type="highpass"; foamHP.frequency.value=180;
+    const foamLP=ctx.createBiquadFilter(); foamLP.type="lowpass"; foamLP.frequency.value=1400;
+    const foamG=ctx.createGain(); foamG.gain.value=0.65;
+    const rumbleBP=ctx.createBiquadFilter(); rumbleBP.type="bandpass"; rumbleBP.frequency.value=140; rumbleBP.Q.value=0.8;
+    const rumbleG=ctx.createGain(); rumbleG.gain.value=0.28;
+
+    brown.connect(rumbleBP); rumbleBP.connect(rumbleG); rumbleG.connect(swellAmp);
+    pink.connect(foamHP); foamHP.connect(foamLP); foamLP.connect(foamG); foamG.connect(swellAmp);
+
+    const crest=whiteNoise(ctx);
+    const crestBP=ctx.createBiquadFilter(); crestBP.type="bandpass"; crestBP.frequency.value=900; crestBP.Q.value=0.7;
+    const crestG=ctx.createGain(); crestG.gain.value=0.0;
+    crest.connect(crestBP); crestBP.connect(crestG); crestG.connect(swellAmp);
+    const crestLFO=ctx.createOscillator(); crestLFO.type="triangle"; crestLFO.frequency.value=0.18;
+    const crestDepth=ctx.createGain(); crestDepth.gain.value=0.12;
+    crestLFO.connect(crestDepth); crestDepth.connect(crestG.gain);
+
+    let pad=null;
+    if(name==="OCEAN_PAD"){
+      pad=softPad(ctx);
+      pad.node.gain.value=0.25;
+      pad.node.connect(swellAmp);
+    }
+    return {
+      node: out,
+      start: ()=>{swell.start(); crestLFO.start(); brown.start(); pink.start(); crest.start(); if(pad) pad.start();},
+      stop: ()=>{try{swell.stop();}catch(e){} try{crestLFO.stop();}catch(e){} [brown,pink,crest].forEach(s=>{try{s.stop();}catch(e){}}); if(pad) pad.stop();}
+    };
+  }
+
+  if(name==="RAIN_SOFT"){
+    const base=pinkNoise(ctx);
+    const rain=whiteNoise(ctx);
+    const rHP=ctx.createBiquadFilter(); rHP.type="highpass"; rHP.frequency.value=650;
+    const rLP=ctx.createBiquadFilter(); rLP.type="lowpass"; rLP.frequency.value=5200;
+    const rG=ctx.createGain(); rG.gain.value=0.22;
+    base.connect(swellAmp);
+    rain.connect(rHP); rHP.connect(rLP); rLP.connect(rG); rG.connect(swellAmp);
+    return {node:out, start:()=>{swell.start(); base.start(); rain.start();}, stop:()=>{try{swell.stop();}catch(e){} [base,rain].forEach(s=>{try{s.stop();}catch(e){}});} };
+  }
+
+  if(name==="PINK_SOFT"){
+    const p=pinkNoise(ctx);
+    p.connect(swellAmp);
+    return {node:out, start:()=>{swell.start(); p.start();}, stop:()=>{try{swell.stop();}catch(e){} try{p.stop();}catch(e){};}};
+  }
+
+  return {node:out, start:()=>{}, stop:()=>{}};
+}
+function buildInterventionToken(token){
+  const ctx=audioCtx;
+  const out=ctx.createGain(); out.gain.value=1.0;
+  const hp=ctx.createBiquadFilter(); hp.type="highpass"; hp.frequency.value=40;
+  const lp=ctx.createBiquadFilter(); lp.type="lowpass"; lp.frequency.value=1900;
+  const notch=ctx.createBiquadFilter(); notch.type="peaking"; notch.frequency.value=3200; notch.Q.value=1.2; notch.gain.value=-10;
+  const main=ctx.createGain(); main.gain.value=1.0;
+  main.connect(hp); hp.connect(lp); lp.connect(notch); notch.connect(out);
+
   const lfo=ctx.createOscillator(); lfo.type="sine"; lfo.frequency.value=0.12;
   const lfoG=ctx.createGain(); lfoG.gain.value=0.05;
-  const mod=ctx.createGain(); mod.gain.value=1.0;
-  lfo.connect(lfoG); lfoG.connect(mod.gain);
-  const route=(node)=>{ node.connect(hp); hp.connect(lp); lp.connect(mod); mod.connect(gain); gain.connect(g.node); };
+  const amp=ctx.createGain(); amp.gain.value=1.0;
+  lfo.connect(lfoG); lfoG.connect(amp.gain);
+  amp.connect(main);
 
-  if(token==="MASK_PINK"){
-    const src=createPinkNoiseNode(ctx); lp.frequency.value=2000;
-    route(src); lfo.start(); src.start();
-    g.stop=()=>{src.stop(); lfo.stop();}; g.dispose=()=>{};
-    return g;
+  let srcs=[];
+  if(token==="MASK_OCEAN"){
+    const b=brownNoise(ctx);
+    const p=pinkNoise(ctx);
+    const foamHP=ctx.createBiquadFilter(); foamHP.type="highpass"; foamHP.frequency.value=200;
+    const foamG=ctx.createGain(); foamG.gain.value=0.55;
+    p.connect(foamHP); foamHP.connect(foamG); foamG.connect(amp);
+    b.connect(amp);
+    srcs=[b,p];
+  }else if(token==="MASK_RAIN"){
+    const base=pinkNoise(ctx);
+    const rain=whiteNoise(ctx);
+    const rHP=ctx.createBiquadFilter(); rHP.type="highpass"; rHP.frequency.value=800;
+    const rG=ctx.createGain(); rG.gain.value=0.20;
+    base.connect(amp);
+    rain.connect(rHP); rHP.connect(rG); rG.connect(amp);
+    srcs=[base,rain];
+  }else if(token==="MASK_WHITE"){
+    const w=whiteNoise(ctx); w.connect(amp); srcs=[w];
+  }else{
+    const p=pinkNoise(ctx); p.connect(amp); srcs=[p];
   }
-  if(token==="MASK_MULTI"){
-    const base=createPinkNoiseNode(ctx);
-    const tex=createWhiteNoiseNode(ctx);
-    const texHP=ctx.createBiquadFilter(); texHP.type="highpass"; texHP.frequency.value=650;
-    const texG=ctx.createGain(); texG.gain.value=0.18;
-    const mix=ctx.createGain(); mix.gain.value=1.0;
-    base.connect(mix);
-    tex.connect(texHP); texHP.connect(texG); texG.connect(mix);
-    route(mix); lfo.start(); base.start(); tex.start();
-    g.stop=()=>{base.stop(); tex.stop(); lfo.stop();}; g.dispose=()=>{};
-    return g;
-  }
-  if(token==="MASK_WHITE"){
-    const src=createWhiteNoiseNode(ctx); lp.frequency.value=1700;
-    route(src); lfo.start(); src.start();
-    g.stop=()=>{src.stop(); lfo.stop();}; g.dispose=()=>{};
-    return g;
-  }
-  if(token==="BINAURAL"){
-    const carrier=180, diff=2.0;
-    const oscL=ctx.createOscillator(), oscR=ctx.createOscillator();
-    oscL.type="sine"; oscR.type="sine";
-    oscL.frequency.value=carrier-diff/2; oscR.frequency.value=carrier+diff/2;
-    const gL=ctx.createGain(), gR=ctx.createGain();
-    gL.gain.value=0.18; gR.gain.value=0.18;
-    const merger=ctx.createChannelMerger(2);
-    oscL.connect(gL); oscR.connect(gR);
-    gL.connect(merger,0,0); gR.connect(merger,0,1);
 
-    const bed=createPinkNoiseNode(ctx);
-    const bedG=ctx.createGain(); bedG.gain.value=0.15; bed.connect(bedG);
-    const mix=ctx.createGain(); mix.gain.value=1.0;
-    merger.connect(mix); bedG.connect(mix);
-    route(mix);
-    lfo.start(); oscL.start(); oscR.start(); bed.start();
-    g.stop=()=>{oscL.stop(); oscR.stop(); bed.stop(); lfo.stop();}; g.dispose=()=>{};
-    return g;
-  }
-  g.stop=()=>{}; g.dispose=()=>{}; g.node.gain.value=0;
-  return g;
+  return {node:out, start:()=>{lfo.start(); srcs.forEach(s=>s.start());}, stop:()=>{try{lfo.stop();}catch(e){} srcs.forEach(s=>{try{s.stop();}catch(e){}});} };
 }
-
-function applySleepTemplate(tpl){
+function applySleep(name){
   if(!audioCtx) return;
-  stopGraph(currentSleepGraph);
-  currentSleepGraph=buildSleepTemplate(audioCtx, tpl);
-  currentSleepGraph.node.connect(outBusSleep);
-  selectedSleepTpl=tpl;
-  setPill("tplNow", tpl, "ok");
+  stopGraph(sleepGraph);
+  sleepGraph=buildSleepTemplate(name);
+  sleepGraph.node.connect(busSleep);
+  sleepGraph.start();
+  setPill("pillTpl","ok",`sleep: ${name}`);
 }
-function applyInterventionToken(tok){
+function applyToken(token){
   if(!audioCtx) return;
-  stopGraph(currentIntGraph);
-  currentIntGraph=buildInterventionGraph(audioCtx, tok);
-  currentIntGraph.node.connect(outBusInt);
-  selectedToken=tok;
-  setPill("tokenNow", tok, "ok");
+  stopGraph(intGraph);
+  intGraph=buildInterventionToken(token);
+  intGraph.node.connect(busInt);
+  intGraph.start();
+  setPill("pillTok","ok",`token: ${token}`);
 }
 
-/* ---------------- Params ---------------- */
-function getTHR(){ return parseInt(ui.thr.value,10); }
-function getCAP(){ return parseFloat(ui.cap.value); }
-function getAlpha(){ return parseFloat(ui.alpha.value); }
-function getOptSec(){ return parseFloat(ui.optSec.value); }
-function getSQW(){ return parseFloat(ui.sqw.value); }
-
-function getMode(){
-  const v=ui.modeSel.value;
-  if(v==="auto"){
-    if(currentPhase===PHASE.ONSET || currentPhase===PHASE.AROUSAL) return "gentle";
-    if(lastStage==="CALM") return "gentle";
-    if(lastStage==="MIXED") return "standard";
-    return "standard";
-  }
-  return v;
-}
-
-/* ---------------- Multi-scale buffers ---------------- */
-let bufS=[], bufM=[], bufL=[];
-let budgetBuf=[]; // {t, dt, u2}
-let duBuf=[];     // {t, dt, absDu}
-function pushBuf(buf, winSec, s){
-  buf.push(s);
-  const tNow=s.t;
-  while(buf.length && (tNow - buf[0].t)>winSec) buf.shift();
-}
-function buildPhi(buf, thr){
-  let totalT=0,sumY=0,snoreT=0,sumPer=0,sumFlat=0,sumCent=0;
-  for(const s of buf){
-    totalT += s.dt;
-    sumY += s.Y*s.dt;
-    sumPer += s.per*s.dt;
-    sumFlat += s.flat*s.dt;
-    sumCent += s.centroid*s.dt;
-    if(s.Y>thr) snoreT += s.dt;
-  }
-  const div=(a,b)=> b>0? a/b : 0;
-  return {
-    Ymean: div(sumY,totalT),
-    snoreRatio: div(snoreT,totalT),
-    perMean: div(sumPer,totalT),
-    flatMean: div(sumFlat,totalT),
-    centroidMean: div(sumCent,totalT)
-  };
-}
-function pushBudget(t,dt,u){
-  budgetBuf.push({t,dt,u2:(u*u)*dt});
-  while(budgetBuf.length && (t - budgetBuf[0].t) > BUDGET_SEC) budgetBuf.shift();
-}
-function budgetUsed(){ let s=0; for(const x of budgetBuf) s+=x.u2; return s; }
-function pushDu(t,dt,absDu){
-  duBuf.push({t,dt,absDu:absDu*dt});
-  while(duBuf.length && (t - duBuf[0].t) > 30.0) duBuf.shift();
-}
-function duUsed(){ let s=0; for(const x of duBuf) s+=x.absDu; return s; }
-
-/* ---------------- Syntax pressure & Safety DSL ---------------- */
-const syntax={
-  lastU:0,
-  strongTimes:[],
-  degraded:0
-};
-function syntaxPressure(){
-  const now=wallNow();
-  const winMs=60*1000;
-  const strong = syntax.strongTimes.filter(t=>now-t<=winMs).length;
-  return clamp(strong/STRONG_MAX_PER_MIN, 0, 1);
-}
-function applySafety(uEff, token, cap){
-  // probe overrides handled elsewhere
-  let u=clamp(uEff,0,cap);
-
-  // slew
-  const maxDu=0.015;
-  const du=u - syntax.lastU;
-  const absDu=Math.abs(du);
-  if(du>maxDu) u=syntax.lastU+maxDu;
-  if(du<-maxDu) u=syntax.lastU-maxDu;
-  pushDu(lastT, dtLast, absDu);
-
-  // budget scaling
-  const budget=budgetUsed();
-  const budgetThr=0.9 * BUDGET_SEC * (cap*cap) * 0.25;
-  if(budget > budgetThr){
-    const scale=clamp(budgetThr/Math.max(1e-9,budget), 0.25, 1.0);
-    u *= scale;
-    syntax.degraded++;
-  }
-
-  // strong frequency
-  if(u > 0.75*cap){
-    const t=wallNow();
-    syntax.strongTimes.push(t);
-    const winMs=60*1000;
-    syntax.strongTimes = syntax.strongTimes.filter(x=>t-x<=winMs);
-    if(syntax.strongTimes.length > STRONG_MAX_PER_MIN){
-      u *= 0.65;
-      syntax.degraded++;
-    }
-  }
-
-  // binaural compatibility
-  if(token==="BINAURAL" && lastStage!=="CALM"){
-    u *= 0.5;
-    syntax.degraded++;
-  }
-
-  // phase protection
-  if(currentPhase===PHASE.ONSET) u *= 0.72;
-  if(currentPhase===PHASE.AROUSAL) u *= 0.60;
-
-  syntax.lastU=u;
-  return u;
-}
-
-/* ---------------- Feature extraction ---------------- */
-function computeSpectrumFeatures(){
+/* Signal features */
+function computeFeatures(){
   analyser.getFloatFrequencyData(fftData);
   const sr=audioCtx.sampleRate;
   const nyq=sr/2;
   const N=fftData.length;
   let sumP=0,sumF=0,geom=0,count=0;
-  let eL=0,eM=0,eH=0;
-  let peakP=0;
-
+  let eL=0,eM=0,eH=0,peakP=0;
   for(let i=0;i<N;i++){
     const f=(i/N)*nyq;
     const db=fftData[i];
     const p=Math.pow(10,(db/10));
     const pC=Math.max(1e-12,p);
-    sumP += pC;
-    sumF += f*pC;
-    geom += Math.log(pC);
-    count++;
+    sumP+=pC; sumF+=f*pC;
+    geom+=Math.log(pC); count++;
     if(pC>peakP) peakP=pC;
-
-    if(f>=60 && f<200) eL += pC;
-    else if(f>=200 && f<800) eM += pC;
-    else if(f>=800 && f<2500) eH += pC;
+    if(f>=60 && f<200) eL+=pC;
+    else if(f>=200 && f<800) eM+=pC;
+    else if(f>=800 && f<2500) eH+=pC;
   }
-  const centroid = sumP>0 ? (sumF/sumP) : 0;
-  const flatness = Math.exp(geom/count) / (sumP/count);
-  const meanP = sumP/Math.max(1,count);
-  const periodicity = clamp((peakP/Math.max(1e-12,meanP))/20, 0, 1);
-
-  const norm=(x)=> clamp(x/Math.max(1e-9,sumP), 0, 1);
-  return { nl:norm(eL), nm:norm(eM), nh:norm(eH), centroid, flatness:clamp(flatness,0,1), periodicity };
+  const centroid=sumP>0? sumF/sumP:0;
+  const flatness=Math.exp(geom/count)/(sumP/count);
+  const meanP=sumP/Math.max(1,count);
+  const periodicity=clamp((peakP/Math.max(1e-12,meanP))/20,0,1);
+  const norm=(x)=>clamp(x/Math.max(1e-9,sumP),0,1);
+  return {nl:norm(eL), nm:norm(eM), nh:norm(eH), centroid, flatness:clamp(flatness,0,1), periodicity};
 }
 function computeY(f){
   const {nl,nm,nh,flatness,periodicity}=f;
@@ -725,969 +629,576 @@ function computeY(f){
   y += 0.55*nl + 0.35*nm - 0.10*nh;
   y += 0.55*periodicity;
   y += 0.15*(1-flatness);
-  y=clamp(y,0,1);
-  return Math.round(y*255);
+  return Math.round(clamp(y,0,1)*255);
 }
-function estimateStage(phiM, Y){
+
+/* Multi-scale buffers */
+const LOGIC_HZ=20;
+const PHI_SHORT=8, PHI_MID=60, PHI_LONG=600;
+const BUDGET_SEC=600;
+let bufS=[],bufM=[],bufL=[];
+function pushBuf(buf,win,s){buf.push(s); const t=s.t; while(buf.length && (t-buf[0].t)>win) buf.shift();}
+function phiFrom(buf,thr){
+  let total=0,sumY=0,snoreT=0;
+  for(const s of buf){ total+=s.dt; sumY+=s.Y*s.dt; if(s.Y>thr) snoreT+=s.dt; }
+  const div=(a,b)=> b>0? a/b:0;
+  return {Ymean:div(sumY,total), snoreRatio:div(snoreT,total)};
+}
+
+/* Budget + slew */
+let budgetBuf=[], duBuf=[];
+function pushBudget(t,dt,u){budgetBuf.push({t,dt,u2:(u*u)*dt}); while(budgetBuf.length && (t-budgetBuf[0].t)>BUDGET_SEC) budgetBuf.shift();}
+function budgetUsed(){let s=0; for(const x of budgetBuf) s+=x.u2; return s;}
+function pushDu(t,dt,absDu){duBuf.push({t,dt,val:absDu*dt}); while(duBuf.length && (t-duBuf[0].t)>30) duBuf.shift();}
+function duUsed(){let s=0; for(const x of duBuf) s+=x.val; return s;}
+
+/* Stage/phase */
+let stage="CALM", phase="ONSET";
+let sleepLatencySec=null, onsetStable=0;
+function estimateStage(phiM,y){
   const a=clamp(phiM.Ymean/255,0,1);
   const b=clamp(phiM.snoreRatio,0,1);
-  const z=0.7*a + 0.9*b + 0.3*clamp(Y/255,0,1);
+  const z=0.7*a+0.9*b+0.3*clamp(y/255,0,1);
   if(z<0.28) return "CALM";
   if(z<0.55) return "MIXED";
-  return "DISTURBED";
+  return "DIST";
+}
+function updateSleepLatency(phiM,t,dt){
+  if(sleepLatencySec!=null) return;
+  const thr=getTHR();
+  const asleepish=(phiM.Ymean < thr*0.95) && (phiM.snoreRatio < 0.12) && (busInt.gain.value < getCAP()*0.25);
+  onsetStable = asleepish ? (onsetStable+dt) : Math.max(0, onsetStable-0.5*dt);
+  if(onsetStable>=180) sleepLatencySec=Math.round(t-session.t0);
+}
+function updatePhase(phiM,phiL){
+  if(sleepLatencySec==null){ phase="ONSET"; return; }
+  const arousal=(duUsed()>0.35) && (stage!=="CALM");
+  if(arousal){ phase="AROUSAL"; return; }
+  if(session.inEvent){ phase="EVENT"; return; }
+  const stable=(phiL.snoreRatio<0.12) && (phiM.snoreRatio<0.20) && (stage==="CALM"||stage==="MIXED");
+  phase=stable?"STABLE":"EVENT";
 }
 
-/* ---------------- Context vector for learning ---------------- */
-const dCtx=12;
-function modeVal(){
-  const m=getMode();
-  return (m==="monitor")?0:((m==="gentle")?0.5:1.0);
-}
-function phaseVal(){
-  if(currentPhase===PHASE.ONSET) return 0.0;
-  if(currentPhase===PHASE.STABLE) return 0.33;
-  if(currentPhase===PHASE.EVENT) return 0.66;
-  return 1.0;
-}
-function makeCtx(phiS,phiM,phiL){
-  const cap=getCAP();
-  const budgetNorm = clamp(budgetUsed() / Math.max(1e-9,(BUDGET_SEC*cap*cap*0.25)), 0, 2);
-  const duNorm = clamp(duUsed()/1.2, 0, 2);
-  return [
-    1,
-    clamp(phiS.Ymean/255,0,1), clamp(phiS.snoreRatio,0,1),
-    clamp(phiM.Ymean/255,0,1), clamp(phiM.snoreRatio,0,1),
-    clamp(phiL.Ymean/255,0,1), clamp(phiL.snoreRatio,0,1),
-    syntaxPressure(),
-    clamp((budgetNorm/2),0,1),
-    clamp((duNorm/2),0,1),
-    phaseVal(),
-    modeVal()
-  ];
-}
-
-/* ---------------- LinUCB bandit ---------------- */
-function zeros(n){ return Array.from({length:n},()=>0); }
-function eye(n){ const A=[]; for(let i=0;i<n;i++){ const r=zeros(n); r[i]=1; A.push(r);} return A; }
-function dot(a,b){ let s=0; for(let i=0;i<a.length;i++) s+=a[i]*b[i]; return s; }
-function matVec(A,x){
-  const y=zeros(A.length);
-  for(let i=0;i<A.length;i++){ let s=0; for(let j=0;j<x.length;j++) s+=A[i][j]*x[j]; y[i]=s; }
-  return y;
-}
-function quad(x,A){ const Ax=matVec(A,x); return dot(x,Ax); }
-function shermanMorrison(Ainv,x){
-  const Ax=matVec(Ainv,x);
-  const denom=1+dot(x,Ax);
+/* Simple contextual bandit (kept minimal) */
+function zeros(n){return Array.from({length:n},()=>0);}
+function eye(n){const m=[]; for(let i=0;i<n;i++){const r=zeros(n); r[i]=1; m.push(r);} return m;}
+function dot(a,b){let s=0; for(let i=0;i<a.length;i++) s+=a[i]*b[i]; return s;}
+function matVec(A,x){const y=zeros(A.length); for(let i=0;i<A.length;i++){let s=0; for(let j=0;j<x.length;j++) s+=A[i][j]*x[j]; y[i]=s;} return y;}
+function quad(x,A){const Ax=matVec(A,x); return dot(x,Ax);}
+function sherman(Ainv,x){
+  const Ax=matVec(Ainv,x); const denom=1+dot(x,Ax);
   const n=x.length;
   const out=Array.from({length:n},()=>zeros(n));
-  for(let i=0;i<n;i++){
-    for(let j=0;j<n;j++){
-      out[i][j]=Ainv[i][j] - (Ax[i]*Ax[j])/denom;
-    }
-  }
+  for(let i=0;i<n;i++) for(let j=0;j<n;j++) out[i][j]=Ainv[i][j]-(Ax[i]*Ax[j])/denom;
   return out;
 }
 class LinUCB{
-  constructor(actions, d, storeKey){
-    this.actions=actions;
-    this.d=d;
-    this.storeKey=storeKey;
-    this.alpha=0.7;
-    this.models={};
-    this._load();
-  }
-  _init(a){
-    if(this.models[a]) return;
-    this.models[a]={ Ainv: eye(this.d), b: zeros(this.d), n:0, rSum:0 };
-  }
-  _load(){
-    const raw=loadJSON(this.storeKey,null);
-    if(raw && raw.models) this.models=raw.models;
-    for(const a of this.actions) this._init(a);
-  }
-  save(){ saveJSON(this.storeKey,{models:this.models}); }
-  setAlpha(a){ this.alpha=a; }
-  choose(x, maskSet=null){
-    let best=null, bestScore=-1e9;
+  constructor(actions,d){this.actions=actions; this.d=d; this.alpha=0.65; this.models={}; actions.forEach(a=>this.init(a));}
+  init(a){ if(this.models[a]) return; this.models[a]={Ainv:eye(this.d), b:zeros(this.d), n:0, rSum:0}; }
+  choose(x){
+    let best=this.actions[0], bestScore=-1e9;
     for(const a of this.actions){
-      if(maskSet && !maskSet.has(a)) continue;
-      this._init(a);
+      this.init(a);
       const m=this.models[a];
       const theta=matVec(m.Ainv,m.b);
       const mean=dot(theta,x);
-      const bonus=this.alpha * Math.sqrt(Math.max(0, quad(x,m.Ainv)));
-      const score=mean+bonus;
-      if(score>bestScore){ bestScore=score; best=a; }
+      const bonus=this.alpha*Math.sqrt(Math.max(0,quad(x,m.Ainv)));
+      const s=mean+bonus;
+      if(s>bestScore){bestScore=s; best=a;}
     }
-    return best || this.actions[0];
+    return best;
   }
   update(a,x,r){
-    this._init(a);
+    this.init(a);
     const m=this.models[a];
-    m.Ainv = shermanMorrison(m.Ainv,x);
+    m.Ainv=sherman(m.Ainv,x);
     for(let i=0;i<this.d;i++) m.b[i]+=r*x[i];
-    m.n += 1;
-    m.rSum += r;
-    this.save();
-  }
-  summary(k=12){
-    const rows=[];
-    for(const a of this.actions){
-      const m=this.models[a]; const avg = m.n? (m.rSum/m.n) : 0;
-      rows.push({a, n:m.n, avg});
-    }
-    rows.sort((p,q)=>q.avg-p.avg);
-    return rows.slice(0,k);
+    m.n++; m.rSum+=r;
   }
 }
 
-// Build action keys token::rho
-function allLowActions(){
-  const acts=[];
-  for(const t of INT_TOKENS){
-    for(const r of RHO_SET){
-      acts.push(`${t}::${r.toFixed(2)}`);
-    }
-  }
-  return acts;
-}
-function parseActionKey(a){
-  const [tok, r]=a.split("::");
-  return { token: tok, rho: parseFloat(r) };
-}
-function allowedByLevel(level){
-  if(level==="SOFT"){
-    return { capScale:0.75, tokens:["MASK_PINK","MASK_MULTI"], rhos:[-0.20,-0.10,0.00,+0.10] };
-  }
-  if(level==="NORMAL"){
-    return { capScale:1.00, tokens:["MASK_PINK","MASK_MULTI","MASK_WHITE"], rhos:[-0.20,-0.10,0.00,+0.10,+0.20] };
-  }
-  return { capScale:1.05, tokens:["MASK_PINK","MASK_MULTI","MASK_WHITE","BINAURAL"], rhos:[-0.10,0.00,+0.10,+0.20] };
-}
-function buildMask(allow){
-  const s=new Set();
-  for(const t of allow.tokens){
-    for(const r of allow.rhos){
-      s.add(`${t}::${r.toFixed(2)}`);
-    }
-  }
-  return s;
-}
+const TOKENS=["MASK_PINK","MASK_OCEAN","MASK_RAIN","MASK_WHITE"];
+const RHOS=[-0.20,-0.10,0.00,+0.10,+0.20];
+const LEVELS=["SOFT","NORMAL","ASSERTIVE"];
+function buildActs(tokens,rhos){const a=[]; tokens.forEach(t=>rhos.forEach(r=>a.push(`${t}::${r.toFixed(2)}`))); return a;}
+const lowActs=buildActs(TOKENS,RHOS);
+const banditLow=new LinUCB(lowActs,8);
+const banditLevel=new LinUCB(LEVELS,8);
+const sleepBandit=new LinUCB(["OCEAN_SOFT","OCEAN_PAD","RAIN_SOFT","PINK_SOFT"],8);
 
-// Instantiate bandits (single consolidated for simplicity)
-const bandit = new LinUCB(
-  [
-    ...SLEEP_TEMPLATES.map(x=>`SLEEP::${x}`),
-    ...LEVELS.map(x=>`LEVEL::${x}`),
-    ...allLowActions().map(x=>`LOW::${x}`)
-  ],
-  dCtx,
-  STORE.BANDIT
-);
-
-/* ---------------- Phase-aware Y* functional ---------------- */
-let theta = loadJSON(STORE.THETA, {
-  b:0.0,
-  wS_Y:0.7, wS_R:1.2,
-  wM_Y:0.5, wM_R:1.0,
-  wL_Y:0.25, wL_R:0.6,
-  wSyn:0.6, wBudget:0.8, wDu:0.9, wPhase:0.6, wMode:0.4,
-  tauMin:0.7, tauMax:5.5,
-  lr:0.010
-});
-function sigmoid(z){ return 1/(1+Math.exp(-z)); }
-function computeTau(phiS,phiM,phiL){
+function ctx(phiS,phiM,phiL){
   const cap=getCAP();
-  const budgetNorm = clamp(budgetUsed()/Math.max(1e-9,(BUDGET_SEC*cap*cap*0.25)),0,2);
-  const duNorm = clamp(duUsed()/1.2,0,2);
-  const z =
-    theta.b +
-    theta.wS_Y*clamp(phiS.Ymean/255,0,1) + theta.wS_R*clamp(phiS.snoreRatio,0,1) +
-    theta.wM_Y*clamp(phiM.Ymean/255,0,1) + theta.wM_R*clamp(phiM.snoreRatio,0,1) +
-    theta.wL_Y*clamp(phiL.Ymean/255,0,1) + theta.wL_R*clamp(phiL.snoreRatio,0,1) +
-    theta.wSyn*syntaxPressure() +
-    theta.wBudget*clamp(budgetNorm/2,0,1) +
-    theta.wDu*clamp(duNorm/2,0,1) +
-    theta.wPhase*phaseVal() +
-    theta.wMode*modeVal();
-  const s = sigmoid(z);
-  let tau = theta.tauMin + (theta.tauMax - theta.tauMin) * (1 - s);
-  if(currentPhase===PHASE.ONSET) tau *= 1.35;
-  if(currentPhase===PHASE.AROUSAL) tau *= 1.55;
-  if(currentPhase===PHASE.STABLE) tau *= 1.15;
-  if(currentPhase===PHASE.EVENT && lastStage==="DISTURBED" && syntaxPressure()<0.6) tau *= 0.90;
-  return clamp(tau, theta.tauMin, theta.tauMax*1.6);
+  const bNorm=clamp(budgetUsed()/Math.max(1e-9,(BUDGET_SEC*cap*cap*0.25)),0,2);
+  const duNorm=clamp(duUsed()/1.2,0,2);
+  const pVal=(phase==="ONSET")?0:((phase==="STABLE")?0.33:((phase==="EVENT")?0.66:1));
+  const mVal=(getMode()==="monitor")?0:((getMode()==="gentle")?0.5:1);
+  return [1, clamp(phiS.Ymean/255,0,1), clamp(phiS.snoreRatio,0,1), clamp(phiM.Ymean/255,0,1), clamp(phiM.snoreRatio,0,1), clamp(phiL.snoreRatio,0,1), clamp(bNorm/2,0,1), clamp(duNorm/2,0,1)];
 }
-function computeYStar(elapsedSec, startY, phiS,phiM,phiL){
-  const tau=computeTau(phiS,phiM,phiL);
-  const k=1/Math.max(0.25,tau);
-  const thr=getTHR();
-  let yStar = thr + (startY - thr)*Math.exp(-k*elapsedSec);
-  yStar = Math.max(thr,yStar);
-  if(currentPhase===PHASE.ONSET || currentPhase===PHASE.AROUSAL){
-    yStar = Math.max(thr, thr + 0.30*(startY-thr));
+function allowed(level){
+  if(level==="SOFT") return {capScale:0.75, tokens:["MASK_PINK","MASK_OCEAN","MASK_RAIN"], rhos:[-0.20,-0.10,0.00,+0.10]};
+  if(level==="NORMAL") return {capScale:1.0, tokens:["MASK_PINK","MASK_OCEAN","MASK_RAIN","MASK_WHITE"], rhos:[-0.20,-0.10,0.00,+0.10,+0.20]};
+  return {capScale:1.05, tokens:["MASK_PINK","MASK_OCEAN","MASK_RAIN","MASK_WHITE"], rhos:[-0.10,0.00,+0.10,+0.20]};
+}
+function chooseMaskedLow(x, level){
+  const allow=allowed(level);
+  const allowedSet=new Set(buildActs(allow.tokens, allow.rhos));
+  let best="MASK_OCEAN::0.00", bestScore=-1e9;
+  for(const a of lowActs){
+    if(!allowedSet.has(a)) continue;
+    const m=banditLow.models[a];
+    const theta=matVec(m.Ainv,m.b);
+    const mean=dot(theta,x);
+    const bonus=banditLow.alpha*Math.sqrt(Math.max(0,quad(x,m.Ainv)));
+    const s=mean+bonus;
+    if(s>bestScore){bestScore=s; best=a;}
   }
-  return { yStar, tau };
+  return best;
 }
-function updateTheta(ctxVec, rewardNorm){
-  const g = -clamp(rewardNorm,-1,1);
-  const lr=theta.lr;
-  theta.b += lr*g;
-  theta.wS_Y += lr*g*ctxVec[1];
-  theta.wS_R += lr*g*ctxVec[2];
-  theta.wM_Y += lr*g*ctxVec[3];
-  theta.wM_R += lr*g*ctxVec[4];
-  theta.wL_Y += lr*g*ctxVec[5];
-  theta.wL_R += lr*g*ctxVec[6];
-  theta.wSyn += lr*g*ctxVec[7];
-  theta.wBudget += lr*g*ctxVec[8];
-  theta.wDu += lr*g*ctxVec[9];
-  theta.wPhase += lr*g*ctxVec[10];
-  theta.wMode += lr*g*ctxVec[11];
-  saveJSON(STORE.THETA, theta);
+function parseAction(a){const [tok,r]=a.split("::"); return {tok, rho:parseFloat(r)};}
+
+/* Y* functional */
+function tauOf(phiS,phiM,phiL){
+  const cap=getCAP();
+  const bNorm=clamp(budgetUsed()/Math.max(1e-9,(BUDGET_SEC*cap*cap*0.25)),0,2);
+  const duNorm=clamp(duUsed()/1.2,0,2);
+  let tau=2.4;
+  tau *= (1 + 0.9*(phiM.snoreRatio));
+  tau *= (1 + 0.6*(bNorm/2));
+  tau *= (1 + 0.9*(duNorm/2));
+  if(phase==="ONSET") tau*=1.35;
+  if(phase==="AROUSAL") tau*=1.55;
+  if(phase==="STABLE") tau*=1.15;
+  return clamp(tau, 0.8, 7.5);
+}
+function yStar(elapsed,startY,phiS,phiM,phiL){
+  const thr=getTHR();
+  const tau=tauOf(phiS,phiM,phiL);
+  const k=1/Math.max(0.25,tau);
+  let ys=thr+(startY-thr)*Math.exp(-k*elapsed);
+  ys=Math.max(thr,ys);
+  if(phase==="ONSET"||phase==="AROUSAL") ys=Math.max(thr, thr+0.30*(startY-thr));
+  return {ys,tau};
 }
 
-/* ---------------- Runtime state ---------------- */
-let running=false, timer=null, lastTick=0;
-let lastT=0, dtLast=1/LOGIC_HZ;
+/* Safety DSL */
+let lastU=0;
+let strongTimes=[];
+function applySafety(uEff, cap){
+  let u=clamp(uEff,0,cap);
+  const maxDu=0.015;
+  const du=u-lastU;
+  const absDu=Math.abs(du);
+  if(du>maxDu) u=lastU+maxDu;
+  if(du<-maxDu) u=lastU-maxDu;
+  pushDu(t,dt,absDu);
 
-let currentY=0;
-let lastStage="CALM";
-let currentPhase=PHASE.ONSET;
+  const budget=budgetUsed();
+  const thr=0.9*BUDGET_SEC*(cap*cap)*0.25;
+  if(budget>thr){
+    const scale=clamp(thr/Math.max(1e-9,budget),0.25,1);
+    u*=scale;
+  }
+  const strong=u>0.75*cap;
+  if(strong){
+    const w=wallNow();
+    strongTimes.push(w);
+    strongTimes=strongTimes.filter(x=>w-x<=60*1000);
+    if(strongTimes.length>3) u*=0.65;
+  }
+  if(phase==="ONSET") u*=0.72;
+  if(phase==="AROUSAL") u*=0.60;
 
-let selectedSleepTpl="PINK_SOFTGUIDE";
-let selectedLevel="SOFT";
-let selectedToken="MASK_PINK";
-let selectedRho=0.0;
-let selectedLowKey="MASK_PINK::0.00";
-
-let pid={ integ:0, integMax:0.9 };
-
-let session=null;
-let onsetStableAccum=0;
-
-let option={ active:false, t0:0, tEnd:0, ctx:null, level:"SOFT", lowKey:null,
-  stats:{ sumDelta:0, sumU:0, sumT:0, strong:0, uPeak:0 } };
-
-let cieu=null;
-let belowStart=null;
-
-/* ---------------- IF Probe State ---------------- */
-let probe={
-  active:false,
-  tEnd:0,
-  aborted:false,
-  motifKey:null,
-  dur:PROBE_DEFAULT_DUR_SEC,
-  accum:{ E:0, D:0, T:0, t:0 },
-  perHourTimes:[], // wall ms
-  count:0,
-  abortCount:0
-};
-let motifBank = {}; // motifKey -> { eCycle,dCycle,tCycle, dur, n }
-let ifStats = null; // session-level IF counters
-
-function prunePerHour(){
-  const now=wallNow();
-  const win=60*60*1000;
-  probe.perHourTimes = probe.perHourTimes.filter(t=> now - t <= win);
+  lastU=u;
+  return u;
 }
-function canProbeLevel1(){
-  if(!ui.enableIFProbe.checked) return false;
-  // must have sleep latency judged (onset done)
-  if(!session || session.sleepLatencySec==null) return false;
-  if(currentPhase !== PHASE.STABLE) return false;
-  if(lastStage !== "CALM") return false;
-  prunePerHour();
-  if(probe.perHourTimes.length >= PROBE_MAX_PER_HOUR) return false;
+
+/* IF Probe L1 */
+const STRONG_MAX_PER_H=5;
+const PROBE_ABORT_MARGIN=35;
+let probe={enabled:false, perHour:0, hourStart:0, inProbe:false, tEnd:0, motifKey:null, accE:0, accD:0, accT:0, abort:0};
+const motifTable=new Map(); // motifKey -> {eCycle,dCycle,tCycle}
+
+function resetProbeHour(){
+  const w=wallNow();
+  if(probe.hourStart===0) probe.hourStart=w;
+  if(w - probe.hourStart >= 3600*1000){
+    probe.hourStart=w; probe.perHour=0;
+  }
+}
+function motifKeyFrom(feat, phiM){
+  const c=clamp(feat.centroid,0,4000);
+  const cBin=Math.round(c/250)*250;
+  const pBin=Math.round(feat.periodicity*10)/10;
+  const lBin=Math.round(feat.nl*10)/10;
+  const mBin=Math.round(feat.nm*10)/10;
+  const srBin=Math.round(clamp(phiM.snoreRatio,0,1)*10)/10;
+  return `c${cBin}_p${pBin}_l${lBin}_m${mBin}_sr${srBin}_st${stage}`;
+}
+function estimateCycleSec(feat){
+  const p=clamp(feat.periodicity,0,1);
+  return clamp(0.85-0.45*p,0.35,0.90);
+}
+function canProbe(){
+  if(!probe.enabled) return false;
+  if(sleepLatencySec==null) return false;
+  if(!(phase==="STABLE" && stage==="CALM")) return false;
+  resetProbeHour();
+  if(probe.perHour>=STRONG_MAX_PER_H) return false;
+  if(probe.inProbe) return false;
   return true;
 }
-function quantize(x, step){ return Math.round(x/step)*step; }
-function motifKeyFrom(feat, phiS, phiM){
-  // use a coarse signature to group "similar" snore-like segments
-  const c = quantize(phiS.centroidMean||feat.centroid||0, 200); // Hz bucket
-  const p = quantize(phiS.perMean||feat.periodicity||0, 0.1);
-  const l = quantize(feat.nl||0, 0.1);
-  const m = quantize(feat.nm||0, 0.1);
-  const stage = lastStage;
-  return `c${c}|p${p}|l${l}|m${m}|${stage}`;
-}
-function startProbe(motifKey){
-  probe.active=true;
-  probe.aborted=false;
-  probe.motifKey=motifKey;
-  probe.dur=PROBE_DEFAULT_DUR_SEC;
-  probe.tEnd = lastT + probe.dur;
-  probe.accum={E:0,D:0,T:0,t:0};
-  probe.perHourTimes.push(wallNow());
-  probe.count++;
-  ui.probeNow.textContent="ON";
-  logLine(`[IFProbe] start motif=${motifKey} dur=${probe.dur}s`);
+function startProbe(key,cycleSec){
+  probe.inProbe=true;
+  probe.tEnd=t+cycleSec;
+  probe.motifKey=key;
+  probe.accE=0; probe.accD=0; probe.accT=0;
+  probe.perHour++;
+  logLine(`[IF-Probe] start ${key} cycle=${fmt(cycleSec,2)}s`);
 }
 function abortProbe(reason){
-  if(!probe.active) return;
-  probe.aborted=true;
-  probe.active=false;
-  probe.abortCount++;
-  ui.probeNow.textContent="OFF";
-  logLine(`[IFProbe] abort: ${reason}`);
+  probe.inProbe=false;
+  probe.abort++;
+  logLine(`[IF-Probe] abort ${reason}`);
 }
 function finishProbe(){
-  if(!probe.active) return;
-  probe.active=false;
-  ui.probeNow.textContent="OFF";
-
-  if(probe.aborted) return;
-
-  // store motif cycle energy unit
-  const dur = Math.max(1e-6, probe.accum.t);
-  const eCycle = probe.accum.E;
-  const dCycle = probe.accum.D;
-  const tCycle = probe.accum.T;
-
-  // Guard: if almost no exceedance, do not store
-  if(eCycle < 1e-6 && dCycle < 1e-6){
-    logLine(`[IFProbe] finish motif=${probe.motifKey} but too weak, skip storing.`);
-    return;
-  }
-
-  motifBank[probe.motifKey] = { eCycle, dCycle, tCycle, dur, n: (motifBank[probe.motifKey]?.n||0) + 1 };
-  logLine(`[IFProbe] finish motif=${probe.motifKey} eCycle=${fmt(eCycle,2)} dur=${fmt(dur,2)} stored.`);
+  motifTable.set(probe.motifKey, {eCycle:probe.accE, dCycle:probe.accD, tCycle:probe.accT});
+  probe.inProbe=false;
+  logLine(`[IF-Probe] done ${probe.motifKey} e=${fmt(probe.accE,1)} d=${fmt(probe.accD,1)} t=${fmt(probe.accT,2)}s`);
 }
 
-/* ---------------- Session/IF daily report (A + IF) ---------------- */
-function startSession(t){
+/* Session summary */
+let session=null;
+function newSession(t0){
   session={
-    id:`sess_${Date.now()}`,
-    t0_wall:Date.now(),
-    t0:t,
+    id:`sess_${Date.now()}`, t0, t0Wall:Date.now(),
+    thr:getTHR(), cap:getCAP(), mode:getMode(), sleepSel:ui.sleep.value,
     sleepLatencySec:null,
-    eventCount:0,
-    optionCount:0,
-    sumEventReward:0,
-    sumOptReward:0,
-    uEnergy:0,
-    strongCount:0,
-    uPeak:0,
-    lastEventEndT:null
-  };
-  onsetStableAccum=0;
-  motifBank = {};
-  probe.active=false; probe.aborted=false; probe.motifKey=null;
-  probe.perHourTimes=[]; probe.count=0; probe.abortCount=0;
-
-  ifStats = {
-    // Real world metrics
     E_real:0, D_real:0, T_real:0,
-    // IF estimated metrics
-    E_IF:0, D_IF:0, T_IF:0,
-    // coverage
-    snoreTimeTotal:0,
-    snoreTimeCovered:0,
-    unknownMotifTime:0
+    uEnergy:0, uPeak:0,
+    inEvent:false,
+    E_if:0, D_if:0, T_if:0,
+    deltaE:0, deltaD:0, deltaT:0,
+    probeEnabled:false, probePerHour:0, probeAbort:0, motifsProbed:0, motifCoverage:0,
+    _tMotifKnown:0
   };
-  updateSessionView();
+  motifTable.clear();
+  probe.abort=0; probe.perHour=0; probe.hourStart=0; probe.inProbe=false;
+  sleepLatencySec=null; onsetStable=0;
 }
-
-function endSession(t){
+function updateReport(){
   if(!session) return;
+  session.sleepLatencySec=sleepLatencySec;
+  session.probeEnabled=probe.enabled;
+  session.probePerHour=probe.perHour;
+  session.probeAbort=probe.abort;
+  session.motifsProbed=motifTable.size;
+  session.deltaE=session.E_if-session.E_real;
+  session.deltaD=session.D_if-session.D_real;
+  session.deltaT=session.T_if-session.T_real;
+  session.motifCoverage = clamp(session._tMotifKnown/Math.max(1e-9,session.T_real),0,1);
 
-  const ifR = {
-    E_real: ifStats.E_real,
-    E_IF: ifStats.E_IF,
-    DeltaE: ifStats.E_IF - ifStats.E_real,
+  ui.mEif.textContent=fmt(session.E_if,1);
+  ui.mEreal.textContent=fmt(session.E_real,1);
+  ui.mDE.textContent=fmt(session.deltaE,1);
+  ui.mDT.textContent=fmt(session.deltaT,1);
+  ui.mDif.textContent=fmt(session.D_if,1);
+  ui.mDreal.textContent=fmt(session.D_real,1);
+  ui.mDD.textContent=fmt(session.deltaD,1);
+  ui.mProbe.textContent=String(probe.perHour);
+  ui.sessionJSON.textContent=JSON.stringify(session,null,2);
 
-    D_real: ifStats.D_real,
-    D_IF: ifStats.D_IF,
-    DeltaD: ifStats.D_IF - ifStats.D_real,
+  ui.kPhase.textContent=phase;
+  ui.kStage.textContent=stage;
 
-    T_real: ifStats.T_real,
-    T_IF: ifStats.T_IF,
-    DeltaT: ifStats.T_IF - ifStats.T_real,
-
-    probeCount: probe.count,
-    abortCount: probe.abortCount,
-    motifsProbed: Object.keys(motifBank).length,
-    coverageRatio: (ifStats.snoreTimeTotal>0 ? (ifStats.snoreTimeCovered/ifStats.snoreTimeTotal) : 0),
-    unknownMotifTimeSec: ifStats.unknownMotifTime
-  };
-
-  const final = {
-    ...session,
-    durationMin: Math.round((t - session.t0)/60),
-    IF: ifR
-  };
-
-  ui.sessionView.textContent = JSON.stringify(final, null, 2);
-
-  // store summary as a record into CIEU_DB
-  CIEU_DB.push({ type:"SESSION_SUMMARY", ...final, t1_wall: Date.now() });
-  persistCIEU();
+  const dbg={phase,stage,sleepLatencySec, ifProbe:{enabled:probe.enabled, perHour:probe.perHour, abort:probe.abort, motifs:motifTable.size, coverage:fmt(session.motifCoverage,3)}};
+  ui.reportView.textContent=JSON.stringify(dbg,null,2);
 }
 
-/* ---------------- Sleep latency proxy ---------------- */
-function updateSleepLatency(phiM){
-  if(!session || session.sleepLatencySec!=null) return;
-  const asleepish = (phiM.Ymean < getTHR()*0.95) && (phiM.snoreRatio < 0.12) && (outBusInt.gain.value < getCAP()*0.25);
-  if(asleepish) onsetStableAccum += dtLast;
-  else onsetStableAccum = Math.max(0, onsetStableAccum - 0.5*dtLast);
-
-  if(onsetStableAccum >= 180){
-    session.sleepLatencySec = Math.round(lastT - session.t0);
-    logLine(`[A] SleepLatencyProxy=${session.sleepLatencySec}s`);
-  }
-}
-
-/* ---------------- Phase detection ---------------- */
-function updatePhase(phiM, phiL){
-  const onsetDone = session && session.sleepLatencySec!=null;
-  const arousal = (duUsed()>0.35) && (lastStage!=="CALM");
-  if(!onsetDone){ currentPhase=PHASE.ONSET; return; }
-  if(arousal){ currentPhase=PHASE.AROUSAL; return; }
-  if(cieu){ currentPhase=PHASE.EVENT; return; }
-  const stable = (phiL.snoreRatio < 0.12) && (phiM.snoreRatio < 0.20) && (lastStage==="CALM" || lastStage==="MIXED");
-  currentPhase = stable ? PHASE.STABLE : PHASE.EVENT;
-}
-
-/* ---------------- Output control ---------------- */
-function setMasterGain(on){
-  if(!audioCtx) return;
-  const t=audioCtx.currentTime;
-  outMaster.gain.cancelScheduledValues(t);
-  outMaster.gain.setValueAtTime(outMaster.gain.value, t);
-  outMaster.gain.linearRampToValueAtTime(on?1.0:0.0, t+(on?0.6:0.4));
-}
-function setSleepGain(g){
-  if(!audioCtx) return;
-  const t=audioCtx.currentTime;
-  outBusSleep.gain.cancelScheduledValues(t);
-  outBusSleep.gain.setValueAtTime(outBusSleep.gain.value, t);
-  outBusSleep.gain.linearRampToValueAtTime(g, t+0.6);
-}
-function setIntGain(g){
-  if(!audioCtx) return;
-  const t=audioCtx.currentTime;
-  outBusInt.gain.cancelScheduledValues(t);
-  outBusInt.gain.setValueAtTime(outBusInt.gain.value, t);
-  outBusInt.gain.linearRampToValueAtTime(g, t+0.08);
-}
-
-/* ---------------- Option and reward ---------------- */
-function sleepQualityCost(optStats, cap){
-  const sqw=getSQW();
-  const uMean = optStats.sumT>0 ? optStats.sumU/optStats.sumT : 0;
-  const uPeakN = cap>0 ? clamp(optStats.uPeak/cap,0,2) : 0;
-  const strongPenalty = clamp(optStats.strong/2,0,2);
-  const duPenalty = clamp(duUsed()/0.8,0,2);
-  return sqw * (0.45*uMean + 0.35*uPeakN + 0.35*strongPenalty + 0.25*duPenalty);
-}
-function suppressionBenefit(optStats){
-  const meanDelta = optStats.sumT>0 ? optStats.sumDelta/optStats.sumT : 0;
-  return (1 - clamp(meanDelta,0,1));
-}
-function optionReward(optStats, cap){
-  const benefit = suppressionBenefit(optStats);
-  const cost = sleepQualityCost(optStats, cap);
-  return clamp(benefit - cost, -1, 1);
-}
-
-function beginOption(t, ctx){
-  option.active=true;
-  option.t0=t;
-  option.tEnd=t + getOptSec();
-  option.ctx=ctx;
-  option.stats={ sumDelta:0, sumU:0, sumT:0, strong:0, uPeak:0 };
-
-  // Choose level
-  // During ONSET/AROUSAL bias exploration down
-  bandit.setAlpha(getAlpha() * ((currentPhase===PHASE.ONSET || currentPhase===PHASE.AROUSAL) ? 0.7 : 1.0));
-  selectedLevel = bandit.choose(ctx, new Set(LEVELS.map(x=>`LEVEL::${x}`))).split("::")[1];
-
-  const allow=allowedByLevel(selectedLevel);
-  const mask=buildMask(allow);
-
-  // Choose low action under level
-  const lowKey = bandit.choose(ctx, new Set(Array.from(mask).map(x=>`LOW::${x}`))).split("::").slice(1).join("::");
-  option.level=selectedLevel;
-  option.lowKey=lowKey;
-
-  const parsed=parseActionKey(lowKey);
-  selectedRho=parsed.rho;
-  selectedLowKey=lowKey;
-
-  if(parsed.token !== selectedToken) applyInterventionToken(parsed.token);
-
-  // Update UI
-  ui.tokenNow.textContent = selectedToken;
-}
-
-function endOption(t, cap){
-  if(!option.active) return;
-  option.active=false;
-  const r=optionReward(option.stats, cap);
-
-  // update bandit on chosen low action (and level)
-  bandit.update(`LOW::${option.lowKey}`, option.ctx, r);
-  bandit.update(`LEVEL::${option.level}`, option.ctx, r);
-
-  if(session){
-    session.optionCount += 1;
-    session.sumOptReward += r;
-  }
-}
-
-/* ---------------- CIEU event ---------------- */
-function startEvent(t, ctx, phiS,phiM,phiL){
-  cieu={
-    id:`cieu_${Date.now()}_${Math.floor(Math.random()*1e6)}`,
-    t0_wall:Date.now(),
-    t0:t,
-    x:{ ctxAtStart: ctx, phiS0:phiS, phiM0:phiM, phiL0:phiL, mode0:getMode(), phase0:currentPhase, tpl0:selectedSleepTpl },
-    u:{},
-    yStar:{ E_cf:0 },
-    yOut:{ E_ctrl:0, uEnergy:0, uPeak:0, strongCount:0, peakY: currentY, durationSec:0 },
-    r:{ rewardNorm:0, components:{} }
-  };
-}
-function finishEvent(t){
-  if(!cieu) return;
-  cieu.yOut.durationSec = (t - cieu.t0);
-
-  // Compute reward (normalized)
-  const deltaE = cieu.yStar.E_cf - cieu.yOut.E_ctrl;
+/* Control loop */
+let running=false,timer=null,lastTick=0;
+let t=0,dt=1/LOGIC_HZ;
+let y=0,ys=0,tau=0;
+let pidI=0;
+let token="MASK_OCEAN",rho=0,level="SOFT";
+let opt={active:false,tEnd:0,x:null,actionKey:null,stats:{sumDelta:0,sumU:0,sumT:0,uPeak:0,strong:0}};
+function rewardOption(stats){
   const cap=getCAP();
-  const uMean = cieu.yOut.durationSec>0 ? (cieu.yOut.uEnergy/cieu.yOut.durationSec) : 0;
-  const uPeakN = cap>0 ? clamp(cieu.yOut.uPeak/cap,0,2) : 0;
-  const strongPenalty = clamp(cieu.yOut.strongCount/3,0,2);
-  const duPenalty = clamp(duUsed()/0.8,0,2);
-
+  const uMean=stats.sumT>0? stats.sumU/stats.sumT:0;
+  const uPeakN=cap>0? clamp(stats.uPeak/cap,0,2):0;
+  const strongPenalty=clamp(stats.strong/2,0,2);
+  const duPenalty=clamp(duUsed()/0.8,0,2);
   const sqw=getSQW();
-  const cost = sqw * (0.45*uMean + 0.35*uPeakN + 0.35*strongPenalty + 0.25*duPenalty);
-  const denom = Math.max(1e-6, cieu.yStar.E_cf + 0.5*cieu.yOut.uEnergy + 1);
-  const benefit = deltaE/denom;
-  const rewardNorm = clamp(benefit - cost, -1, 1);
-
-  cieu.r.rewardNorm = rewardNorm;
-  cieu.r.components = {deltaE, benefit, cost, uMean, uPeakN, strongPenalty, duPenalty};
-
-  // update theta
-  updateTheta(cieu.x.ctxAtStart, rewardNorm);
-
-  // session counters
-  if(session){
-    session.eventCount += 1;
-    session.sumEventReward += rewardNorm;
-    session.uEnergy += cieu.yOut.uEnergy;
-    session.strongCount += cieu.yOut.strongCount;
-    session.uPeak = Math.max(session.uPeak, cieu.yOut.uPeak);
-    session.lastEventEndT = t;
-  }
-
-  CIEU_DB.push(cieu);
-  persistCIEU();
-
-  ui.lastCIEU.textContent = JSON.stringify({
-    id:cieu.id,
-    durSec:Math.round(cieu.yOut.durationSec),
-    peakY:cieu.yOut.peakY,
-    rewardNorm:fmt(cieu.r.rewardNorm,3)
-  }, null, 2);
-
-  cieu=null;
+  const cost=sqw*(0.42*uMean+0.35*uPeakN+0.33*strongPenalty+0.25*duPenalty);
+  const meanDelta=stats.sumT>0? stats.sumDelta/stats.sumT:0;
+  const benefit=1-clamp(meanDelta,0,1);
+  return clamp(benefit-cost,-1,1);
 }
-
-/* ---------------- IF daily metric integrators ---------------- */
-function accumulateRealIF(dt, thr, Y){
-  // Real exceedance metrics
-  const ex = Math.max(0, Y - thr);
-  ifStats.E_real += (ex*ex)*dt;
-  ifStats.D_real += ex*dt;
-  ifStats.T_real += (Y>thr ? dt : 0);
-
-  // IF estimation when snore occurs (Y>thr): use motif bank to estimate no-intervention rates
-  if(Y>thr){
-    ifStats.snoreTimeTotal += dt;
-
-    // motif estimation uses current motif key
-    const mk = currentMotifKey;
-    const rec = mk ? motifBank[mk] : null;
-    if(rec){
-      // per-second rates from probe
-      const eRate = rec.eCycle / Math.max(1e-6, rec.dur);
-      const dRate = rec.dCycle / Math.max(1e-6, rec.dur);
-      const tRate = rec.tCycle / Math.max(1e-6, rec.dur);
-      ifStats.E_IF += eRate*dt;
-      ifStats.D_IF += dRate*dt;
-      ifStats.T_IF += tRate*dt;
-      ifStats.snoreTimeCovered += dt;
-    }else{
-      // Conservative fallback: treat IF ~= real for unknown motifs (avoid overclaim)
-      ifStats.E_IF += (ex*ex)*dt;
-      ifStats.D_IF += ex*dt;
-      ifStats.T_IF += (Y>thr ? dt : 0);
-      ifStats.unknownMotifTime += dt;
-    }
-  }
+function beginOption(t,x){
+  opt.active=true;
+  opt.tEnd=t+getOptSec();
+  opt.x=x;
+  opt.stats={sumDelta:0,sumU:0,sumT:0,uPeak:0,strong:0};
+  banditLevel.alpha=parseFloat(ui.alpha.value)*((phase==="ONSET"||phase==="AROUSAL")?0.7:1);
+  level=banditLevel.choose(x);
+  const a=chooseMaskedLow(x,level);
+  opt.actionKey=a;
+  const p=parseAction(a);
+  token=p.tok; rho=p.rho;
+  applyToken(token);
 }
-
-/* ---------------- Sleep template selection ---------------- */
-function updateSleepTemplate(ctx){
-  const sel=ui.sleepTplSel.value;
-  if(sel==="OFF"){
-    setSleepGain(0);
-    setPill("tplNow","OFF","warn");
-    return;
-  }
-  if(sel!=="AUTO"){
-    if(sel!==selectedSleepTpl) applySleepTemplate(sel);
-    return;
-  }
-  const tplKey = bandit.choose(ctx, new Set(SLEEP_TEMPLATES.map(x=>`SLEEP::${x}`))).split("::")[1];
-  if(tplKey !== selectedSleepTpl) applySleepTemplate(tplKey);
-  bandit.setAlpha(getAlpha());
+function endOption(){
+  if(!opt.active) return;
+  opt.active=false;
+  const r=rewardOption(opt.stats);
+  banditLow.update(opt.actionKey,opt.x,r);
 }
-
-/* ---------------- Auto backup/export ---------------- */
-function exportCIEU(){
-  const blob = new Blob([JSON.stringify(CIEU_DB, null, 2)], {type:"application/json"});
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = `SnoreField_CIEU_${Date.now()}.json`;
-  a.click();
-  URL.revokeObjectURL(url);
+function chooseSleep(x){
+  const sel=ui.sleep.value;
+  if(sel==="OFF") return "OFF";
+  if(sel!=="AUTO") return sel;
+  sleepBandit.alpha=parseFloat(ui.alpha.value);
+  return sleepBandit.choose(x);
 }
-function autoBackup(){
-  if(ui.autoBackup.checked) exportCIEU();
-}
-
-/* ---------------- Session view ---------------- */
-function updateSessionView(){
-  if(!session || !ifStats){
-    ui.sessionView.textContent="{}";
-    return;
-  }
-  const IF = {
-    E_real: ifStats.E_real, E_IF: ifStats.E_IF, DeltaE: ifStats.E_IF - ifStats.E_real,
-    D_real: ifStats.D_real, D_IF: ifStats.D_IF, DeltaD: ifStats.D_IF - ifStats.D_real,
-    T_real: ifStats.T_real, T_IF: ifStats.T_IF, DeltaT: ifStats.T_IF - ifStats.T_real,
-    probeCount: probe.count, abortCount: probe.abortCount,
-    motifsProbed: Object.keys(motifBank).length,
-    coverageRatio: (ifStats.snoreTimeTotal>0 ? (ifStats.snoreTimeCovered/ifStats.snoreTimeTotal) : 0),
-    unknownMotifTimeSec: ifStats.unknownMotifTime
-  };
-  ui.sessionView.textContent = JSON.stringify({...session, IF}, null, 2);
-}
-
-/* ---------------- Control loop ---------------- */
-function setStatusPill(){
-  const st = cieu ? "EVENT" : (session && session.sleepLatencySec==null ? "ONSET" : "RUN");
-  if(st==="EVENT") setPill("statusPill","EVENT","bad");
-  else if(st==="ONSET") setPill("statusPill","ONSET","ok");
-  else setPill("statusPill","RUN","warn");
-}
-let currentMotifKey=null;
 
 function controlTick(){
   if(!running) return;
-  const tNow = nowMs()/1000;
-  const dt = (lastTick>0) ? (tNow-lastTick) : (1/LOGIC_HZ);
+  const tNow=nowMs()/1000;
+  dt=(lastTick>0)?(tNow-lastTick):(1/LOGIC_HZ);
   lastTick=tNow;
-  lastT=tNow; dtLast=dt;
+  t=tNow;
 
-  // Extract features & compute Y
-  const feat = computeSpectrumFeatures();
-  currentY = computeY(feat);
+  const feat=computeFeatures();
+  y=computeY(feat);
+
+  const s={t,dt,Y:y,periodicity:feat.periodicity, centroid:feat.centroid};
+  pushBuf(bufS,PHI_SHORT,s);
+  pushBuf(bufM,PHI_MID,s);
+  pushBuf(bufL,PHI_LONG,s);
 
   const thr=getTHR();
-  // buffers
-  const sample={ t:tNow, dt, Y:currentY, per:feat.periodicity, flat:feat.flatness, centroid:feat.centroid };
-  pushBuf(bufS, PHI_SHORT, sample);
-  pushBuf(bufM, PHI_MID, sample);
-  pushBuf(bufL, PHI_LONG, sample);
+  const phiS=phiFrom(bufS,thr);
+  const phiM=phiFrom(bufM,thr);
+  const phiL=phiFrom(bufL,thr);
 
-  const phiS=buildPhi(bufS, thr);
-  const phiM=buildPhi(bufM, thr);
-  const phiL=buildPhi(bufL, thr);
+  stage=estimateStage(phiM,y);
+  updateSleepLatency(phiM,t,dt);
+  updatePhase(phiM,phiL);
 
-  lastStage = estimateStage(phiM, currentY);
-  updateSleepLatency(phiM);
-  updatePhase(phiM, phiL);
+  ui.kY.textContent=String(y);
+  ui.kPhase.textContent=phase;
+  ui.kStage.textContent=stage;
 
-  ui.phaseNow.textContent=currentPhase;
-  ui.stageNow.textContent=lastStage;
+  const x=ctx(phiS,phiM,phiL);
 
-  // build ctx
-  const ctx = makeCtx(phiS,phiM,phiL);
+  // sleep template (pleasant)
+  const sName=chooseSleep(x);
+  if(sName==="OFF"){
+    setSleepGain(0);
+    setPill("pillTpl","warn","sleep: OFF");
+  }else{
+    applySleep(sName);
+    setSleepGain(phase==="ONSET"?0.78:0.50);
+  }
 
-  // template
-  if(currentPhase===PHASE.ONSET) setSleepGain(0.75);
-  else setSleepGain(0.45);
-  updateSleepTemplate(ctx);
+  // options
+  if(!opt.active) beginOption(t,x);
+  if(opt.active && t>=opt.tEnd){ endOption(); beginOption(t,x); }
 
-  // motif key (for IF estimation and probe)
-  currentMotifKey = motifKeyFrom(feat, phiS, phiM);
+  // Y*
+  if(session.inEvent){
+    const elapsed=t-session._eventT0;
+    const rr=yStar(elapsed,session._eventStartY,phiS,phiM,phiL);
+    ys=rr.ys; tau=rr.tau;
+  }else{
+    const rr=yStar(0,y,phiS,phiM,phiL);
+    ys=rr.ys; tau=rr.tau;
+  }
+  ui.kYStar.textContent=String(Math.round(ys));
+  ui.kTau.textContent=`τ=${fmt(tau,2)}`;
 
-  // IF Probe lifecycle
-  if(probe.active){
-    // accumulate probe baseline
-    const ex = Math.max(0, currentY - thr);
-    probe.accum.E += (ex*ex)*dt;
-    probe.accum.D += ex*dt;
-    probe.accum.T += (currentY>thr ? dt : 0);
-    probe.accum.t += dt;
-
-    // abort conditions
-    if(currentY > thr + PROBE_ABORT_MARGIN){
-      abortProbe("Y spike");
-    }else if(!(currentPhase===PHASE.STABLE && lastStage==="CALM")){
-      abortProbe("phase/stage changed");
-    }else if(tNow >= probe.tEnd){
-      finishProbe();
+  // event
+  const wantEvent=y>thr;
+  if(!session.inEvent && wantEvent){
+    session.inEvent=true;
+    session._eventT0=t;
+    session._eventStartY=y;
+  }
+  if(session.inEvent && !wantEvent){
+    if(session._below==null) session._below=t;
+    if(t-session._below>2){
+      session.inEvent=false; session._below=null;
     }
   }else{
-    // decide to trigger probe when a snore starts (cross thr) and motif not known
-    // We treat "snore start" as Y just crossed thr within last 0.25s
-    const snoreNow = (currentY > thr);
-    const snoreJustStarted = snoreNow && (prevY <= thr);
-    if(snoreJustStarted && canProbeLevel1()){
-      if(!motifBank[currentMotifKey]){
-        startProbe(currentMotifKey);
-      }
-    }
+    session._below=null;
   }
 
-  // accumulate real & IF metrics continuously (IF uses motifBank if available)
-  accumulateRealIF(dt, thr, currentY);
+  // update IF probe enable
+  probe.enabled=ui.ifProbe.checked;
 
-  // Option management
-  if(!option.active){
-    beginOption(tNow, ctx);
-  }
-  const allow=allowedByLevel(selectedLevel);
-  const cap = getCAP()*allow.capScale;
+  // compute real metrics
+  const exceed=Math.max(0,y-thr);
+  const eNow=exceed*exceed*dt;
+  const dNow=exceed*dt;
+  const tEx=(y>thr)?dt:0;
 
-  if(option.active && tNow >= option.tEnd){
-    endOption(tNow, cap);
-    beginOption(tNow, ctx);
+  session.E_real+=eNow;
+  session.D_real+=dNow;
+  session.T_real+=tEx;
+
+  // motif
+  const key=motifKeyFrom({centroid:feat.centroid, periodicity:feat.periodicity, nl:feat.nl, nm:feat.nm}, phiM);
+
+  // IF accumulate when motif known
+  if(motifTable.has(key) && y>thr){
+    const rec=motifTable.get(key);
+    const scale=(rec.tCycle>0)? (dt/rec.tCycle):0;
+    session.E_if+=rec.eCycle*scale;
+    session.D_if+=rec.dCycle*scale;
+    session.T_if+=rec.tCycle*scale;
+    session._tMotifKnown+=dt;
   }
 
-  // event start/end
-  const wantEvent = (currentY > thr);
-  if(!cieu && wantEvent){
-    startEvent(tNow, ctx, phiS,phiM,phiL);
+  // trigger probe for unknown motif
+  if(canProbe() && !motifTable.has(key) && y>thr){
+    const cycle=estimateCycleSec(feat);
+    startProbe(key,cycle);
   }
-  if(cieu && !wantEvent){
-    if(!belowStart) belowStart=tNow;
-    if(tNow - belowStart > 2.0){
-      finishEvent(tNow);
-      belowStart=null;
-      setIntGain(0.0);
-    }
+
+  // Control / probe
+  let u=0;
+  if(probe.inProbe){
+    u=0;
+    setIntGain(0);
+    // accumulate probe unit
+    probe.accE+=eNow;
+    probe.accD+=dNow;
+    probe.accT+=tEx;
+    if(y>thr+PROBE_ABORT_MARGIN) abortProbe("Y spike");
+    else if(!(phase==="STABLE"&&stage==="CALM")) abortProbe("state changed");
+    else if(t>=probe.tEnd) finishProbe();
   }else{
-    belowStart=null;
-  }
+    const mode=getMode();
+    if(mode==="monitor"){
+      u=0;
+      setIntGain(0);
+    }else{
+      const delta=y-ys;
+      const e=Math.max(0,clamp(delta/255,-1,1));
+      const kp=0.40, ki=0.04;
+      pidI=clamp(pidI+e*dt,0,0.9);
+      const uPID=clamp(kp*e + ki*pidI,0,1);
+      const allow=allowed(level);
+      const cap=getCAP()*allow.capScale;
+      let uEff=uPID*(1+rho);
+      uEff=applySafety(uEff,cap);
+      u=uEff;
+      setIntGain(u);
 
-  // control output
-  const mode=getMode();
-  let uPID=0, uEff=0;
-  let yStar = thr, tau=null;
+      pushBudget(t,dt,u);
+      session.uEnergy += (u*u)*dt;
+      session.uPeak = Math.max(session.uPeak,u);
 
-  if(mode==="monitor"){
-    uEff=0; uPID=0;
-    setIntGain(0.0);
-  }else{
-    // Y* (use event start Y if we have one; else current)
-    const startY = cieu ? (cieu.x.phiS0.Ymean || currentY) : currentY;
-    const elapsed = cieu ? (tNow - cieu.t0) : 0;
-    const res = computeYStar(elapsed, startY, phiS,phiM,phiL);
-    yStar=res.yStar; tau=res.tau;
-
-    const delta = currentY - yStar;
-    const e = Math.max(0, clamp(delta/255, -1, 1));
-    const kp=parseFloat(ui.kp.value), ki=parseFloat(ui.ki.value);
-    pid.integ = clamp(pid.integ + e*dt, 0, pid.integMax);
-    uPID = clamp(kp*e + ki*pid.integ, 0, 1);
-
-    // residual
-    uEff = uPID * (1 + selectedRho);
-
-    // If probe active, force u=0 (probe is defined as no intervention)
-    if(probe.active){
-      uEff = 0.0;
-    }
-
-    // Safety
-    uEff = applySafety(uEff, selectedToken, cap);
-
-    // apply
-    setIntGain(uEff);
-    pushBudget(tNow, dt, uEff);
-
-    // option stats
-    option.stats.sumT += dt;
-    option.stats.sumDelta += clamp(Math.max(0, delta)/255, 0, 1)*dt;
-    option.stats.sumU += (cap>0 ? (uEff/cap) : 0)*dt;
-    option.stats.uPeak = Math.max(option.stats.uPeak, uEff);
-    if(uEff > 0.75*cap) option.stats.strong += 1;
-
-    // event accum
-    if(cieu){
-      cieu.yOut.peakY = Math.max(cieu.yOut.peakY, currentY);
-      cieu.yOut.uPeak = Math.max(cieu.yOut.uPeak, uEff);
-      if(uEff > 0.75*cap) cieu.yOut.strongCount += 1;
-
-      const dPos = Math.max(0, currentY - yStar);
-      cieu.yStar.E_cf += (dPos*dPos)*dt;
-      cieu.yOut.E_ctrl += (uEff*uEff)*dt;
-      cieu.yOut.uEnergy += (uEff*uEff)*dt;
+      opt.stats.sumT += dt;
+      opt.stats.sumDelta += clamp(Math.max(0,delta)/255,0,1)*dt;
+      opt.stats.sumU += (cap>0? (u/cap):0)*dt;
+      opt.stats.uPeak = Math.max(opt.stats.uPeak,u);
+      if(u>0.75*cap) opt.stats.strong += 1;
     }
   }
+  ui.kU.textContent=fmt(u,3);
 
-  // UI
-  ui.yNow.textContent=String(currentY);
-  ui.yStar.textContent=String(Math.round(yStar));
-  ui.tauNow.textContent=tau?fmt(tau,2):"-";
-  ui.uPid.textContent=fmt(uPID,3);
-  ui.rhoNow.textContent=fmt(selectedRho,2);
-  ui.uEff.textContent=fmt(uEff,3);
+  updateReport();
 
-  if(!ui.enableIFProbe.checked) ui.probeNow.textContent="OFF";
-  setStatusPill();
-
-  // update views
-  if(Math.random()<0.10){
-    ui.banditView.textContent = JSON.stringify(bandit.summary(12), null, 2);
-    updateSessionView();
-  }
-
-  prevY = currentY;
+  if(session.inEvent) setStatus("bad","EVENT");
+  else if(sleepLatencySec==null) setStatus("ok","ONSET");
+  else setStatus("warn","RUN");
 }
-let prevY=0;
 
-/* ---------------- Start/Stop ---------------- */
-function setInitPills(){
-  setPill("audioState","suspended","warn");
-  setPill("micState","off","warn");
-  setPill("tplNow","-","warn");
-  setPill("tokenNow","-","warn");
-  setPill("statusPill","IDLE","warn");
-  ui.probeNow.textContent="OFF";
+/* Export */
+function exportReport(){
+  const payload={session, motifTable:Array.from(motifTable.entries())};
+  const blob=new Blob([JSON.stringify(payload,null,2)],{type:"application/json"});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement("a");
+  a.href=url;
+  a.download=`SnoreField_Report_${Date.now()}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+function exportDB(){
+  const blob=new Blob([JSON.stringify(DB,null,2)],{type:"application/json"});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement("a");
+  a.href=url;
+  a.download=`SnoreField_DB_${Date.now()}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
 }
 
 async function start(){
   try{
     ensureAudio();
     await audioCtx.resume();
-    setPill("audioState", audioCtx.state, "ok");
     await ensureMic();
 
-    // graphs
-    applySleepTemplate("PINK_SOFTGUIDE");
-    applyInterventionToken("MASK_PINK");
+    stopGraph(sleepGraph); stopGraph(intGraph);
+    applySleep("OCEAN_SOFT");
+    applyToken("MASK_OCEAN");
+    setMaster(true);
+    setSleepGain(0.78);
+    setIntGain(0);
 
-    // reset runtime state
     running=true;
     lastTick=0;
-    pid.integ=0;
-    syntax.lastU=0; syntax.strongTimes=[]; syntax.degraded=0;
-    bufS=[]; bufM=[]; bufL=[];
-    budgetBuf=[]; duBuf=[];
-    option.active=false;
-    cieu=null; belowStart=null;
-    selectedSleepTpl="PINK_SOFTGUIDE";
-    selectedLevel="SOFT";
-    selectedToken="MASK_PINK";
-    selectedRho=0.0;
-    selectedLowKey="MASK_PINK::0.00";
-    currentPhase=PHASE.ONSET;
-    lastStage="CALM";
-    prevY=0;
+    bufS=[];bufM=[];bufL=[];
+    budgetBuf=[];duBuf=[];
+    strongTimes=[];
+    lastU=0;
+    pidI=0;
+    opt.active=false;
 
-    // outputs
-    setMasterGain(true);
-    setSleepGain(0.75);
-    setIntGain(0.0);
+    newSession(nowMs()/1000);
 
-    // session
-    startSession(nowMs()/1000);
-
-    // start option immediately
-    beginOption(nowMs()/1000, makeCtx({Ymean:0,snoreRatio:0},{Ymean:0,snoreRatio:0},{Ymean:0,snoreRatio:0}));
-
-    timer=setInterval(controlTick, 1000/LOGIC_HZ);
-    logLine("Started. IF Probe L1 ready (toggle in UI).");
+    timer=setInterval(controlTick,1000/LOGIC_HZ);
+    logLine("Started.");
   }catch(e){
     console.error(e);
     logLine("Start failed: "+(e?.message||e));
-    alert("启动失败：请确认麦克风权限已允许，并由用户手势触发音频。");
+    alert("启动失败：请确认麦克风权限；iOS 需要点击按钮触发音频。");
   }
 }
-
 function stop(){
-  const t=nowMs()/1000;
   running=false;
-  if(timer){ clearInterval(timer); timer=null; }
+  if(timer){clearInterval(timer); timer=null;}
+  endOption();
+  updateReport();
 
-  // finalize probe
-  if(probe.active){
-    abortProbe("stop");
-  }
+  // persist session
+  DB.push({type:"SESSION_SUMMARY", ...session, motifTableSize: motifTable.size, savedAt: Date.now()});
+  saveJSON(STORE.CIEU, DB);
 
-  // finalize option
-  const allow=allowedByLevel(selectedLevel);
-  const cap=getCAP()*allow.capScale;
-  endOption(t, cap);
-
-  // finalize event
-  if(cieu) finishEvent(t);
-
-  // end session summary & persist
-  endSession(t);
-
-  // fade out
   if(audioCtx){
-    setIntGain(0.0);
-    setSleepGain(0.0);
-    setMasterGain(false);
+    setIntGain(0);
+    setSleepGain(0);
+    setMaster(false);
   }
+  setStatus("warn","IDLE");
+  setPill("pillTpl","warn","sleep: -");
+  setPill("pillTok","warn","token: -");
 
-  if(ui.autoBackup.checked) exportCIEU();
+  if(ui.autoBackup.checked) exportReport();
   logLine("Stopped.");
-  setPill("statusPill","IDLE","warn");
 }
-
-/* ---------------- Reset / Export / Clear ---------------- */
 function resetAll(){
   localStorage.removeItem(STORE.CIEU);
-  localStorage.removeItem(STORE.BANDIT);
-  localStorage.removeItem(STORE.THETA);
   location.reload();
 }
 
-/* ---------------- Hook UI ---------------- */
-ui.btnStart.addEventListener("click", start);
-ui.btnStop.addEventListener("click", stop);
-ui.btnReset.addEventListener("click", resetAll);
-ui.btnExport.addEventListener("click", exportCIEU);
-ui.btnClear.addEventListener("click", clearCIEU);
+ui.start.addEventListener("click", start);
+ui.stop.addEventListener("click", stop);
+ui.export.addEventListener("click", ()=>{ exportDB(); });
+ui.reset.addEventListener("click", resetAll);
 
-ui.alpha.addEventListener("input", ()=>{ bandit.setAlpha(getAlpha()); });
-ui.sleepTplSel.addEventListener("change", ()=>{
-  if(!audioCtx) return;
-  const sel=ui.sleepTplSel.value;
-  if(sel==="OFF"){ setSleepGain(0); setPill("tplNow","OFF","warn"); }
-});
-ui.enableIFProbe.addEventListener("change", ()=>{
-  ui.probeNow.textContent = ui.enableIFProbe.checked ? "ARMED" : "OFF";
-});
-
-/* ---------------- Init ---------------- */
-setInitPills();
-ui.banditView.textContent = JSON.stringify(bandit.summary(12), null, 2);
-ui.sessionView.textContent = "{}";
-ui.lastCIEU.textContent = CIEU_DB.length ? JSON.stringify(CIEU_DB[CIEU_DB.length-1], null, 2) : "";
 </script>
 </body>
 </html>
