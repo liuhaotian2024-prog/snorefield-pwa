@@ -80,7 +80,6 @@
     Phase: <span class="hi" id="oPhase">IDLE</span> | Stage: <span class="hi" id="oStage">CALM</span><br>
     Level: <span class="hi" id="oLevel">--</span> | Action: <span class="hi" id="oAction">--</span><br>
     IF ΔE: <span class="hi" id="oDE">--</span> | Turns: <span class="hi" id="oTurns">0</span><br>
-    <!-- v8.0 fix: 增加 Motion 状态显示，匹配 JS 里的 ui.oMotion -->
     Motion: <span class="hi" id="oMotion">OFF</span>
   </div>
 
@@ -259,7 +258,6 @@ const ui={
   oAction:$("oAction"),
   oDE:$("oDE"),
   oTurns:$("oTurns"),
-  // v8.0 fix: 补上 Motion 的 UI 绑定
   oMotion:$("oMotion"),
 
   cvs:$("scope")
@@ -318,7 +316,6 @@ function saveJSON(key,obj){ try{localStorage.setItem(key,JSON.stringify(obj));}c
 let DB=loadJSON(STORE.DB,[]);
 function pushDB(item){
   DB.push(item);
-  // keep DB from exploding: keep last 5000 items
   if(DB.length>5000) DB = DB.slice(DB.length-5000);
   saveJSON(STORE.DB, DB);
 }
@@ -599,7 +596,6 @@ function tauOf(phiS,phiM,phiL){
   const cap=getCap();
   const bNorm=clamp(budgetUsed()/Math.max(1e-9,(CFG.BUDGET_WIN*cap*cap*0.25)),0,2);
   const duNorm=clamp(duUsed()/1.2,0,2);
-  // functional: τ = τ(Φ, budget, du, phase)
   let tau=2.4;
   tau*=(1+0.9*phiM.snoreRatio);
   tau*=(1+0.6*(bNorm/2));
@@ -653,13 +649,13 @@ function applySafety(uEff, cap, t, dt){
 function scheduleNudge(pattern,intensity){
   const t0=ctx.currentTime+0.01;
 
-  // 区分 BREATH 与其他 nudge：对齐你“呼吸提示”语义（保持原有逻辑基础上微扩展）
+  // 为 BREATH 做一点轻微差异化（不影响原有三种）
   let freq = 180;
   let attack = 0.03;
   let release = 0.18;
 
   if(pattern === "NUDGE_BREATH"){
-    freq = 90;        // 更低频，更“呼吸感”
+    freq = 90;        // 更低频
     attack = 0.08;
     release = 0.32;
   }
@@ -785,7 +781,7 @@ function parseActionKey(a){const [tok,r]=a.split("::"); return {tok, rho:parseFl
    IF Probe Level 1 (complete motif parallel world)
    ========================================================= */
 let probe={enabled:false, perHour:0, hourStart:0, inProbe:false, tEnd:0, key:null, accE:0, accD:0, accT:0, abort:0};
-const motifTable=new Map(); // key -> {eCycle,dCycle,tCycle}
+const motifTable=new Map();
 function resetProbeHour(){
   const w=wallNow();
   if(probe.hourStart===0) probe.hourStart=w;
@@ -831,7 +827,6 @@ function finishProbe(){
 
 /* =========================================================
    CIEU event-level five tuple (core asset)
-   CIEU = <x_t, u_t, y*_t, y_{t+Δ}, r_{t+Δ}>
    ========================================================= */
 let currentCIEU=null;
 function startCIEU(t, x, phiS, phiM, phiL, action, yStart, yStarStart){
@@ -884,12 +879,11 @@ function finishCIEU(t){
 
   currentCIEU.y_out.duration = t - currentCIEU.t0;
 
-  // Reward: benefit from E_delta reduction vs cost (sleep quality proxy) + turn bonus
   const sqw=getSQW();
   const dur=Math.max(1e-6, currentCIEU.y_out.duration);
 
-  const meanEdelta = currentCIEU.y_out.E_delta / dur; // using raw (not normalized), but stable enough
-  const benefit = clamp(1 - (meanEdelta / 2500), 0, 1); // scale factor heuristic
+  const meanEdelta = currentCIEU.y_out.E_delta / dur;
+  const benefit = clamp(1 - (meanEdelta / 2500), 0, 1);
 
   const uMean = currentCIEU.y_out.uEnergy / dur;
   const uPeakN = getCap()>0 ? clamp(currentCIEU.y_out.uPeak / getCap(), 0, 2) : 0;
@@ -897,8 +891,8 @@ function finishCIEU(t){
 
   const turnBonus = currentCIEU.motion_t.turnDetected ? 0.08 : 0.0;
 
-  const r = clamp((benefit + turnBonus) - cost, -1, 1);
   const cost = sqw*(0.42*uMean + 0.35*uPeakN + 0.23*duPenalty);
+  const r = clamp((benefit + turnBonus) - cost, -1, 1);
 
   currentCIEU.r_t.rewardNorm = r;
   currentCIEU.r_t.components = {benefit, turnBonus, cost, uMean, uPeakN, duPenalty, meanEdelta};
@@ -908,7 +902,7 @@ function finishCIEU(t){
 }
 
 /* =========================================================
-   SCOPE (crisp) — 原版保留
+   SCOPE (crisp) — 主版本
    ========================================================= */
 const cCtx=ui.cvs.getContext("2d");
 let bY=new Array(CFG.SCOPE_N).fill(0);
@@ -935,7 +929,6 @@ function drawScope(Y,Ys,u,thr){
   bYs.push(Ys); bYs.shift();
   bU.push(u*255); bU.shift();
 
-  // threshold
   const yT=h-(thr/255)*h;
   cCtx.save();
   cCtx.strokeStyle="rgba(255,255,255,0.18)";
@@ -944,7 +937,6 @@ function drawScope(Y,Ys,u,thr){
   cCtx.beginPath(); cCtx.moveTo(0,yT); cCtx.lineTo(w,yT); cCtx.stroke();
   cCtx.restore();
 
-  // u fill
   if(Math.max(...bU)>1){
     cCtx.fillStyle="rgba(255,59,48,0.18)";
     cCtx.beginPath();
@@ -959,7 +951,6 @@ function drawScope(Y,Ys,u,thr){
     cCtx.fill();
   }
 
-  // Y
   cCtx.strokeStyle="#00f2ff";
   cCtx.lineWidth=1.5;
   cCtx.beginPath();
@@ -970,7 +961,6 @@ function drawScope(Y,Ys,u,thr){
   }
   cCtx.stroke();
 
-  // Y*
   cCtx.strokeStyle="#ff9f0a";
   cCtx.lineWidth=2.0;
   cCtx.beginPath();
@@ -1008,21 +998,17 @@ function newSession(t0){
     eventT0:0,
     eventStartY:0,
     below:null,
-    // totals
     E_real:0,
     E_delta:0,
     uEnergy:0,
     uPeak:0,
-    // IF
     E_if:0,
     deltaE_if:0,
     motifCoverageSec:0,
-    // probe stats
     probeEnabled:false,
     probePerHour:0,
     probeAbort:0,
     motifs:0,
-    // motion
     motionEnabled:false,
     turns:0
   };
@@ -1067,7 +1053,6 @@ function loop(){
   updateSleepLatency(phiM,t,dt);
   updatePhase(phiM,phiL);
 
-  // calibration
   if(state==="CALIB"){
     ambientN++;
     ambient += (Y-ambient)/Math.max(1,ambientN);
@@ -1079,12 +1064,10 @@ function loop(){
     }
   }
 
-  // sleep template
   const sleepName=decideSleep();
   if(sleepName==="OFF"){ applySleep("OFF"); setSleepBus(0); }
   else { applySleep(sleepName); setSleepBus(sleepBase()); }
 
-  // choose option policy
   const x = ctxVec(phiS,phiM,phiL);
   if(!action._optActive){
     action._optActive=true;
@@ -1104,7 +1087,6 @@ function loop(){
     action._stats = {sumT:0, E_delta_norm:0, uMean:0, uPeakN:0, strong:0, duNorm:0, turnBonus:0};
   }
   if(action._optActive && t>=action._optEnd){
-    // compute reward for option
     const stats=action._stats;
     const meanE = stats.sumT>0 ? (stats.E_delta_norm/stats.sumT) : 0;
     const benefit = clamp(1 - (meanE/0.04), 0, 1);
@@ -1125,7 +1107,6 @@ function loop(){
 
   const wantEvent = (Y>detectThr) || simulate;
 
-  // event transitions + CIEU
   if(!session.inEvent && wantEvent){
     session.inEvent=true;
     session.eventT0=t;
@@ -1148,20 +1129,17 @@ function loop(){
     session.below=null;
   }
 
-  // dynamic Y*
   const yStarObj = session.inEvent
     ? computeYStar(t-session.eventT0, session.eventStartY, phiS,phiM,phiL)
     : computeYStar(0, Y, phiS,phiM,phiL);
   const Ystar=yStarObj.ys;
 
-  // metrics
   const exceed=Math.max(0,Y-useThr);
   session.E_real += (exceed*exceed)*dt;
 
   const deltaPlus=Math.max(0,Y-Ystar);
   session.E_delta += (deltaPlus*deltaPlus)*dt;
 
-  // IF motif accumulation (parallel world)
   const key = motifKeyFrom(feat, phiM);
 
   if(motifTable.has(key) && Y>useThr){
@@ -1174,7 +1152,6 @@ function loop(){
 
   session.deltaE_if = session.E_if - session.E_real;
 
-  // IF Probe L1
   probe.enabled = ui.ifProbe.checked;
   session.probeEnabled = probe.enabled;
 
@@ -1182,7 +1159,6 @@ function loop(){
     startProbe(key, estimateCycleSec(feat), t);
   }
 
-  // control action u and nudges
   let u=0;
   const mode=getMode(phase, stage);
 
@@ -1216,7 +1192,6 @@ function loop(){
     session.uEnergy += (u*u)*dt;
     session.uPeak = Math.max(session.uPeak, u);
 
-    // nudge schedule in event
     if(session.inEvent && u>0.03){
       const gap=clamp(CFG.NUDGE_MAX_GAP - u*(CFG.NUDGE_MAX_GAP-CFG.NUDGE_MIN_GAP), CFG.NUDGE_MIN_GAP, CFG.NUDGE_MAX_GAP);
       if(ctx.currentTime >= nudgeNext){
@@ -1225,12 +1200,10 @@ function loop(){
       }
     }
 
-    // option stats
     if(action._optActive){
       const dNorm=Math.max(0,(Y-Ystar)/255);
       action._stats.sumT += dt;
       action._stats.E_delta_norm += (dNorm*dNorm)*dt;
-      // uMean / uPeak normalized to cap
       action._stats.uMean += (cap>0 ? (u/cap) : 0)*dt;
       action._stats.uPeakN = Math.max(action._stats.uPeakN, cap>0 ? (u/cap) : 0);
       action._stats.duNorm = clamp(duUsed()/0.8,0,2);
@@ -1240,7 +1213,6 @@ function loop(){
       }
     }
 
-    // CIEU accumulation
     if(currentCIEU){
       currentCIEU.y_out.peakY = Math.max(currentCIEU.y_out.peakY, Y);
       currentCIEU.y_out.E_exceed += (exceed*exceed)*dt;
@@ -1256,12 +1228,10 @@ function loop(){
     }
   }
 
-  // duck sleep while nudging
   if(mode!=="monitor" && (session.inEvent || u>0.05)){
     setSleepBus(Math.min(sleepBase(),0.25));
   }
 
-  // update overlay
   ui.oPhase.textContent=phase;
   ui.oStage.textContent=stage;
   ui.oLevel.textContent=action.level;
@@ -1270,20 +1240,17 @@ function loop(){
   ui.oTurns.textContent=String(session.turns||0);
   ui.oMotion.textContent=(motion.enabled && motion.permitted)?"ON":"OFF";
 
-  // probe stats
   session.probePerHour = probe.perHour;
   session.probeAbort = probe.abort;
   session.motifs = motifTable.size;
 
-  // draw scope
   drawScope(Y,Ystar,u,useThr);
 
-  // loop
   setTimeout(loop, 1000/CFG.LOGIC_HZ);
 }
 
 /* =========================================================
-   第二份 Scope 代码（原样保留，但用注释封存防止语法冲突）
+   第二份 Scope 代码：原样保留，但注释掉避免重复声明
    ========================================================= */
 /*
 const ctx2=ui.cvs.getContext("2d");
@@ -1426,19 +1393,16 @@ async function startSystem(){
 
     await ensureMic();
 
-    // motion state
     motion.enabled = ui.useMotion.checked;
     if(motion.enabled && motion.permitted) setPill(ui.pillMotion,"ok","motion: on");
     else if(motion.enabled) setPill(ui.pillMotion,"warn","motion: need perm");
     else setPill(ui.pillMotion,"warn","motion: off");
 
-    // sleep template
     applySleep("OCEAN_SOFT");
     masterOn(true);
     setSleepBus(0.78);
     setNudgeBus(0);
 
-    // reset runtime
     running=true;
     phase="ONSET"; stage="CALM"; state="CALIB";
     lastTick=0; t=0; dt=1/CFG.LOGIC_HZ;
@@ -1447,14 +1411,11 @@ async function startSystem(){
     bufS=[];bufM=[];bufL=[];budgetBuf=[];duBuf=[];
     sleepLatencySec=null; onsetStable=0;
 
-    // reset IF probe
     probe={enabled:false, perHour:0, hourStart:0, inProbe:false, tEnd:0, key:null, accE:0, accD:0, accT:0, abort:0};
     motifTable.clear();
 
-    // reset session
     session=newSession(nowMs()/1000);
 
-    // reset action option
     action={level:"SOFT", actionKey:"NUDGE_ALT::0.00", token:"NUDGE_ALT", rho:0.0, _optActive:false};
 
     ui.btnActivate.textContent="STOP";
@@ -1470,13 +1431,10 @@ function stopSystem(){
   if(!running) return;
   running=false;
 
-  // finalize any open CIEU
   finishCIEU(t);
 
-  // persist session summary
   pushDB({type:"SESSION_SUMMARY", ...session, motifs: motifTable.size, savedAt:Date.now()});
 
-  // fade out
   try{ setNudgeBus(0); setSleepBus(0); masterOn(false); }catch(e){}
 
   ui.btnActivate.textContent="ACTIVATE";
@@ -1492,7 +1450,6 @@ function stopSystem(){
 
 ui.btnActivate.addEventListener("click", ()=> running ? stopSystem() : startSystem());
 
-/* init pills */
 setPill(ui.pillAudio,"warn","audio: suspended");
 setPill(ui.pillMic,"warn","mic: off");
 setPill(ui.pillMotion,"warn","motion: off");
