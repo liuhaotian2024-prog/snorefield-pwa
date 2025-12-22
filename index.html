@@ -3,11 +3,12 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no" />
-  <title>SnoreField — WaveFrame Positional Nudge Core (v7.4)</title>
+  <title>SnoreField — Positional Nudge + DeviceMotion (v7.5)</title>
   <style>
     :root{
       --bg:#050505; --txt:#eee; --accent:#0a84ff;
       --snore:#00f2ff; --target:#ff9f0a; --intv:#ff3b30;
+      --ok:#31c48d; --warn:#f6ad55; --bad:#fc8181;
     }
     html,body{height:100%; margin:0; font-family:monospace; background:var(--bg); color:var(--txt); overflow:hidden;}
     .scope-wrap{ width:100%; height:260px; background:#000; border-bottom:1px solid #333; position:relative; }
@@ -18,6 +19,10 @@
     .highlight{ color:var(--accent); font-weight:bold; }
     .top-right{ position:absolute; top:10px; right:10px; display:flex; flex-direction:column; gap:6px; align-items:flex-end; }
     .pill{ padding:4px 8px; border:1px solid #333; border-radius:999px; font-size:10px; color:#bbb; background:rgba(0,0,0,.35); }
+    .pill.ok { border-color:rgba(49,196,141,.6); color:rgba(49,196,141,.95); }
+    .pill.warn{ border-color:rgba(246,173,85,.6); color:rgba(246,173,85,.95); }
+    .pill.bad{ border-color:rgba(252,129,129,.6); color:rgba(252,129,129,.95); }
+
     .main{ flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:16px; padding:20px; }
     .status-box{ text-align:center; }
     .st-main{ font-size:22px; font-weight:bold; margin-bottom:5px; }
@@ -35,28 +40,37 @@
     .btn-power.active{ border-color:var(--accent); background: radial-gradient(circle, #003060, #000); box-shadow:0 0 60px rgba(10,132,255,0.25); }
     .btn-power svg{ width:40px; height:40px; fill:currentColor; }
 
-    .controls{ width:min(520px, 94vw); display:flex; flex-direction:column; gap:10px; }
+    .controls{ width:min(560px, 94vw); display:flex; flex-direction:column; gap:10px; }
     .row{ display:flex; gap:10px; }
     .col{ flex:1; display:flex; flex-direction:column; gap:6px; }
     .label{ font-size:11px; color:#888; display:flex; justify-content:space-between; align-items:center; }
-    select,input[type=range]{ width:100%; background:#0c0c0c; border:1px solid #333; border-radius:10px; padding:10px; color:#ddd; outline:none; }
+    select,input[type=range]{
+      width:100%; background:#0c0c0c; border:1px solid #333; border-radius:10px; padding:10px; color:#ddd; outline:none;
+    }
     input[type=range]{ padding:0; height:36px; }
+    .toggles{ display:flex; justify-content:space-between; gap:10px; flex-wrap:wrap; }
+    .toggle{ display:flex; gap:8px; align-items:center; color:#aaa; font-size:11px; }
+    .toggle input{ transform:scale(1.1); }
+
     .btn-test{
       background:#111; color:#bbb; border:1px solid #333; padding:12px; width:100%;
       border-radius:10px; cursor:pointer; font-family:monospace; font-size:12px;
       user-select:none; touch-action:none;
     }
     .btn-test.active{ background:var(--snore); color:#000; }
-    .btn-mini{ background:#0b0b0b; color:#cfe; border:1px solid #2b5; padding:12px; width:100%;
-      border-radius:10px; cursor:pointer; font-family:monospace; font-size:12px; user-select:none; }
+
+    .btn-mini{
+      background:#0b0b0b; color:#cfe; border:1px solid #2b5; padding:12px; width:100%;
+      border-radius:10px; cursor:pointer; font-family:monospace; font-size:12px; user-select:none;
+    }
     .btn-mini.blue{ border-color:#59f; color:#def; }
     .btn-mini.amber{ border-color:#fa3; color:#ffe; }
-    .toggles{ display:flex; justify-content:space-between; gap:10px; }
-    .toggle{ display:flex; gap:8px; align-items:center; color:#aaa; font-size:11px; }
-    .toggle input{ transform:scale(1.1); }
-    details{ width:min(820px, 94vw); border:1px solid #333; border-radius:10px; padding:10px; background:#0a0a0a; }
+    .btn-mini.gray{ border-color:#666; color:#ddd; }
+
+    details{ width:min(900px, 94vw); border:1px solid #333; border-radius:10px; padding:10px; background:#0a0a0a; }
     summary{ cursor:pointer; color:#888; font-size:11px; }
-    pre{ margin:8px 0 0; padding:10px; border-radius:10px; background:#060606; border:1px solid #222; max-height:240px; overflow:auto; font-size:10px; color:#9aa; }
+    pre{ margin:8px 0 0; padding:10px; border-radius:10px; background:#060606; border:1px solid #222; max-height:260px; overflow:auto; font-size:10px; color:#9aa; }
+
     .debug{ position:fixed; bottom:0; width:100%; padding:8px; background:#0a0a0a; font-size:10px; color:#666; text-align:center; border-top:1px solid #222; }
     .debug a{ color:#8bb; text-decoration:none; margin-left:12px; }
   </style>
@@ -65,18 +79,19 @@
 
 <div class="scope-wrap">
   <div class="legend">
-    <div><span class="dot" style="background:var(--snore)"></span>Y (INPUT)</div>
-    <div><span class="dot" style="background:var(--target)"></span>Y* (TARGET)</div>
-    <div><span class="dot" style="background:var(--intv)"></span>u (NUDGE INTENSITY)</div>
+    <div><span class="dot" style="background:var(--snore)"></span>Y</div>
+    <div><span class="dot" style="background:var(--target)"></span>Y*</div>
+    <div><span class="dot" style="background:var(--intv)"></span>u</div>
   </div>
   <div class="math-stat" id="mathStat">
     Phase: <span class="highlight">IDLE</span><br>
-    RL(Level): -- | RL(Nudge): --<br>
+    Nudge: -- | Motion: --<br>
     CIEU: 0 | IF ΔE: --
   </div>
   <div class="top-right">
-    <div class="pill" id="pillAudio">audio: suspended</div>
-    <div class="pill" id="pillMic">mic: off</div>
+    <div class="pill warn" id="pillAudio">audio: suspended</div>
+    <div class="pill warn" id="pillMic">mic: off</div>
+    <div class="pill warn" id="pillMotion">motion: off</div>
   </div>
   <canvas id="scope"></canvas>
 </div>
@@ -84,7 +99,7 @@
 <div class="main">
   <div class="status-box">
     <div class="st-main" id="stMain">SYSTEM READY</div>
-    <div class="st-sub" id="stSub">v7.4 Positional Nudge (ear cues → micro-movement)</div>
+    <div class="st-sub" id="stSub">v7.5 Positional Nudge + Optional DeviceMotion</div>
   </div>
 
   <button class="btn-power" id="btnPower">
@@ -104,7 +119,7 @@
         </select>
       </div>
       <div class="col">
-        <div class="label"><span>SLEEP TEMPLATE</span><span id="sleepVal">AUTO</span></div>
+        <div class="label"><span>SLEEP</span><span id="sleepVal">AUTO</span></div>
         <select id="sleepSel">
           <option value="AUTO">AUTO</option>
           <option value="OCEAN_SOFT">OCEAN_SOFT</option>
@@ -118,7 +133,7 @@
 
     <div class="row">
       <div class="col">
-        <div class="label"><span>CAP (max u)</span><span id="capVal">0.10</span></div>
+        <div class="label"><span>CAP</span><span id="capVal">0.10</span></div>
         <input type="range" id="capRange" min="0" max="0.20" step="0.005" value="0.10">
       </div>
       <div class="col">
@@ -150,8 +165,13 @@
     </div>
 
     <div class="toggles">
+      <label class="toggle"><input type="checkbox" id="useMotion"> Use DeviceMotion (L0)</label>
+      <button class="btn-mini gray" id="btnMotionPerm" type="button">REQUEST MOTION PERMISSION</button>
+    </div>
+
+    <div class="toggles">
       <label class="toggle"><input type="checkbox" id="ifProbe"> IF Probe L1</label>
-      <label class="toggle"><input type="checkbox" id="autoBackup" checked> Auto Backup on Stop</label>
+      <label class="toggle"><input type="checkbox" id="autoBackup" checked> Auto Backup</label>
     </div>
 
     <div class="row">
@@ -165,53 +185,38 @@
     <button class="btn-test" id="btnTest">HOLD TO SIMULATE SNORE (FORCE EVENT)</button>
 
     <details>
-      <summary>Session Summary / Debug</summary>
+      <summary>Debug / Errors</summary>
       <pre id="debugView">{}</pre>
     </details>
   </div>
 </div>
 
-<div class="debug" id="debug">
-  v7.4 Positional Nudge
+<div class="debug">
+  v7.5
   <a href="#" id="exportBtn">EXPORT LOCAL</a>
   <a href="#" id="clearBtn">CLEAR LOCAL</a>
 </div>
 
 <script>
-/* ========= utilities ========= */
+/* ------------------- Global error trap (so you SEE why it won't start) ------------------- */
+(function(){
+  const debugEl = document.getElementById("debugView");
+  window.addEventListener("error",(e)=>{
+    try{
+      const msg = `[JS ERROR] ${e.message}\n${e.filename}:${e.lineno}:${e.colno}`;
+      debugEl.textContent = msg + "\n\n" + debugEl.textContent;
+    }catch(_){}
+  });
+})();
+
+/* ------------------- Helpers ------------------- */
 const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
 const nowMs=()=>performance.now();
 const wallNow=()=>Date.now();
 const fmt=(x,d=3)=> (typeof x==="number"? x.toFixed(d): String(x));
-
-/* ========= storage ========= */
-const STORE={DB:"snorefield_v7_4_db"};
-function loadJSON(key,fallback){ try{const raw=localStorage.getItem(key); return raw?JSON.parse(raw):fallback;}catch(e){return fallback;} }
-function saveJSON(key,obj){ try{localStorage.setItem(key,JSON.stringify(obj));}catch(e){} }
-let DB=loadJSON(STORE.DB,[]);
-
-/* ========= config ========= */
-const CFG={
-  LOGIC_HZ:20, SCOPE_N:320,
-  CALIB_TIME_MS:12000,
-  MASTER_FADE_IN:5.0,
-  ONSET_MIN_SEC:180,
-  ONSET_DUCK_AFTER_SEC:15*60,
-  ONSET_BG_LEVEL:0.35,
-  THR_MARGIN:15,
-  PHI_SHORT:8, PHI_MID:60, PHI_LONG:600,
-  DU_WIN:30, BUDGET_WIN:600,
-  MAX_DU_PER_TICK:0.015,
-  STRONG_MAX_PER_MIN:3,
-  PROBE_MAX_PER_H:5,
-  PROBE_ABORT_MARGIN:35,
-  // nudge scheduler
-  NUDGE_MIN_GAP: 0.8,
-  NUDGE_MAX_GAP: 2.2
-};
-
-/* ========= UI ========= */
 const $ = (id)=>document.getElementById(id);
+
+/* ------------------- UI ------------------- */
 const ui={
   btnPower:$("btnPower"), btnText:$("btnText"),
   stMain:$("stMain"), stSub:$("stSub"), mathStat:$("mathStat"),
@@ -220,13 +225,25 @@ const ui={
   thrRange:$("thrRange"), optRange:$("optRange"), alphaRange:$("alphaRange"), sqwRange:$("sqwRange"),
   modeVal:$("modeVal"), sleepVal:$("sleepVal"), capVal:$("capVal"), sleepVolVal:$("sleepVolVal"),
   thrVal:$("thrVal"), optVal:$("optVal"), alphaVal:$("alphaVal"), sqwVal:$("sqwVal"),
+
+  useMotion:$("useMotion"),
+  btnMotionPerm:$("btnMotionPerm"),
+
   ifProbe:$("ifProbe"), autoBackup:$("autoBackup"),
   btnTest:$("btnTest"),
-  pillAudio:$("pillAudio"), pillMic:$("pillMic"),
+
+  pillAudio:$("pillAudio"), pillMic:$("pillMic"), pillMotion:$("pillMotion"),
+
   cvs:$("scope"), debugView:$("debugView"),
-  exportBtn:$("exportBtn"), clearBtn:$("clearBtn"),
-  btnExportReport:$("btnExportReport"), btnExportLocal:$("btnExportLocal"), btnSaveSnapshot:$("btnSaveSnapshot")
+  btnExportReport:$("btnExportReport"), btnExportLocal:$("btnExportLocal"), btnSaveSnapshot:$("btnSaveSnapshot"),
+  exportBtn:$("exportBtn"), clearBtn:$("clearBtn")
 };
+
+function setPill(el, kind, text){
+  el.classList.remove("ok","warn","bad");
+  el.classList.add(kind);
+  el.textContent=text;
+}
 
 function syncUI(){
   ui.modeVal.textContent=ui.modeSel.value.toUpperCase();
@@ -242,17 +259,13 @@ function syncUI(){
   ui.modeSel.addEventListener(ev,syncUI);
   ui.sleepSel.addEventListener(ev,syncUI);
   ui.capRange.addEventListener(ev,syncUI);
-  ui.sleepVolRange.addEvent(ev, syncUI);
+  ui.sleepVolRange.addEventListener(ev,syncUI);
+  ui.thrRange.addEventListener(ev,syncUI);
+  ui.optRange.addEventListener(ev,syncUI);
+  ui.alphaRange.addEventListener(ev,syncUI);
+  ui.sqwRange.addEventListener(ev,syncUI);
 });
-function addEvent(el, ev, fn){ el.addEventListener(ev, fn); }
-addEvent(ui.sleepVolRange,"input",syncUI);
-addEvent(ui.thrRange,"input",syncUI);
-addEvent(ui.optRange,"input",syncUI);
-addEvent(ui.alphaRange,"input",syncUI);
-addEvent(ui.sqwRange,"input",syncUI);
 syncUI();
-
-function setPill(el,kind,text){ el.classList.remove("ok","warn","bad"); el.classList.add(kind); el.textContent=text; }
 
 function getTHR(){return parseInt(ui.thrRange.value,10);}
 function getCap(){return parseFloat(ui.capRange.value);}
@@ -270,11 +283,35 @@ function getMode(){
   return "standard";
 }
 
-/* ========= audio ========= */
+/* ------------------- Storage ------------------- */
+const STORE={DB:"snorefield_v7_5_db"};
+function loadJSON(key,fallback){ try{const raw=localStorage.getItem(key); return raw?JSON.parse(raw):fallback;}catch(e){return fallback;} }
+function saveJSON(key,obj){ try{localStorage.setItem(key,JSON.stringify(obj));}catch(e){} }
+let DB=loadJSON(STORE.DB,[]);
+
+/* ------------------- Config ------------------- */
+const CFG={
+  LOGIC_HZ:20, SCOPE_N:320,
+  CALIB_TIME_MS:12000,
+  MASTER_FADE_IN:5.0,
+  ONSET_MIN_SEC:180,
+  ONSET_DUCK_AFTER_SEC:15*60,
+  ONSET_BG_LEVEL:0.35,
+  THR_MARGIN:15,
+  PHI_SHORT:8, PHI_MID:60, PHI_LONG:600,
+  DU_WIN:30, BUDGET_WIN:600,
+  MAX_DU_PER_TICK:0.015,
+  STRONG_MAX_PER_MIN:3,
+  PROBE_MAX_PER_H:5,
+  PROBE_ABORT_MARGIN:35,
+  // nudge
+  NUDGE_MIN_GAP:0.8, NUDGE_MAX_GAP:2.2
+};
+
+/* ------------------- Audio + Mic ------------------- */
 let ctx=null,mic=null,analyser=null,fftData=null;
 let outMaster=null,busSleep=null,busNudge=null;
 let sleepGraph=null,currentSleepName="";
-let currentNudgeToken="NUDGE_ALT";
 let nudgeNextTime=0;
 
 function ensureAudio(){
@@ -289,7 +326,6 @@ function ensureAudio(){
   setPill(ui.pillAudio, ctx.state==="running"?"ok":"warn", `audio: ${ctx.state}`);
   ctx.onstatechange=()=>setPill(ui.pillAudio, ctx.state==="running"?"ok":"warn", `audio: ${ctx.state}`);
 }
-
 async function ensureMic(){
   if(mic) return;
   const stream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:false,noiseSuppression:false,autoGainControl:false}});
@@ -301,13 +337,11 @@ async function ensureMic(){
   mic.connect(analyser);
   setPill(ui.pillMic,"ok","mic: on");
 }
-
 function stopGraph(g){
   if(!g) return;
   try{g.stop?.();}catch(e){}
   try{g.dispose?.();}catch(e){}
 }
-
 function masterOn(on){
   const t=ctx.currentTime;
   outMaster.gain.cancelScheduledValues(t);
@@ -328,14 +362,13 @@ function setNudgeBus(level){
   busNudge.gain.linearRampToValueAtTime(level, t+0.08);
 }
 
-// noise primitives
+/* ------------------- Noise / Sleep template ------------------- */
 function whiteNoise(ctx){
   const n=2*ctx.sampleRate;
   const b=ctx.createBuffer(1,n,ctx.sampleRate);
   const d=b.getChannelData(0);
   for(let i=0;i<n;i++) d[i]=(Math.random()*2-1)*0.35;
-  const s=ctx.createBufferSource(); s.buffer=b; s.loop=true;
-  return s;
+  const s=ctx.createBufferSource(); s.buffer=b; s.loop=true; return s;
 }
 function pinkNoise(ctx){
   const n=2*ctx.sampleRate;
@@ -354,8 +387,7 @@ function pinkNoise(ctx){
     b6=w*0.115926;
     out[i]=p*0.08;
   }
-  const s=ctx.createBufferSource(); s.buffer=b; s.loop=true;
-  return s;
+  const s=ctx.createBufferSource(); s.buffer=b; s.loop=true; return s;
 }
 function brownNoise(ctx){
   const n=2*ctx.sampleRate;
@@ -367,8 +399,7 @@ function brownNoise(ctx){
     last=clamp(last+0.02*w,-1,1);
     out[i]=last*0.32;
   }
-  const s=ctx.createBufferSource(); s.buffer=b; s.loop=true;
-  return s;
+  const s=ctx.createBufferSource(); s.buffer=b; s.loop=true; return s;
 }
 function softPad(ctx){
   const g=ctx.createGain(); g.gain.value=0.25;
@@ -390,7 +421,6 @@ function softPad(ctx){
   mix.connect(lp); lp.connect(amp); amp.connect(g);
   return {node:g, start:()=>{oscs.forEach(o=>o.start()); lfo.start();}, stop:()=>{oscs.forEach(o=>o.stop()); lfo.stop();}};
 }
-
 function buildSleepTemplate(name){
   const out=ctx.createGain(); out.gain.value=1;
   const hp=ctx.createBiquadFilter(); hp.type="highpass"; hp.frequency.value=25;
@@ -464,7 +494,6 @@ function buildSleepTemplate(name){
     }
   };
 }
-
 function applySleep(name){
   if(!ctx) return;
   if(name===currentSleepName && sleepGraph) return;
@@ -475,47 +504,107 @@ function applySleep(name){
   currentSleepName=name;
 }
 
-/* ========= NUDGE ENGINE (positional cues) =========
-   Idea: Instead of ANC/masking, we output short, directional pulses:
-   - NUDGE_LEFT: pan left pulses
-   - NUDGE_RIGHT: pan right pulses
-   - NUDGE_ALT: alternate L/R pulses
-   - NUDGE_BREATH: slow pulse (0.25Hz) gentle center
-*/
+/* ------------------- DeviceMotion (L0 optional) ------------------- */
+let motion = {
+  enabled:false,
+  permitted:false,
+  lastT:0,
+  ax:0, ay:0, az:0,
+  gx:0, gy:0, gz:0, // gravity proxy
+  rms:0,
+  tiltLR:0, // left/right tilt proxy [-1,1]
+  moved:false,
+  turnEvent:false,
+  _prevTiltLR:0
+};
+
+function computeTiltFromGravity(gx,gy,gz){
+  // gx,gy,gz in m/s^2 from accelerationIncludingGravity (approx)
+  // left-right tilt approx from gx magnitude
+  const denom = Math.max(1e-6, Math.sqrt(gx*gx+gy*gy+gz*gz));
+  const nx = gx/denom;
+  return clamp(nx, -1, 1);
+}
+
+function onDeviceMotion(e){
+  if(!motion.enabled) return;
+  const ag = e.accelerationIncludingGravity;
+  if(ag){
+    motion.gx = ag.x ?? motion.gx;
+    motion.gy = ag.y ?? motion.gy;
+    motion.gz = ag.z ?? motion.gz;
+    motion.tiltLR = computeTiltFromGravity(motion.gx, motion.gy, motion.gz);
+  }
+  const a = e.acceleration;
+  if(a){
+    motion.ax = a.x ?? motion.ax;
+    motion.ay = a.y ?? motion.ay;
+    motion.az = a.z ?? motion.az;
+    const inst = Math.sqrt((motion.ax||0)**2 + (motion.ay||0)**2 + (motion.az||0)**2);
+    // smooth rms proxy
+    motion.rms = 0.90*motion.rms + 0.10*inst;
+    motion.moved = (motion.rms > 0.25); // heuristic threshold
+  }
+  // detect "turn" by tilt sign change with enough magnitude
+  const prev = motion._prevTiltLR;
+  const cur = motion.tiltLR;
+  if(Math.abs(prev) > 0.25 && Math.abs(cur) > 0.25 && (prev*cur < 0)){
+    motion.turnEvent = true; // one-shot, will be consumed
+  }
+  motion._prevTiltLR = cur;
+}
+
+async function requestMotionPermission(){
+  try{
+    // iOS 13+ requires permission
+    if(typeof DeviceMotionEvent !== "undefined" && typeof DeviceMotionEvent.requestPermission === "function"){
+      const res = await DeviceMotionEvent.requestPermission();
+      motion.permitted = (res === "granted");
+    }else{
+      // Android/desktop usually no permission gate
+      motion.permitted = true;
+    }
+    if(motion.permitted){
+      window.addEventListener("devicemotion", onDeviceMotion, {passive:true});
+      setPill(ui.pillMotion, "ok", "motion: on");
+    }else{
+      setPill(ui.pillMotion, "warn", "motion: denied");
+    }
+  }catch(e){
+    setPill(ui.pillMotion, "warn", "motion: error");
+    ui.debugView.textContent = `[MotionError] ${e?.message||e}\n\n` + ui.debugView.textContent;
+  }
+}
+
+/* ------------------- Nudge pulse (directional ear cues) ------------------- */
 function scheduleNudgePulse(pattern, intensity){
   if(!ctx) return;
   const t0 = ctx.currentTime + 0.01;
 
-  // Base tone (soft, not harsh): 180Hz sine + slight noise bed
   const osc = ctx.createOscillator();
-  osc.type = "sine";
-  osc.frequency.value = 180;
+  osc.type="sine";
+  osc.frequency.value=180;
 
   const gain = ctx.createGain();
   gain.gain.setValueAtTime(0.0, t0);
-  // pulse envelope ~180ms, scaled by intensity
-  const A = clamp(0.10 + 0.35*intensity, 0.06, 0.42);
-  gain.gain.linearRampToValueAtTime(A, t0 + 0.03);
-  gain.gain.linearRampToValueAtTime(0.0, t0 + 0.18);
+  const A = clamp(0.08 + 0.32*intensity, 0.06, 0.40);
+  gain.gain.linearRampToValueAtTime(A, t0+0.03);
+  gain.gain.linearRampToValueAtTime(0.0, t0+0.18);
 
   const pan = ctx.createStereoPanner();
-  let p = 0;
-  if(pattern==="NUDGE_LEFT") p = -0.85;
-  else if(pattern==="NUDGE_RIGHT") p = +0.85;
+  let p=0;
+  if(pattern==="NUDGE_LEFT") p=-0.85;
+  else if(pattern==="NUDGE_RIGHT") p=+0.85;
   else if(pattern==="NUDGE_ALT"){
-    // alternate based on time
-    p = ((Math.floor(ctx.currentTime*2) % 2)===0) ? -0.85 : +0.85;
-  } else { // NUDGE_BREATH
-    p = 0;
-  }
+    p = ((Math.floor(ctx.currentTime*2)%2)===0) ? -0.85 : +0.85;
+  }else{ p=0; } // NUDGE_BREATH
+
   pan.pan.setValueAtTime(p, t0);
 
-  // soft noise click-smoothing
   const nz = pinkNoise(ctx);
   const nzG = ctx.createGain();
-  nzG.gain.value = 0.04 * intensity;
+  nzG.gain.value = 0.035 * intensity;
 
-  // route
   osc.connect(gain);
   gain.connect(pan);
   pan.connect(busNudge);
@@ -523,13 +612,11 @@ function scheduleNudgePulse(pattern, intensity){
   nz.connect(nzG);
   nzG.connect(busNudge);
 
-  osc.start(t0);
-  osc.stop(t0 + 0.22);
-  nz.start(t0);
-  nz.stop(t0 + 0.22);
+  osc.start(t0); osc.stop(t0+0.22);
+  nz.start(t0); nz.stop(t0+0.22);
 }
 
-/* ========= DSP / Y ========= */
+/* ------------------- DSP -> Y ------------------- */
 function computeSpectrumFeatures(){
   analyser.getFloatFrequencyData(fftData);
   const sr=ctx.sampleRate, nyq=sr/2, N=fftData.length;
@@ -562,15 +649,14 @@ function computeY(f){
   return Math.round(clamp(y,0,1)*255);
 }
 
-/* ========= buffers / metrics ========= */
-let bufS=[],bufM=[],bufL=[];
+/* ------------------- Field buffers + phase ------------------- */
+let bufS=[],bufM=[],bufL=[],budgetBuf=[],duBuf=[];
 function pushBuf(buf,winSec,s){ buf.push(s); const t=s.t; while(buf.length && (t-buf[0].t)>winSec) buf.shift(); }
 function phiFrom(buf,thr){
   let total=0,sumY=0,snoreT=0;
   for(const s of buf){ total+=s.dt; sumY+=s.Y*s.dt; if(s.Y>thr) snoreT+=s.dt; }
   return {Ymean: total>0?sumY/total:0, snoreRatio: total>0?snoreT/total:0};
 }
-let budgetBuf=[],duBuf=[];
 function pushBudget(t,dt,u){ budgetBuf.push({t,dt,u2:(u*u)*dt}); while(budgetBuf.length && (t-budgetBuf[0].t)>CFG.BUDGET_WIN) budgetBuf.shift(); }
 function budgetUsed(){ let s=0; for(const x of budgetBuf) s+=x.u2; return s; }
 function pushDu(t,dt,absDu){ duBuf.push({t,dt,val:absDu*dt}); while(duBuf.length && (t-duBuf[0].t)>CFG.DU_WIN) duBuf.shift(); }
@@ -602,7 +688,7 @@ function updatePhase(phiM,phiL){
   phase=stable?"STABLE":"EVENT";
 }
 
-/* ========= Y* ========= */
+/* ------------------- Y* and safety ------------------- */
 function tauOf(phiS,phiM,phiL){
   const cap=getCap();
   const bNorm=clamp(budgetUsed()/Math.max(1e-9,(CFG.BUDGET_WIN*cap*cap*0.25)),0,2);
@@ -625,8 +711,33 @@ function computeYStar(elapsed,startY,phiS,phiM,phiL){
   if(phase==="ONSET"||phase==="AROUSAL") ys=Math.max(thr, thr+0.30*(startY-thr));
   return {ys,tau};
 }
+let lastU=0, strongTimes=[];
+function applySafety(uEff,cap,t,dt){
+  let u=clamp(uEff,0,cap);
+  const du=u-lastU, absDu=Math.abs(du);
+  if(du>CFG.MAX_DU_PER_TICK) u=lastU+CFG.MAX_DU_PER_TICK;
+  if(du<-CFG.MAX_DU_PER_TICK) u=lastU-CFG.MAX_DU_PER_TICK;
+  pushDu(t,dt,absDu);
+  const budget=budgetUsed();
+  const thr=0.9*CFG.BUDGET_WIN*(cap*cap)*0.25;
+  if(budget>thr){
+    const scale=clamp(thr/Math.max(1e-9,budget),0.25,1);
+    u*=scale;
+  }
+  const strong=u>0.75*cap;
+  if(strong){
+    const w=wallNow();
+    strongTimes.push(w);
+    strongTimes=strongTimes.filter(x=>w-x<=60*1000);
+    if(strongTimes.length>CFG.STRONG_MAX_PER_MIN) u*=0.65;
+  }
+  if(phase==="ONSET") u*=0.72;
+  if(phase==="AROUSAL") u*=0.60;
+  lastU=u;
+  return u;
+}
 
-/* ========= RL (hierarchical LinUCB) for NUDGE patterns ========= */
+/* ------------------- RL (LinUCB) ------------------- */
 function zeros(n){return Array.from({length:n},()=>0);}
 function eye(n){const m=[]; for(let i=0;i<n;i++){const r=zeros(n); r[i]=1; m.push(r);} return m;}
 function dot(a,b){let s=0; for(let i=0;i<a.length;i++) s+=a[i]*b[i]; return s;}
@@ -677,6 +788,9 @@ function ctxVec(phiS,phiM,phiL){
   const cap=getCap();
   const bNorm=clamp(budgetUsed()/Math.max(1e-9,(CFG.BUDGET_WIN*cap*cap*0.25)),0,2);
   const duNorm=clamp(duUsed()/1.2,0,2);
+  // include motion tilt + movement as extra context if enabled+permitted
+  const tilt = (motion.enabled && motion.permitted) ? (motion.tiltLR*0.5+0.5) : 0.5;
+  const move = (motion.enabled && motion.permitted) ? (motion.moved?1:0) : 0;
   return [1,
     clamp(phiS.Ymean/255,0,1),
     clamp(phiS.snoreRatio,0,1),
@@ -684,11 +798,14 @@ function ctxVec(phiS,phiM,phiL){
     clamp(phiM.snoreRatio,0,1),
     clamp(phiL.snoreRatio,0,1),
     clamp(bNorm/2,0,1),
-    clamp(duNorm/2,0,1)
-  ];
+    clamp(duNorm/2,0,1),
+    // We keep d=10 in code by truncation below for stability
+    // (we'll only use first 8 dims in bandits; motion used in reward & logging)
+  ].slice(0,8);
 }
+
 function allowed(level){
-  if(level==="SOFT") return {capScale:0.75, tokens:["NUDGE_ALT","NUDGE_BREATH","NUDGE_LEFT","NUDGE_RIGHT"], rhos:[-0.20,-0.10,0.00,+0.10]};
+  if(level==="SOFT") return {capScale:0.75, tokens:NUDGE_TOKENS, rhos:[-0.20,-0.10,0.00,+0.10]};
   if(level==="NORMAL") return {capScale:1.00, tokens:NUDGE_TOKENS, rhos:[-0.20,-0.10,0.00,+0.10,+0.20]};
   return {capScale:1.05, tokens:NUDGE_TOKENS, rhos:[-0.10,0.00,+0.10,+0.20]};
 }
@@ -709,35 +826,7 @@ function chooseMaskedLow(x,level){
 }
 function parseActionKey(a){const [tok,r]=a.split("::"); return {tok, rho:parseFloat(r)};}
 
-/* ========= safety ========= */
-let lastU=0, strongTimes=[];
-function applySafety(uEff,cap,t,dt){
-  let u=clamp(uEff,0,cap);
-  const du=u-lastU, absDu=Math.abs(du);
-  if(du>CFG.MAX_DU_PER_TICK) u=lastU+CFG.MAX_DU_PER_TICK;
-  if(du<-CFG.MAX_DU_PER_TICK) u=lastU-CFG.MAX_DU_PER_TICK;
-  pushDu(t,dt,absDu);
-
-  const budget=budgetUsed();
-  const thr=0.9*CFG.BUDGET_WIN*(cap*cap)*0.25;
-  if(budget>thr){
-    const scale=clamp(thr/Math.max(1e-9,budget),0.25,1);
-    u*=scale;
-  }
-  const strong=u>0.75*cap;
-  if(strong){
-    const w=wallNow();
-    strongTimes.push(w);
-    strongTimes=strongTimes.filter(x=>w-x<=60*1000);
-    if(strongTimes.length>CFG.STRONG_MAX_PER_MIN) u*=0.65;
-  }
-  if(phase==="ONSET") u*=0.72;
-  if(phase==="AROUSAL") u*=0.60;
-  lastU=u;
-  return u;
-}
-
-/* ========= IF Probe L1 ========= */
+/* ------------------- IF Probe L1 ------------------- */
 let probe={enabled:false, perHour:0, hourStart:0, inProbe:false, tEnd:0, key:null, accE:0, accD:0, accT:0, abort:0};
 const motifTable=new Map();
 function resetProbeHour(){
@@ -774,23 +863,33 @@ function startProbe(key,cycleSec,t){
 function abortProbe(){ probe.inProbe=false; probe.abort++; }
 function finishProbe(){ motifTable.set(probe.key,{eCycle:probe.accE,dCycle:probe.accD,tCycle:probe.accT}); probe.inProbe=false; }
 
-/* ========= session + CIEU ========= */
+/* ------------------- Session + CIEU ------------------- */
 let session=null, currentCIEU=null;
+
 function newSession(t0){
   session={
     id:`sess_${Date.now()}`, t0, t0Wall:Date.now(),
     thr:getTHR(), cap:getCap(), mode:getMode(),
     ambientYmean:null, dynThr:null, _calibStartWall:0,
     sleepLatencySec:null,
+
     E_real:0, D_real:0, T_real:0,
     E_delta:0, D_delta:0, T_delta:0, deltaE_ratio:0,
     uEnergy:0, uPeak:0,
+
     E_if:0, D_if:0, T_if:0,
     deltaE:0, deltaD:0, deltaT:0,
+
     probeEnabled:false, probePerHour:0, probeAbort:0, motifsProbed:0, motifCoverage:0, _tMotifKnown:0,
-    inEvent:false, _eventT0:0, _eventStartY:0, _below:null
+
+    inEvent:false, _eventT0:0, _eventStartY:0, _below:null,
+
+    // motion outcomes
+    motionEnabled:false,
+    motionTurnCount:0
   };
 }
+
 function startCIEU(t,x,startY,phiS,phiM,phiL,opt){
   currentCIEU={
     id:`cieu_${Date.now()}_${Math.floor(Math.random()*1e6)}`,
@@ -800,13 +899,16 @@ function startCIEU(t,x,startY,phiS,phiM,phiL,opt){
     yStar_t:{startY,tau0:null},
     yOut_t:{peakY:startY,E_exceed:0,D_exceed:0,T_exceed:0,E_delta:0,D_delta:0,T_delta:0,uEnergy:0,uPeak:0,durationSec:0},
     r_t:{rewardNorm:0,components:{}},
-    if_t:{motifKnownSec:0}
+    if_t:{motifKnownSec:0},
+    motion_t:{turnDetected:false}
   };
 }
+
 function finishCIEU(t){
   if(!currentCIEU) return;
   currentCIEU.yOut_t.durationSec = t-currentCIEU.t0;
 
+  // Reward: EΔ benefit + sleep-quality cost + (optional) motion-turn bonus
   const sqw=getSQW(), cap=getCap();
   const uMean=currentCIEU.yOut_t.durationSec>0?(currentCIEU.yOut_t.uEnergy/currentCIEU.yOut_t.durationSec):0;
   const uPeakN=cap>0?clamp(currentCIEU.yOut_t.uPeak/cap,0,2):0;
@@ -815,18 +917,22 @@ function finishCIEU(t){
   const cost=sqw*(0.42*uMean+0.35*uPeakN+0.25*duPenalty+0.25*strongPenalty);
 
   const meanEdelta=currentCIEU.yOut_t.durationSec>0?(currentCIEU.yOut_t.E_delta/currentCIEU.yOut_t.durationSec):0;
-  const benefit=clamp(1-(meanEdelta/0.04),0,1);
+  let benefit=clamp(1-(meanEdelta/0.04),0,1);
+
+  // If motion sensor indicates a turn, give a small bonus (health-assist target)
+  const turnBonus = (currentCIEU.motion_t.turnDetected ? 0.08 : 0.0);
+  benefit = clamp(benefit + turnBonus, 0, 1);
 
   const r=clamp(benefit-cost,-1,1);
   currentCIEU.r_t.rewardNorm=r;
-  currentCIEU.r_t.components={benefit,cost,uMean,uPeakN,duPenalty,strongPenalty,meanEdelta};
+  currentCIEU.r_t.components={benefit,cost,uMean,uPeakN,duPenalty,strongPenalty,meanEdelta,turnBonus};
 
   DB.push({type:"CIEU",...currentCIEU});
   currentCIEU=null;
   saveJSON(STORE.DB,DB);
 }
 
-/* ========= scope ========= */
+/* ------------------- Scope ------------------- */
 const cCtx=ui.cvs.getContext("2d");
 let bufIn=new Array(CFG.SCOPE_N).fill(0);
 let bufStar=new Array(CFG.SCOPE_N).fill(0);
@@ -873,27 +979,27 @@ function drawScope(y,yStar,u,thr){
   }
 }
 
-/* ========= simulate snore hard switch ========= */
+/* ------------------- Simulate snore (hard switch) ------------------- */
 let simulateSnore=false;
 ui.btnTest.addEventListener("pointerdown",(e)=>{e.preventDefault(); simulateSnore=true; ui.btnTest.classList.add("active");});
 ui.btnTest.addEventListener("pointerup",(e)=>{e.preventDefault(); simulateSnore=false; ui.btnTest.classList.remove("active");});
 ui.btnTest.addEventListener("pointercancel",()=>{simulateSnore=false; ui.btnTest.classList.remove("active");});
 document.addEventListener("pointerup",()=>{simulateSnore=false; ui.btnTest.classList.remove("active");});
 
-/* ========= exports ========= */
+/* ------------------- Export buttons ------------------- */
 function exportReport(){
   const payload={type:"REPORT", session, motifs:Array.from(motifTable.entries()), dbTail:DB.slice(-300)};
   const blob=new Blob([JSON.stringify(payload,null,2)],{type:"application/json"});
   const url=URL.createObjectURL(blob);
   const a=document.createElement("a");
-  a.href=url; a.download=`SnoreField_v7_4_Report_${Date.now()}.json`;
+  a.href=url; a.download=`SnoreField_v7_5_Report_${Date.now()}.json`;
   a.click(); URL.revokeObjectURL(url);
 }
 function exportLocalDB(){
   const blob=new Blob([JSON.stringify(DB,null,2)],{type:"application/json"});
   const url=URL.createObjectURL(blob);
   const a=document.createElement("a");
-  a.href=url; a.download=`SnoreField_v7_4_LOCAL_${Date.now()}.json`;
+  a.href=url; a.download=`SnoreField_v7_5_LOCAL_${Date.now()}.json`;
   a.click(); URL.revokeObjectURL(url);
 }
 function saveSnapshot(){
@@ -913,12 +1019,25 @@ ui.btnSaveSnapshot.addEventListener("click",(e)=>{e.preventDefault(); saveSnapsh
 ui.exportBtn.addEventListener("click",(e)=>{e.preventDefault(); exportLocalDB();});
 ui.clearBtn.addEventListener("click",(e)=>{e.preventDefault(); clearLocal();});
 
-/* ========= main loop ========= */
+/* ------------------- Motion controls ------------------- */
+ui.btnMotionPerm.addEventListener("click",(e)=>{ e.preventDefault(); requestMotionPermission(); });
+ui.useMotion.addEventListener("change",()=>{
+  motion.enabled = ui.useMotion.checked;
+  session && (session.motionEnabled = motion.enabled);
+  if(!motion.enabled){
+    setPill(ui.pillMotion,"warn","motion: off");
+  }else{
+    setPill(ui.pillMotion, motion.permitted?"ok":"warn", motion.permitted?"motion: on":"motion: need perm");
+  }
+});
+
+/* ------------------- Start/Stop ------------------- */
 let lastTick=0, t=0, dt=1/CFG.LOGIC_HZ;
 let ambientYmean=0, ambientSamples=0, dynThr=null, state="IDLE";
 let pidI=0;
 let opt={active:false,tEnd:0,x:null,level:"SOFT",actionKey:null,token:"NUDGE_ALT",rho:0, stats:{sumT:0,E_delta:0,D_delta:0,sumU:0,uPeak:0,strong:0}};
 let lastSleepDecisionT=0, autoSleepName="OCEAN_SOFT";
+let nudgeNextTimeAudio=0;
 
 function sleepBaseLevel(){
   if(phase==="ONSET") return 0.78;
@@ -945,7 +1064,12 @@ function rewardOption(stats){
   const duPenalty=clamp(duUsed()/0.8,0,2);
   const cost=sqw*(0.42*uMean+0.35*uPeakN+0.25*duPenalty+0.25*strongPenalty);
   const meanE=stats.sumT>0?(stats.E_delta/stats.sumT):0;
-  const benefit=clamp(1-(meanE/0.04),0,1);
+  let benefit=clamp(1-(meanE/0.04),0,1);
+
+  // bonus if a turn was detected in this option window (if available)
+  if(motion.enabled && motion.permitted && motion.turnEvent){
+    benefit = clamp(benefit + 0.04, 0, 1);
+  }
   return clamp(benefit-cost,-1,1);
 }
 function beginOption(t,x){
@@ -953,22 +1077,66 @@ function beginOption(t,x){
   opt.tEnd=t+getOptSec();
   opt.x=x;
   opt.stats={sumT:0,E_delta:0,D_delta:0,sumU:0,uPeak:0,strong:0};
+
   banditLevel.alpha=getAlpha()*((phase==="ONSET"||phase==="AROUSAL")?0.7:1);
   banditLow.alpha=getAlpha();
+
   opt.level=banditLevel.choose(x);
   const a=chooseMaskedLow(x,opt.level);
   opt.actionKey=a;
   const p=parseActionKey(a);
   opt.token=p.tok; opt.rho=p.rho;
-  currentNudgeToken=opt.token;
 }
 function endOption(){
   if(!opt.active) return;
   opt.active=false;
   const r=rewardOption(opt.stats);
   banditLow.update(opt.actionKey,opt.x,r);
+  // consume one-shot motion turn flag
+  motion.turnEvent = false;
 }
 
+/* ----- IF Probe ----- */
+function resetProbeHour(){
+  const w=wallNow();
+  if(probe.hourStart===0) probe.hourStart=w;
+  if(w-probe.hourStart>=3600*1000){ probe.hourStart=w; probe.perHour=0; }
+}
+function canProbe(){
+  if(!probe.enabled) return false;
+  if(sleepLatencySec==null) return false;
+  if(!(phase==="STABLE"&&stage==="CALM")) return false;
+  resetProbeHour();
+  if(probe.perHour>=CFG.PROBE_MAX_PER_H) return false;
+  if(probe.inProbe) return false;
+  return true;
+}
+
+/* ----- Y* ----- */
+function tauOf(phiS,phiM,phiL){
+  const cap=getCap();
+  const bNorm=clamp(budgetUsed()/Math.max(1e-9,(CFG.BUDGET_WIN*cap*cap*0.25)),0,2);
+  const duNorm=clamp(duUsed()/1.2,0,2);
+  let tau=2.4;
+  tau*=(1+0.9*phiM.snoreRatio);
+  tau*=(1+0.6*(bNorm/2));
+  tau*=(1+0.9*(duNorm/2));
+  if(phase==="ONSET") tau*=1.35;
+  if(phase==="AROUSAL") tau*=1.55;
+  if(phase==="STABLE") tau*=1.15;
+  return clamp(tau,0.8,7.5);
+}
+function computeYStar(elapsed,startY,phiS,phiM,phiL){
+  const thr=getTHR();
+  const tau=tauOf(phiS,phiM,phiL);
+  const k=1/Math.max(0.25,tau);
+  let ys=thr+(startY-thr)*Math.exp(-k*elapsed);
+  ys=Math.max(thr,ys);
+  if(phase==="ONSET"||phase==="AROUSAL") ys=Math.max(thr, thr+0.30*(startY-thr));
+  return {ys,tau};
+}
+
+/* ----- Main loop ----- */
 function loopTick(){
   if(!running) return;
 
@@ -990,8 +1158,11 @@ function loopTick(){
   const phiL=phiFrom(bufL,thr);
 
   stage=estimateStage(phiM,Y);
-  if(session) updateSleepLatency(phiM,t,dt);
-  if(session) updatePhase(phiM,phiL);
+
+  if(session){
+    updateSleepLatency(phiM,t,dt);
+    updatePhase(phiM,phiL);
+  }
 
   if(state==="CALIB"){
     ambientSamples++;
@@ -1019,12 +1190,15 @@ function loopTick(){
   if(opt.active && t>=opt.tEnd){ endOption(); beginOption(t,x); }
 
   const useThr=(state==="RUN"&&dynThr!=null)?dynThr:thr;
+
   const onsetDetectThr=Math.max(thr*0.85, (session?.ambientYmean ?? ambientYmean ?? 0)+10);
   const detectThr=(phase==="ONSET") ? Math.min(useThr,onsetDetectThr) : useThr;
 
+  // simulate: force event and make scope/ear cues obvious
   if(simulateSnore){
     Y = Math.max(Y, detectThr + 50);
   }
+
   const wantEvent = (Y>detectThr) || simulateSnore;
 
   if(!session.inEvent && wantEvent){
@@ -1033,9 +1207,9 @@ function loopTick(){
     session._eventStartY=Y;
     phase="EVENT";
     startCIEU(t,x,Y,phiS,phiM,phiL,opt);
-    // make nudge available immediately
-    nudgeNextTime = ctx.currentTime;
+    nudgeNextTimeAudio = ctx.currentTime;
   }
+
   if(session.inEvent && !wantEvent){
     if(session._below==null) session._below=t;
     if(t-session._below>2){
@@ -1056,14 +1230,14 @@ function loopTick(){
     Ystar=res.ys; tau=res.tau;
   }
 
-  // exceedance vs threshold
+  // metrics
   const exceed=Math.max(0,Y-useThr);
   const eNow=exceed*exceed*dt;
   const dNow=exceed*dt;
   const tEx=(Y>useThr)?dt:0;
+
   session.E_real+=eNow; session.D_real+=dNow; session.T_real+=tEx;
 
-  // Δ vs Y*
   const deltaPlus=Math.max(0,Y-Ystar);
   session.E_delta += (deltaPlus*deltaPlus)*dt;
   session.D_delta += deltaPlus*dt;
@@ -1080,18 +1254,17 @@ function loopTick(){
     session._tMotifKnown+=dt;
     if(currentCIEU) currentCIEU.if_t.motifKnownSec += dt;
   }
-
   probe.enabled=ui.ifProbe.checked;
   if(canProbe() && !motifTable.has(key) && Y>useThr){
     startProbe(key,estimateCycleSec(feat),t);
   }
 
+  // action u + nudge scheduling
   let u=0;
   const mode=getMode();
 
   if(probe.inProbe){
-    u=0;
-    setNudgeBus(0);
+    u=0; setNudgeBus(0);
     probe.accE+=eNow; probe.accD+=dNow; probe.accT+=tEx;
     if(Y>useThr+CFG.PROBE_ABORT_MARGIN) abortProbe();
     else if(!(phase==="STABLE"&&stage==="CALM")) abortProbe();
@@ -1107,19 +1280,19 @@ function loopTick(){
     const cap=getCap()*allowed(opt.level).capScale;
     u=applySafety(uPID*(1+opt.rho),cap,t,dt);
 
-    // Nudge scheduling: use u as intensity
-    setNudgeBus(Math.min(u, 0.35)); // keep bus modest; pulses define perception
-    if(session.inEvent && u>0.03){
-      const gap = clamp(CFG.NUDGE_MAX_GAP - u*(CFG.NUDGE_MAX_GAP-CFG.NUDGE_MIN_GAP), CFG.NUDGE_MIN_GAP, CFG.NUDGE_MAX_GAP);
-      if(ctx.currentTime >= nudgeNextTime){
-        scheduleNudgePulse(opt.token, clamp(u,0,1));
-        nudgeNextTime = ctx.currentTime + gap;
-      }
-    }
-
+    setNudgeBus(Math.min(u,0.35));
     pushBudget(t,dt,u);
     session.uEnergy += (u*u)*dt;
     session.uPeak = Math.max(session.uPeak,u);
+
+    // schedule pulses only when in event and u>threshold
+    if(session.inEvent && u>0.03){
+      const gap = clamp(CFG.NUDGE_MAX_GAP - u*(CFG.NUDGE_MAX_GAP-CFG.NUDGE_MIN_GAP), CFG.NUDGE_MIN_GAP, CFG.NUDGE_MAX_GAP);
+      if(ctx.currentTime >= nudgeNextTimeAudio){
+        scheduleNudgePulse(opt.token, clamp(u,0,1));
+        nudgeNextTimeAudio = ctx.currentTime + gap;
+      }
+    }
 
     const dNorm=Math.max(0,(Y-Ystar)/255);
     opt.stats.sumT+=dt;
@@ -1136,10 +1309,17 @@ function loopTick(){
       currentCIEU.yOut_t.T_exceed+=tEx;
       currentCIEU.yOut_t.uEnergy+=(u*u)*dt;
       currentCIEU.yOut_t.uPeak=Math.max(currentCIEU.yOut_t.uPeak,u);
+
       currentCIEU.yOut_t.E_delta+=(deltaPlus*deltaPlus)*dt;
       currentCIEU.yOut_t.D_delta+=deltaPlus*dt;
       currentCIEU.yOut_t.T_delta+=(Y>Ystar)?dt:0;
       currentCIEU.yStar_t.tau0=tau;
+
+      // motion outcome latch
+      if(motion.enabled && motion.permitted && motion.turnEvent){
+        currentCIEU.motion_t.turnDetected = true;
+        session.motionTurnCount += 1;
+      }
     }
   }
 
@@ -1150,6 +1330,7 @@ function loopTick(){
 
   // session summary
   session.sleepLatencySec=sleepLatencySec;
+  session.motionEnabled = (motion.enabled && motion.permitted);
   session.probeEnabled=probe.enabled;
   session.probePerHour=probe.perHour;
   session.probeAbort=probe.abort;
@@ -1163,50 +1344,140 @@ function loopTick(){
   // UI
   ui.stMain.textContent = (state==="CALIB") ? "CALIBRATING..." : (session.inEvent ? "NUDGE ACTIVE" : "MONITORING / INDUCTION");
   ui.stMain.style.color = session.inEvent ? "var(--intv)" : (phase==="ONSET" ? "var(--accent)" : "#ddd");
-  ui.stSub.textContent = `Phase=${phase} | Stage=${stage} | detectThr=${detectThr.toFixed(0)} | useThr=${useThr.toFixed(0)} | simulate=${simulateSnore}`;
+  ui.stSub.textContent = `Phase=${phase} | Stage=${stage} | detectThr=${detectThr.toFixed(0)} | simulate=${simulateSnore} | tiltLR=${motion.tiltLR.toFixed(2)} rms=${motion.rms.toFixed(2)}`;
 
   const cieuCount=DB.filter(x=>x.type==="CIEU").length;
   ui.mathStat.innerHTML =
     `Phase: <span class="highlight">${phase}</span> | Stage: <span class="highlight">${stage}</span><br>`+
-    `RL(Level): <span class="highlight">${opt.level}</span> | RL(Nudge): <span class="highlight">${opt.actionKey}</span><br>`+
+    `Nudge: <span class="highlight">${opt.actionKey}</span> | Motion: <span class="highlight">${(motion.enabled && motion.permitted)?"ON":"OFF"}</span><br>`+
     `CIEU: <span class="highlight">${cieuCount}</span> | IF ΔE: <span class="highlight">${(session.deltaE||0).toFixed(1)}</span>`;
 
   ui.debugView.textContent = JSON.stringify({
-    state, phase, stage, simulateSnore,
-    Y, Ystar:Math.round(Ystar), tau:+tau.toFixed(2),
-    u:+u.toFixed(3),
-    nudgeToken: opt.token,
-    detectThr, useThr, dynThr,
-    sleepLatencySec,
+    audio: ctx?ctx.state:"none",
+    phase, stage,
+    motion: {
+      enabled: motion.enabled,
+      permitted: motion.permitted,
+      tiltLR: +motion.tiltLR.toFixed(3),
+      rms: +motion.rms.toFixed(3),
+      moved: motion.moved,
+      turnEvent: motion.turnEvent
+    },
+    simulateSnore,
+    y: Y,
+    yStar: Math.round(Ystar),
+    tau: +tau.toFixed(2),
+    u: +u.toFixed(3),
     session
   }, null, 2);
 
-  drawScope(Y, Ystar, u, useThr);
+  drawScope(Y,Ystar,u,useThr);
 
   setTimeout(loopTick, 1000/CFG.LOGIC_HZ);
 }
 
-/* ========= simulate snore hard switch ========= */
+/* ------------------- Start / Stop ------------------- */
 let simulateSnore=false;
 ui.btnTest.addEventListener("pointerdown",(e)=>{e.preventDefault(); simulateSnore=true; ui.btnTest.classList.add("active");});
 ui.btnTest.addEventListener("pointerup",(e)=>{e.preventDefault(); simulateSnore=false; ui.btnTest.classList.remove("active");});
 ui.btnTest.addEventListener("pointercancel",()=>{simulateSnore=false; ui.btnTest.classList.remove("active");});
 document.addEventListener("pointerup",()=>{simulateSnore=false; ui.btnTest.classList.remove("active");});
 
-/* ========= export / clear ========= */
+let lastTick=0, t=0, dt=1/CFG.LOGIC_HZ;
+let ambientYmean=0, ambientSamples=0, dynThr=null, state="IDLE";
+let pidI=0;
+
+async function startSystem(){
+  if(running) return;
+  ensureAudio();
+  await ctx.resume();
+
+  try{ await ensureMic(); }catch(e){ alert("Mic Error: 请允许麦克风权限"); return; }
+
+  // motion toggle sync
+  motion.enabled = ui.useMotion.checked;
+  if(motion.enabled && !motion.permitted){
+    setPill(ui.pillMotion, "warn", "motion: need perm");
+  }else if(motion.enabled && motion.permitted){
+    setPill(ui.pillMotion, "ok", "motion: on");
+  }else{
+    setPill(ui.pillMotion, "warn", "motion: off");
+  }
+
+  currentSleepName="";
+  applySleep("OCEAN_SOFT");
+
+  masterOn(true);
+  setSleepBus(0.78);
+  setNudgeBus(0);
+
+  running=true;
+  lastTick=0;
+  phase="ONSET";
+  stage="CALM";
+  state="CALIB";
+
+  nudgeNextTimeAudio = ctx.currentTime;
+
+  pidI=0;
+  lastU=0;
+  strongTimes=[];
+  budgetBuf=[]; duBuf=[];
+  bufS=[]; bufM=[]; bufL=[];
+  ambientYmean=0; ambientSamples=0; dynThr=null;
+  probe.inProbe=false; probe.abort=0; probe.perHour=0; probe.hourStart=0;
+  sleepLatencySec=null; onsetStable=0;
+
+  newSession(nowMs()/1000);
+  session._calibStartWall = nowMs();
+  session.motionEnabled = (motion.enabled && motion.permitted);
+
+  opt.active=false;
+
+  ui.btnPower.classList.add("active");
+  ui.btnText.textContent="STOP SYSTEM";
+
+  loopTick();
+}
+
+function stopSystem(){
+  if(!running) return;
+  running=false;
+
+  try{ endOption(); }catch(e){}
+  try{ finishCIEU(t); }catch(e){}
+
+  DB.push({type:"SESSION_SUMMARY", ...session, motifTableSize: motifTable.size, savedAt: Date.now()});
+  saveJSON(STORE.DB, DB);
+
+  if(ctx){
+    setNudgeBus(0);
+    setSleepBus(0);
+    masterOn(false);
+  }
+
+  ui.btnPower.classList.remove("active");
+  ui.btnText.textContent="ACTIVATE";
+
+  if(ui.autoBackup.checked) exportReport();
+}
+
+ui.btnPower.addEventListener("click", ()=> running ? stopSystem() : startSystem());
+
+/* ------------------- Exports ------------------- */
 function exportReport(){
   const payload={type:"REPORT", session, motifs:Array.from(motifTable.entries()), dbTail:DB.slice(-300)};
   const blob=new Blob([JSON.stringify(payload,null,2)],{type:"application/json"});
   const url=URL.createObjectURL(blob);
   const a=document.createElement("a");
-  a.href=url; a.download=`SnoreField_v7_4_Report_${Date.now()}.json`;
+  a.href=url; a.download=`SnoreField_v7_5_Report_${Date.now()}.json`;
   a.click(); URL.revokeObjectURL(url);
 }
 function exportLocalDB(){
   const blob=new Blob([JSON.stringify(DB,null,2)],{type:"application/json"});
   const url=URL.createObjectURL(blob);
   const a=document.createElement("a");
-  a.href=url; a.download=`SnoreField_v7_4_LOCAL_${Date.now()}.json`;
+  a.href=url; a.download=`SnoreField_v7_5_LOCAL_${Date.now()}.json`;
   a.click(); URL.revokeObjectURL(url);
 }
 function saveSnapshot(){
@@ -1226,70 +1497,13 @@ ui.btnSaveSnapshot.addEventListener("click",(e)=>{e.preventDefault(); saveSnapsh
 ui.exportBtn.addEventListener("click",(e)=>{e.preventDefault(); exportLocalDB();});
 ui.clearBtn.addEventListener("click",(e)=>{e.preventDefault(); clearLocal();});
 
-/* ========= start/stop ========= */
-async function startSystem(){
-  if(running) return;
-  ensureAudio();
-  await ctx.resume();
-  try{ await ensureMic(); }catch(e){ alert("Mic Error: 请允许麦克风权限"); return; }
+/* ------------------- Motion permission button ------------------- */
+ui.btnMotionPerm.addEventListener("click",(e)=>{ e.preventDefault(); requestMotionPermission(); });
 
-  currentSleepName="";
-  applySleep("OCEAN_SOFT");
-  masterOn(true);
-  setSleepBus(0.78);
-  setNudgeBus(0);
-
-  running=true;
-  lastTick=0;
-  phase="ONSET";
-  stage="CALM";
-  state="CALIB";
-  nudgeNextTime = ctx.currentTime;
-
-  pidI=0;
-  lastU=0;
-  strongTimes=[];
-  budgetBuf=[]; duBuf=[];
-  bufS=[]; bufM=[]; bufL=[];
-  ambientYmean=0; ambientSamples=0; dynThr=null;
-  probe.inProbe=false; probe.abort=0; probe.perHour=0; probe.hourStart=0;
-  sleepLatencySec=null; onsetStable=0;
-
-  newSession(nowMs()/1000);
-  session._calibStartWall=nowMs();
-
-  opt.active=false;
-
-  ui.btnPower.classList.add("active");
-  $("btnText").textContent="STOP SYSTEM";
-
-  loopTick();
-}
-function stopSystem(){
-  if(!running) return;
-  running=false;
-
-  try{ endOption(); }catch(e){}
-  try{ finishCIEU(t); }catch(e){}
-
-  DB.push({type:"SESSION_SUMMARY", ...session, motifTableSize: motifTable.size, savedAt: Date.now()});
-  saveJSON(STORE.DB, DB);
-
-  if(ctx){
-    setNudgeBus(0);
-    setSleepBus(0);
-    masterOn(false);
-  }
-  ui.btnPower.classList.remove("active");
-  $("btnText").textContent="ACTIVATE";
-
-  if(ui.autoBackup.checked) exportReport();
-}
-ui.btnPower.addEventListener("click", ()=> running ? stopSystem() : startSystem());
-
-/* init */
-setPill(ui.pillMic,"warn","mic: off");
-setPill(ui.pillAudio,"warn","audio: suspended");
+/* ------------------- Init pills ------------------- */
+setPill(ui.pillMic, "warn", "mic: off");
+setPill(ui.pillAudio, "warn", "audio: suspended");
+setPill(ui.pillMotion, "warn", "motion: off");
 </script>
 </body>
 </html>
