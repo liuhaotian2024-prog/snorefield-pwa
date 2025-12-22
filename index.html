@@ -321,7 +321,7 @@ function pushDB(item){
 }
 
 /* =========================================================
-   L0: Audio + Mic (Physical Layer)
+   L0: Audio + Mic
    ========================================================= */
 let ctx=null, mic=null, analyser=null, fftData=null;
 let outMaster=null, busSleep=null, busNudge=null;
@@ -373,7 +373,7 @@ function setNudgeBus(level){
 }
 function stopGraph(g){ if(!g) return; try{g.stop();}catch(e){} }
 
-/* ----- Sleep templates (pleasant, stable) ----- */
+/* Sleep noises */
 function whiteNoise(){
   const n=2*ctx.sampleRate;
   const b=ctx.createBuffer(1,n,ctx.sampleRate);
@@ -433,8 +433,7 @@ function buildSleep(name){
   swell.connect(swellG); swellG.connect(swellAmp.gain);
   swellAmp.connect(main);
 
-  const sources=[];
-  let pad=null;
+  const sources=[]; let pad=null;
 
   if(name==="OCEAN_SOFT" || name==="OCEAN_PAD"){
     const b=brownNoise(); const p=pinkNoise();
@@ -469,7 +468,7 @@ function applySleep(name){
 }
 
 /* =========================================================
-   DeviceMotion L0 (optional)
+   DeviceMotion L0
    ========================================================= */
 let motion={enabled:false, permitted:false, tiltLR:0, rms:0, moved:false, turnEvent:false, _prevTilt:0};
 function computeTiltLR(gx,gy,gz){
@@ -516,7 +515,7 @@ async function requestMotionPerm(){
 }
 
 /* =========================================================
-   L1: Features -> Y (tokenization-ish)
+   L1: Features -> Y
    ========================================================= */
 function computeFeatures(){
   analyser.getFloatFrequencyData(fftData);
@@ -543,14 +542,15 @@ function computeFeatures(){
 }
 function computeY(f){
   let y=0;
-  y += 0.55*f.nl + 0.35*f.nm - 0.10*f.nh;
-  y += 0.55*f.periodicity;
-  y += 0.15*(1-f.flatness);
+  // 更偏向低频 / 周期性，弱化宽带噪声（引导音乐）
+  y += 0.60*f.nl + 0.30*f.nm - 0.15*f.nh;
+  y += 0.65*f.periodicity;
+  y += 0.10*(1-f.flatness); // 宽带粉噪 flatness ~1，这一项几乎为 0
   return Math.round(clamp(y,0,1)*255);
 }
 
 /* =========================================================
-   Φ fields / phase / Y* (functional mapping, “field theory”)
+   Φ / Phase / Y*
    ========================================================= */
 let bufS=[],bufM=[],bufL=[],budgetBuf=[],duBuf=[];
 function pushBuf(buf,win,s){buf.push(s); const tt=s.t; while(buf.length && (tt-buf[0].t)>win) buf.shift();}
@@ -618,7 +618,7 @@ function computeYStar(elapsed,startY,phiS,phiM,phiL){
 }
 
 /* =========================================================
-   L2 “syntax”: Safety DSL
+   Safety DSL
    ========================================================= */
 let lastU=0;
 let strongTimes=[];
@@ -644,18 +644,17 @@ function applySafety(uEff, cap, t, dt){
 }
 
 /* =========================================================
-   Nudge actuator: directional ear pulses (positional micro-movement)
+   Nudge actuator
    ========================================================= */
 function scheduleNudge(pattern,intensity){
   const t0=ctx.currentTime+0.01;
 
-  // 为 BREATH 做一点轻微差异化（不影响原有三种）
   let freq = 180;
   let attack = 0.03;
   let release = 0.18;
 
   if(pattern === "NUDGE_BREATH"){
-    freq = 90;        // 更低频
+    freq = 90;
     attack = 0.08;
     release = 0.32;
   }
@@ -691,7 +690,7 @@ function scheduleNudge(pattern,intensity){
 }
 
 /* =========================================================
-   RL: Options + Hierarchical LinUCB (Level + Action)
+   RL: Options + Hierarchical LinUCB
    ========================================================= */
 function zeros(n){return Array.from({length:n},()=>0);}
 function eye(n){const m=[]; for(let i=0;i<n;i++){const r=zeros(n); r[i]=1; m.push(r);} return m;}
@@ -778,7 +777,7 @@ function chooseMaskedLow(x,level){
 function parseActionKey(a){const [tok,r]=a.split("::"); return {tok, rho:parseFloat(r)};}
 
 /* =========================================================
-   IF Probe Level 1 (complete motif parallel world)
+   IF Probe L1
    ========================================================= */
 let probe={enabled:false, perHour:0, hourStart:0, inProbe:false, tEnd:0, key:null, accE:0, accD:0, accT:0, abort:0};
 const motifTable=new Map();
@@ -826,7 +825,7 @@ function finishProbe(){
 }
 
 /* =========================================================
-   CIEU event-level five tuple (core asset)
+   CIEU
    ========================================================= */
 let currentCIEU=null;
 function startCIEU(t, x, phiS, phiM, phiL, action, yStart, yStarStart){
@@ -902,7 +901,7 @@ function finishCIEU(t){
 }
 
 /* =========================================================
-   SCOPE (crisp) — 主版本
+   Scope — Y / Y* / u
    ========================================================= */
 const cCtx=ui.cvs.getContext("2d");
 let bY=new Array(CFG.SCOPE_N).fill(0);
@@ -937,6 +936,7 @@ function drawScope(Y,Ys,u,thr){
   cCtx.beginPath(); cCtx.moveTo(0,yT); cCtx.lineTo(w,yT); cCtx.stroke();
   cCtx.restore();
 
+  // u 填充
   if(Math.max(...bU)>1){
     cCtx.fillStyle="rgba(255,59,48,0.18)";
     cCtx.beginPath();
@@ -951,7 +951,8 @@ function drawScope(Y,Ys,u,thr){
     cCtx.fill();
   }
 
-  cCtx.strokeStyle="#00f2ff";
+  // Y 线（蓝）
+  cCtx.strokeStyle= getComputedStyle(document.documentElement).getPropertyValue('--y') || "#00f2ff";
   cCtx.lineWidth=1.5;
   cCtx.beginPath();
   for(let i=0;i<bY.length;i++){
@@ -961,12 +962,24 @@ function drawScope(Y,Ys,u,thr){
   }
   cCtx.stroke();
 
-  cCtx.strokeStyle="#ff9f0a";
+  // Y* 线（橙）
+  cCtx.strokeStyle=getComputedStyle(document.documentElement).getPropertyValue('--ystar') || "#ff9f0a";
   cCtx.lineWidth=2.0;
   cCtx.beginPath();
   for(let i=0;i<bYs.length;i++){
     const xx=i/(bYs.length-1)*w;
     const yy=h-(bYs[i]/255)*h;
+    if(i===0) cCtx.moveTo(xx,yy); else cCtx.lineTo(xx,yy);
+  }
+  cCtx.stroke();
+
+  // u 线（红）
+  cCtx.strokeStyle=getComputedStyle(document.documentElement).getPropertyValue('--u') || "#ff3b30";
+  cCtx.lineWidth=1.2;
+  cCtx.beginPath();
+  for(let i=0;i<bU.length;i++){
+    const xx=i/(bU.length-1)*w;
+    const yy=h-(bU[i]/255)*h;
     if(i===0) cCtx.moveTo(xx,yy); else cCtx.lineTo(xx,yy);
   }
   cCtx.stroke();
@@ -1038,7 +1051,6 @@ function loop(){
 
   const feat=computeFeatures();
   let Y=computeY(feat);
-
   const thr=getTHR();
 
   pushBuf(bufS,CFG.PHI_S,{t,dt,Y});
@@ -1129,11 +1141,16 @@ function loop(){
     session.below=null;
   }
 
-  const yStarObj = session.inEvent
-    ? computeYStar(t-session.eventT0, session.eventStartY, phiS,phiM,phiL)
-    : computeYStar(0, Y, phiS,phiM,phiL);
-  const Ystar=yStarObj.ys;
+  // Y*：事件期间随 τ(Φ) 衰减；非事件时贴着阈值线
+  let Ystar;
+  if(session.inEvent){
+    const yStarObj = computeYStar(t-session.eventT0, session.eventStartY, phiS,phiM,phiL);
+    Ystar = yStarObj.ys;
+  } else {
+    Ystar = useThr;
+  }
 
+  // 能量指标（仍用真实 Y，不受可视化门控影响）
   const exceed=Math.max(0,Y-useThr);
   session.E_real += (exceed*exceed)*dt;
 
@@ -1141,7 +1158,6 @@ function loop(){
   session.E_delta += (deltaPlus*deltaPlus)*dt;
 
   const key = motifKeyFrom(feat, phiM);
-
   if(motifTable.has(key) && Y>useThr){
     const rec = motifTable.get(key);
     const scale = (rec.tCycle>0) ? (dt/rec.tCycle) : 0;
@@ -1149,12 +1165,10 @@ function loop(){
     session.motifCoverageSec += dt;
     if(currentCIEU) currentCIEU.if_t.motifKnownSec += dt;
   }
-
   session.deltaE_if = session.E_if - session.E_real;
 
   probe.enabled = ui.ifProbe.checked;
   session.probeEnabled = probe.enabled;
-
   if(canProbe() && !motifTable.has(key) && Y>useThr){
     startProbe(key, estimateCycleSec(feat), t);
   }
@@ -1232,6 +1246,12 @@ function loop(){
     setSleepBus(Math.min(sleepBase(),0.25));
   }
 
+  // 为了不让示波器“听引导音乐”，非事件阶段把 Y 压到阈值附近
+  let Yvis = Y;
+  if(!session.inEvent && !wantEvent){
+    Yvis = useThr; // 蓝线基本贴着虚线
+  }
+
   ui.oPhase.textContent=phase;
   ui.oStage.textContent=stage;
   ui.oLevel.textContent=action.level;
@@ -1244,83 +1264,14 @@ function loop(){
   session.probeAbort = probe.abort;
   session.motifs = motifTable.size;
 
-  drawScope(Y,Ystar,u,useThr);
+  drawScope(Yvis,Ystar,u,useThr);
 
   setTimeout(loop, 1000/CFG.LOGIC_HZ);
 }
 
 /* =========================================================
-   第二份 Scope 代码：原样保留，但注释掉避免重复声明
+   原第二份 Scope 代码（保留但注释）略
    ========================================================= */
-/*
-const ctx2=ui.cvs.getContext("2d");
-let bY2=new Array(CFG.SCOPE_N).fill(0);
-let bYs2=new Array(CFG.SCOPE_N).fill(0);
-let bU2=new Array(CFG.SCOPE_N).fill(0);
-
-function resizeCanvas2(){
-  const dpr=Math.max(1, window.devicePixelRatio||1);
-  const w=ui.cvs.clientWidth;
-  const h=ui.cvs.clientHeight;
-  ui.cvs.width=Math.floor(w*dpr);
-  ui.cvs.height=Math.floor(h*dpr);
-  ctx2.setTransform(dpr,0,0,dpr,0,0);
-}
-window.addEventListener("resize", resizeCanvas2);
-resizeCanvas2();
-
-function drawScope2(Y,Ys,u,thr){
-  const w=ui.cvs.clientWidth;
-  const h=ui.cvs.clientHeight;
-  ctx2.clearRect(0,0,w,h);
-
-  bY2.push(Y); bY2.shift();
-  bYs2.push(Ys); bYs2.shift();
-  bU2.push(u*255); bU2.shift();
-
-  const yT=h-(thr/255)*h;
-  ctx2.save();
-  ctx2.strokeStyle="rgba(255,255,255,0.18)";
-  ctx2.lineWidth=1;
-  ctx2.setLineDash([6,6]);
-  ctx2.beginPath(); ctx2.moveTo(0,yT); ctx2.lineTo(w,yT); ctx2.stroke();
-  ctx2.restore();
-
-  if(Math.max(...bU2)>1){
-    ctx2.fillStyle="rgba(255,59,48,0.18)";
-    ctx2.beginPath();
-    ctx2.moveTo(0,h);
-    for(let i=0;i<bU2.length;i++){
-      const xx=i/(bU2.length-1)*w;
-      const yy=h-(bU2[i]/255)*h;
-      ctx2.lineTo(xx,yy);
-    }
-    ctx2.lineTo(w,h);
-    ctx2.closePath();
-    ctx2.fill();
-  }
-
-  ctx2.strokeStyle="#00f2ff";
-  ctx2.lineWidth=1.5;
-  ctx2.beginPath();
-  for(let i=0;i<bY2.length;i++){
-    const xx=i/(bY2.length-1)*w;
-    const yy=h-(bY2[i]/255)*h;
-    if(i===0) ctx2.moveTo(xx,yy); else ctx2.lineTo(xx,yy);
-  }
-  ctx2.stroke();
-
-  ctx2.strokeStyle="#ff9f0a";
-  ctx2.lineWidth=2.0;
-  ctx2.beginPath();
-  for(let i=0;i<bYs2.length;i++){
-    const xx=i/(bYs2.length-1)*w;
-    const yy=h-(bYs2[i]/255)*h;
-    if(i===0) ctx2.moveTo(xx,yy); else ctx2.lineTo(xx,yy);
-  }
-  ctx2.stroke();
-}
-*/
 
 /* =========================================================
    Buttons / UX
@@ -1382,7 +1333,7 @@ ui.btnClearLocal.addEventListener("click", ()=>{
 });
 
 /* =========================================================
-   Start/Stop
+   Start / Stop
    ========================================================= */
 async function startSystem(){
   if(running) return;
@@ -1453,7 +1404,7 @@ ui.btnActivate.addEventListener("click", ()=> running ? stopSystem() : startSyst
 setPill(ui.pillAudio,"warn","audio: suspended");
 setPill(ui.pillMic,"warn","mic: off");
 setPill(ui.pillMotion,"warn","motion: off");
-log("Loaded v8.0 full core (patched). Debug hidden by default.");
+log("Loaded v8.0 full core (visual-gated). Debug hidden by default.");
 </script>
 </body>
 </html>
