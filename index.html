@@ -3,9 +3,8 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no" />
-  <title>SnoreField — Side-Chain Ducking</title>
+  <title>SnoreField — Real Ear Active</title>
   <style>
-    /* 保持黑色极简 UI */
     :root{ --bg:#000000; --surface:#1c1c1e; --surface-2:#2c2c2e; --txt:#ffffff; --muted:#8e8e93; --accent:#0a84ff; --accent-glow:rgba(10,132,255,0.4); --danger:#ff453a; --success:#32d74b; --warn:#ff9f0a; }
     html,body{height:100%; overflow:hidden;}
     body{ margin:0; font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, sans-serif; background:var(--bg); color:var(--txt); display:flex; flex-direction:column; -webkit-font-smoothing: antialiased; }
@@ -13,7 +12,6 @@
     .stage{ flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; position:relative; z-index:10; }
     .orb-container{ position:relative; width:220px; height:220px; margin-bottom:40px; display:flex; align-items:center; justify-content:center; }
     
-    /* THE ORB */
     .orb{ 
       width:140px; height:140px; border-radius:50%; 
       background: linear-gradient(145deg, #2c2c2e, #1c1c1e); 
@@ -45,8 +43,8 @@
     }
 
     /* INTERVENTION ANIMATION (Aggressive Pulse) */
-    .orb.intervening ~ .ripple.r1 { animation: ping 0.8s cubic-bezier(0, 0.2, 0.8, 1) infinite; border-color: var(--warn); border-width: 6px; opacity: 0.9; }
-    .orb.intervening ~ .ripple.r2 { animation: ping 0.8s cubic-bezier(0, 0.2, 0.8, 1) infinite 0.2s; border-color: var(--warn); opacity: 0.7;}
+    .orb.intervening ~ .ripple.r1 { animation: ping 0.6s cubic-bezier(0, 0.2, 0.8, 1) infinite; border-color: var(--warn); border-width: 6px; opacity: 0.9; }
+    .orb.intervening ~ .ripple.r2 { animation: ping 0.6s cubic-bezier(0, 0.2, 0.8, 1) infinite 0.2s; border-color: var(--warn); opacity: 0.7;}
     
     @keyframes ping {
       0% { width:140px; height:140px; opacity:0.9; }
@@ -85,6 +83,10 @@
     .btn.danger{ background:rgba(255, 69, 58, 0.15); color:var(--danger); }
     input[type=checkbox] { transform: scale(1.3); accent-color: var(--accent); }
     .demo-tag { position: absolute; top: 12px; left: 50%; transform: translateX(-50%); background: #ff9f0a; color: black; font-size: 10px; font-weight: 800; padding: 2px 8px; border-radius: 4px; display: none; z-index: 100; }
+    
+    /* Mic Meter */
+    .mic-meter { height: 6px; background: #333; border-radius: 3px; overflow: hidden; margin-top: 10px; }
+    .mic-fill { height: 100%; width: 0%; background: var(--success); transition: width 0.1s; }
   </style>
 </head>
 <body>
@@ -106,19 +108,19 @@
   
   <div class="controls">
     <div class="control-group">
-      <label>Soundscape</label>
+      <label>Soundscape Mode</label>
       <div class="select-wrap">
         <select id="sleepSel">
           <option value="AUTO">Adaptive Ocean</option>
-          <option value="OCEAN_DEEP">Deep Ocean</option>
-          <option value="RAIN_SOFT">Cozy Rain</option>
-          <option value="SILENT">Silent Mode</option>
+          <option value="OCEAN_DEEP">Deep Ocean (Delta)</option>
+          <option value="RAIN_SOFT">Cozy Rain (SMR)</option>
+          <option value="SILENT">Silent Mode (Intervention Only)</option>
         </select>
       </div>
     </div>
 
     <div class="control-group">
-      <label>Master Volume <span class="val" id="volDisplay">70%</span></label>
+      <label>Max Volume <span class="val" id="volDisplay">70%</span></label>
       <input id="sleepVol" type="range" min="0" max="1" step="0.05" value="0.7">
     </div>
   </div>
@@ -140,8 +142,10 @@
   </div>
   <div class="adv-content">
     <div class="card" style="border:1px solid var(--accent);">
-      <h3 style="color:var(--accent);">Test Controls</h3>
-      <button class="btn" id="btnForceTest" style="background:#333;">Force Snore Event</button>
+      <h3 style="color:var(--accent);">Microphone Input</h3>
+      <div class="mic-meter"><div class="mic-fill" id="micFill"></div></div>
+      <div class="kpi-box" style="margin-top:8px;"><span class="l">Raw Level</span><span class="v" id="kRaw">0</span></div>
+      
       <div class="switch-row" style="margin-top:12px;">
         <span>Demo Simulation</span>
         <input type="checkbox" id="demoMode">
@@ -149,7 +153,7 @@
     </div>
     
     <div class="card">
-      <h3>Mixing Engine (Ducking)</h3>
+      <h3>Ducking Mixer</h3>
       <div class="grid-row">
         <div class="kpi-box"><span class="l">Nature</span><span class="v" id="kNature">0%</span></div>
         <div class="kpi-box"><span class="l">Beats</span><span class="v" id="kBeats">0%</span></div>
@@ -157,10 +161,10 @@
     </div>
 
     <div class="card">
-      <h3>Debug</h3>
+      <h3>Logic</h3>
       <div class="grid-row">
         <div class="kpi-box"><span class="l">Snore dB</span><span class="v" id="kY">0</span></div>
-        <div class="kpi-box"><span class="l">Action</span><span class="v" id="kAction">IDLE</span></div>
+        <div class="kpi-box"><span class="l">Status</span><span class="v" id="kStatus">IDLE</span></div>
       </div>
     </div>
 
@@ -177,34 +181,32 @@
 
 <script>
 /* =========================================
-   SnoreField v3.9 (Side-Chain Ducking)
-   - FEATURE: "Ducking" - Nature vol drops to 30% when Snoring detected.
-   - FEATURE: "Medicine Boost" - Beats vol rises to 50% when Snoring.
-   - TUNING: Beats freq set to 200Hz (Theta) for clear audibility.
-   - FIX: Removed first-snore calibration delay for instant feedback.
+   SnoreField v4.0 (Real-Ear Activated)
+   - CRITICAL FIX: Implemented real FFT analysis in controlTick.
+   - SENSITIVITY: Boosted Mic input by 3.0x for easy testing.
+   - VISUALS: Added Mic Meter to prove it's listening.
    ========================================= */
 
 const $=(id)=>document.getElementById(id);
 const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
 const nowMs=()=>performance.now();
 
-/* --- Tuning Config --- */
+/* --- Config --- */
 const CONFIG = {
-  NATURE_DUCKED: 0.3, // Nature volume when snoring (Ducked)
-  NATURE_FULL: 1.0,   // Nature volume when quiet
-  BEATS_IDLE: 0.05,   // Beats when quiet
-  BEATS_ACTIVE: 0.50, // Beats when snoring (Stronger!)
-  SOFT_START: 3.0
+  FADE_FLOOR: 0.30,   // Nature floor
+  NATURE_DUCKED: 0.2, // Nature when snoring
+  BEATS_BASE: 0.05,   // Beats when quiet
+  BEATS_BOOST: 0.40,  // Beats when snoring
+  SNORE_THRESH: 35,   // Low threshold for testing
+  SOFT_START: 2.0
 };
 
 /* --- Global State --- */
 let running = false;
-let audioCtx = null;
+let audioCtx = null, micStream = null, analyser = null, fftData = null;
 let masterGain = null, neuroNode = null;
 let isDemoMode = false;
-let forceTest = false;
 let simT = 0;
-
 let volState = { natureCurrent: 0, beatsCurrent: 0 };
 
 /* --- UI Logic --- */
@@ -214,8 +216,8 @@ const ui = {
   sleepSel: $("sleepSel"), vol: $("sleepVol"), volDisp: $("volDisplay"),
   btnSettings: $("btnSettings"), btnQuickExport: $("btnQuickExport"),
   advPanel: $("advPanel"), btnCloseAdv: $("btnCloseAdv"),
-  demoMode: $("demoMode"), btnForce: $("btnForceTest"),
-  kpis: { nature: $("kNature"), beats: $("kBeats"), y: $("kY"), action: $("kAction") }
+  demoMode: $("demoMode"), micFill: $("micFill"),
+  kpis: { nature: $("kNature"), beats: $("kBeats"), raw: $("kRaw"), y: $("kY"), status: $("kStatus") }
 };
 
 ui.btnSettings.addEventListener("click", ()=> ui.advPanel.classList.add("open"));
@@ -223,16 +225,11 @@ ui.btnCloseAdv.addEventListener("click", ()=> ui.advPanel.classList.remove("open
 ui.demoMode.addEventListener("change", ()=>{ isDemoMode=ui.demoMode.checked; $("demoTag").style.display=isDemoMode?"block":"none"; });
 ui.vol.addEventListener("input", ()=> ui.volDisp.textContent=Math.round(ui.vol.value*100)+"%");
 
-ui.btnForce.addEventListener("mousedown", () => { forceTest = true; });
-ui.btnForce.addEventListener("mouseup", () => { forceTest = false; });
-ui.btnForce.addEventListener("touchstart", (e) => { e.preventDefault(); forceTest = true; });
-ui.btnForce.addEventListener("touchend", (e) => { e.preventDefault(); forceTest = false; });
-
 function setUIState(active){
   if(active){
     ui.btnMain.classList.add("active");
     ui.iconPlay.style.display="none"; ui.iconStop.style.display="block";
-    ui.status.textContent="System Active";
+    ui.status.textContent="Listening...";
   }else{
     ui.btnMain.classList.remove("active");
     ui.iconPlay.style.display="block"; ui.iconStop.style.display="none";
@@ -245,7 +242,7 @@ function setUIState(active){
 /* --- AUDIO ENGINE --- */
 
 async function initAudio(){
-  if(!audioCtx) audioCtx = new (window.AudioContext||window.webkitAudioContext)({latencyHint:"playback"});
+  if(!audioCtx) audioCtx = new (window.AudioContext||window.webkitAudioContext)({latencyHint:"interactive"});
   if(audioCtx.state === "suspended") await audioCtx.resume();
   
   if(!masterGain){
@@ -255,6 +252,23 @@ async function initAudio(){
   }
 }
 
+async function startMic(){
+  if(isDemoMode) return;
+  if(micStream) return;
+  try {
+    micStream = await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:false, noiseSuppression:false, autoGainControl:false}});
+    const src = audioCtx.createMediaStreamSource(micStream);
+    analyser = audioCtx.createAnalyser();
+    analyser.fftSize = 512;
+    analyser.smoothingTimeConstant = 0.5; // Smooth out jitter
+    src.connect(analyser);
+    fftData = new Uint8Array(analyser.frequencyBinCount);
+  } catch(e) {
+    alert("Microphone Error: " + e.message);
+  }
+}
+
+// Nature Node
 function createOceanNode(ctx) {
     const bSize = 2 * ctx.sampleRate;
     const b = ctx.createBuffer(1, bSize, ctx.sampleRate);
@@ -275,27 +289,24 @@ function createOceanNode(ctx) {
     return { output: baseGain, start: ()=>{ noise.start(); lfo.start(); }, stop: ()=>{ noise.stop(); lfo.stop(); } };
 }
 
+// Neuro Graph
 function createNeuroGraph(ctx, carrier, beat, type) {
     const merger = ctx.createChannelMerger(2);
     let oscL=null, oscR=null;
-    
-    // Beats Track
     const beatsGainL = ctx.createGain(); beatsGainL.gain.value = 0; 
     const beatsGainR = ctx.createGain(); beatsGainR.gain.value = 0;
     
-    if(carrier > 0 || type === "SILENT") {
-      const c = (carrier === 0) ? 200 : carrier;
-      const b = (beat === 0) ? 6 : beat;
-      oscL = ctx.createOscillator(); oscL.frequency.value = c;
-      oscR = ctx.createOscillator(); oscR.frequency.value = c + b;
-      oscL.connect(beatsGainL); beatsGainL.connect(merger, 0, 0);
-      oscR.connect(beatsGainR); beatsGainR.connect(merger, 0, 1);
-    }
+    // Always load oscillator
+    const c = (carrier === 0) ? 200 : carrier;
+    const b = (beat === 0) ? 6 : beat;
+    oscL = ctx.createOscillator(); oscL.frequency.value = c;
+    oscR = ctx.createOscillator(); oscR.frequency.value = c + b;
+    oscL.connect(beatsGainL); beatsGainL.connect(merger, 0, 0);
+    oscR.connect(beatsGainR); beatsGainR.connect(merger, 0, 1);
     
-    // Nature Track
     let nature = null;
     const natureGain = ctx.createGain(); 
-    natureGain.gain.value = 0.5; // Start audible
+    natureGain.gain.value = 0.5; 
     
     if(type !== "SILENT") {
       nature = createOceanNode(ctx);
@@ -315,6 +326,8 @@ function createNeuroGraph(ctx, carrier, beat, type) {
 
 async function startAudio(mode){
   await initAudio();
+  await startMic(); // CRITICAL: Start Mic
+  
   if(neuroNode) { neuroNode.stop(); neuroNode = null; }
 
   let carrier=200, beat=6; 
@@ -324,7 +337,6 @@ async function startAudio(mode){
   neuroNode = createNeuroGraph(audioCtx, carrier, beat, mode);
   neuroNode.start();
   
-  // Reset States
   const isSilent = mode === "SILENT";
   volState.natureCurrent = isSilent ? 0 : 0.5;
   volState.beatsCurrent = 0;
@@ -341,39 +353,51 @@ function controlTick(){
   if(!running) return;
   
   let y = 0;
+  
+  // --- REAL INPUT LOGIC ---
   if(isDemoMode){
     simT += 0.1;
     y = 30 + (simT > 5 ? 50 * (Math.sin(simT)+1)/2 : Math.random()*5); 
+  } else if(analyser && fftData) {
+    // CRITICAL: Actually Read Data
+    analyser.getByteFrequencyData(fftData);
+    let sum = 0;
+    // Only check low freq (first 20 bins)
+    for(let i=0; i<20; i++) sum += fftData[i];
+    y = sum / 20; 
+    
+    // BOOST SENSITIVITY FOR DEMO
+    y = y * 3.0; 
   }
   
-  // SENSITIVITY: 30 is very low threshold for testing
-  const isSnoring = y > 30 || forceTest;
+  y = clamp(y, 0, 255);
+  
+  // UI Mic Meter
+  ui.micFill.style.width = Math.min(100, y/1.5) + "%";
+  ui.kpis.raw.textContent = Math.round(y);
+  
+  const isSnoring = y > CONFIG.SNORE_THRESH;
   const isSilentMode = ui.sleepSel.value === "SILENT";
   
   // --- VISUAL ---
   if(isSnoring) ui.orb.classList.add("intervening");
   else ui.orb.classList.remove("intervening");
 
-  // --- DUCKING LOGIC ---
-  let natureTarget = isSilentMode ? 0.0 : CONFIG.NATURE_FULL;
-  if(isSnoring && !isSilentMode) {
-     natureTarget = CONFIG.NATURE_DUCKED; // DUCK!
-  }
+  // --- DUCKING (Nature) ---
+  let natureTarget = isSilentMode ? 0.0 : CONFIG.FADE_FLOOR;
+  if(isSnoring && !isSilentMode) natureTarget = CONFIG.NATURE_DUCKED; // Duck down
+  else if(!isSilentMode && !isSnoring) natureTarget = 1.0; // Restore full volume
   
-  // Fast Duck, Slow Release
-  if(volState.natureCurrent > natureTarget) volState.natureCurrent -= 0.05; 
-  else volState.natureCurrent += 0.01;
+  if(volState.natureCurrent < natureTarget) volState.natureCurrent += 0.02; 
+  else volState.natureCurrent -= 0.05; // Duck fast
   volState.natureCurrent = clamp(volState.natureCurrent, 0, 1.0);
 
-  // --- BOOST LOGIC ---
-  let beatsTarget = isSilentMode ? 0.0 : CONFIG.BEATS_IDLE;
-  if(isSnoring) {
-     beatsTarget = CONFIG.BEATS_ACTIVE; // BOOST!
-  }
+  // --- BOOST (Beats) ---
+  let beatsTarget = isSilentMode ? 0.0 : CONFIG.BEATS_BASE;
+  if(isSnoring) beatsTarget = CONFIG.BEATS_BOOST;
   
-  // Fast Attack, Med Release
-  if(volState.beatsCurrent < beatsTarget) volState.beatsCurrent += 0.05; 
-  else volState.beatsCurrent -= 0.02;
+  if(volState.beatsCurrent < beatsTarget) volState.beatsCurrent += 0.05; // Attack fast
+  else volState.beatsCurrent -= 0.02; // Release slow
   
   // --- OUTPUT ---
   if(neuroNode && audioCtx) {
@@ -387,7 +411,8 @@ function controlTick(){
   ui.kpis.nature.textContent = Math.round(volState.natureCurrent*100)+"%";
   ui.kpis.beats.textContent = Math.round(volState.beatsCurrent*100)+"%";
   ui.kpis.y.textContent = Math.round(y);
-  ui.kpis.action.textContent = isSnoring ? (isSilentMode ? "SILENT INT." : "DUCK & BOOST") : "IDLE";
+  ui.kpis.status.textContent = isSnoring ? "INTERVENING!" : "MONITORING";
+  ui.kpis.status.style.color = isSnoring ? "var(--warn)" : "var(--txt)";
   
   if(isSnoring) {
     ui.status.textContent = "Intervention Active";
@@ -412,7 +437,7 @@ async function toggleApp(){
   } else {
     running = true; setUIState(true); simT = 0;
     await startAudio(ui.sleepSel.value);
-    timer = setInterval(controlTick, 100);
+    timer = setInterval(controlTick, 60); // Faster tick for smoother meter
   }
 }
 
