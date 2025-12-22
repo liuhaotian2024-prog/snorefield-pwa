@@ -3,23 +3,23 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no" />
-  <title>SnoreField v7.8 — FIXED (CFG defined) + Positional Nudge + Motion</title>
+  <title>SnoreField v7.9 — Clean Scope + Hidden Debug</title>
   <style>
     :root{
       --bg:#050505; --panel:#0b0b0b; --line:#2a2a2a;
       --txt:#eaeaea; --muted:#9a9a9a; --accent:#0a84ff;
-      --snore:#00f2ff; --target:#ff9f0a; --act:#ff3b30;
       --ok:#31c48d; --warn:#f6ad55; --bad:#fc8181;
     }
     html,body{height:100%; margin:0; background:var(--bg); color:var(--txt); font-family:ui-monospace, Menlo, Monaco, Consolas, monospace;}
     body{overflow:auto; -webkit-overflow-scrolling:touch;}
 
-    .scope-wrap{width:100%; height:220px; background:#000; border-bottom:1px solid #222; position:relative;}
+    .scope-wrap{width:100%; height:260px; background:#000; border-bottom:1px solid #222; position:relative;}
     canvas{width:100%; height:100%; display:block;}
 
     .legend{position:absolute; top:10px; left:10px; font-size:10px; display:flex; gap:14px; pointer-events:none; opacity:.95;}
     .dot{width:8px; height:8px; border-radius:50%; display:inline-block; margin-right:4px;}
-    .overlay{position:absolute; top:36px; left:10px; font-size:10px; color:#9a9a9a; line-height:1.55; pointer-events:none;}
+
+    .overlay{position:absolute; top:34px; left:10px; font-size:10px; color:#b5b5b5; line-height:1.55; pointer-events:none;}
     .hi{color:var(--accent); font-weight:800;}
 
     .top-right{position:absolute; top:10px; right:10px; display:flex; flex-direction:column; gap:6px; align-items:flex-end;}
@@ -64,21 +64,21 @@
     details{margin:12px; border:1px solid var(--line); border-radius:14px; background:#0a0a0a; padding:10px;}
     summary{cursor:pointer; color:#9a9a9a; font-size:11px; font-weight:800;}
     pre{margin:8px 0 0; padding:10px; border-radius:12px; background:#050505; border:1px solid #222; max-height:260px; overflow:auto; font-size:10px; color:#9aa; white-space:pre-wrap;}
+    .hidden{display:none;}
   </style>
 </head>
 <body>
 
 <div class="scope-wrap">
   <div class="legend">
-    <div><span class="dot" style="background:var(--snore)"></span>Y</div>
-    <div><span class="dot" style="background:var(--target)"></span>Y*</div>
-    <div><span class="dot" style="background:var(--act)"></span>u</div>
+    <div><span class="dot" style="background:#00f2ff"></span>Y</div>
+    <div><span class="dot" style="background:#ff9f0a"></span>Y*</div>
+    <div><span class="dot" style="background:#ff3b30"></span>u</div>
   </div>
 
   <div class="overlay">
     Phase: <span class="hi" id="oPhase">IDLE</span> | Stage: <span class="hi" id="oStage">CALM</span><br>
-    Nudge: <span class="hi" id="oNudge">--</span> | Motion: <span class="hi" id="oMotion">OFF</span><br>
-    Err: <span class="hi" id="oErr">--</span>
+    Nudge: <span class="hi" id="oNudge">--</span> | Motion: <span class="hi" id="oMotion">OFF</span>
   </div>
 
   <div class="top-right">
@@ -93,9 +93,10 @@
 <div class="toolbar">
   <div class="row">
     <button class="btn primary" id="btnActivate">ACTIVATE</button>
-    <button class="btn gray" id="btnSelfTest">SELF TEST (Audio/Mic)</button>
-    <button class="btn gray" id="btnMotionPerm">REQUEST MOTION PERMISSION</button>
+    <button class="btn gray" id="btnSelfTest">SELF TEST</button>
+    <button class="btn gray" id="btnMotionPerm">MOTION PERM</button>
     <button class="btn danger" id="btnSim">HOLD: SIMULATE SNORE</button>
+    <label class="toggle"><input type="checkbox" id="showDebug"> Show Debug</label>
   </div>
   <div class="row" style="margin-top:8px;">
     <button class="btn green" id="btnExportReport">EXPORT REPORT</button>
@@ -166,43 +167,40 @@
   </div>
 </div>
 
-<details>
+<details id="debugPanel" class="hidden" open>
   <summary>Debug / Errors</summary>
   <pre id="debug"></pre>
 </details>
 
 <script>
-/* ===================== CRITICAL: CFG is defined FIRST ===================== */
+/* ===================== FIXED: define CFG first ===================== */
 const CFG = {
   LOGIC_HZ: 20,
-  SCOPE_N: 260,
+  SCOPE_N: 320,
   CALIB_MS: 6000,
+  THR_MARGIN: 15,
   MASTER_FADE_IN: 0.6,
   ONSET_BG_AFTER: 15*60,
   ONSET_BG_LEVEL: 0.35,
-  THR_MARGIN: 15,
   PHI_S: 8, PHI_M: 60, PHI_L: 600,
-  DU_WIN: 30,
   BUDGET_WIN: 600,
+  DU_WIN: 30,
   MAX_DU: 0.015,
-  STRONG_MAX_PER_MIN: 3,
   NUDGE_MIN_GAP: 0.8,
   NUDGE_MAX_GAP: 2.2
 };
 
-/* ===================== Debug + error trap ===================== */
-const D = (msg)=>{ const el=document.getElementById("debug"); el.textContent = String(msg)+"\n\n"+el.textContent; };
-const setErr = (s)=>{ document.getElementById("oErr").textContent = s; };
-window.addEventListener("error",(e)=>{ D(`[JS ERROR] ${e.message} @ ${e.filename}:${e.lineno}:${e.colno}`); setErr(e.message); });
-
-/* ===================== Helpers ===================== */
 const $ = (id)=>document.getElementById(id);
 const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
 const nowMs=()=>performance.now();
 const wallNow=()=>Date.now();
 
+const debugEl = $("debug");
+const setErr = (msg)=>{ debugEl && (debugEl.textContent = msg + "\n\n" + debugEl.textContent); };
+window.addEventListener("error",(e)=>{ setErr(`[JS ERROR] ${e.message} @ ${e.filename}:${e.lineno}:${e.colno}`); });
+
 /* ===================== UI ===================== */
-const ui={
+const ui = {
   btnActivate:$("btnActivate"),
   btnSelfTest:$("btnSelfTest"),
   btnMotionPerm:$("btnMotionPerm"),
@@ -211,6 +209,8 @@ const ui={
   btnExportLocal:$("btnExportLocal"),
   btnSnapshot:$("btnSnapshot"),
   btnClearLocal:$("btnClearLocal"),
+  showDebug:$("showDebug"),
+  debugPanel:$("debugPanel"),
 
   modeSel:$("modeSel"),
   sleepSel:$("sleepSel"),
@@ -244,15 +244,16 @@ function setPill(el, kind, text){
   el.classList.add(kind);
   el.textContent=text;
 }
+
 function syncUI(){
-  ui.vMode.textContent=ui.modeSel.value.toUpperCase();
-  ui.vSleep.textContent=ui.sleepSel.value;
-  ui.vCap.textContent=(+ui.cap.value).toFixed(2);
-  ui.vSleepVol.textContent=(+ui.sleepVol.value).toFixed(2);
-  ui.vThr.textContent=ui.thr.value;
-  ui.vOpt.textContent=ui.opt.value;
-  ui.vAlpha.textContent=(+ui.alpha.value).toFixed(2);
-  ui.vSqw.textContent=(+ui.sqw.value).toFixed(1);
+  ui.vMode.textContent = ui.modeSel.value.toUpperCase();
+  ui.vSleep.textContent = ui.sleepSel.value;
+  ui.vCap.textContent = (+ui.cap.value).toFixed(2);
+  ui.vSleepVol.textContent = (+ui.sleepVol.value).toFixed(2);
+  ui.vThr.textContent = ui.thr.value;
+  ui.vOpt.textContent = ui.opt.value;
+  ui.vAlpha.textContent = (+ui.alpha.value).toFixed(2);
+  ui.vSqw.textContent = (+ui.sqw.value).toFixed(1);
 }
 ["input","change"].forEach(ev=>{
   ui.modeSel.addEventListener(ev,syncUI);
@@ -266,6 +267,10 @@ function syncUI(){
 });
 syncUI();
 
+ui.showDebug.addEventListener("change", ()=>{
+  ui.debugPanel.classList.toggle("hidden", !ui.showDebug.checked);
+});
+
 function getTHR(){return parseInt(ui.thr.value,10);}
 function getCap(){return parseFloat(ui.cap.value);}
 function getSleepVol(){return parseFloat(ui.sleepVol.value);}
@@ -274,7 +279,7 @@ function getAlpha(){return parseFloat(ui.alpha.value);}
 function getSQW(){return parseFloat(ui.sqw.value);}
 
 /* ===================== Storage ===================== */
-const STORE={DB:"snorefield_v7_8_db"};
+const STORE={DB:"snorefield_v7_9_db"};
 function loadJSON(key,fallback){ try{const raw=localStorage.getItem(key); return raw?JSON.parse(raw):fallback;}catch(e){return fallback;} }
 function saveJSON(key,obj){ try{localStorage.setItem(key,JSON.stringify(obj));}catch(e){} }
 let DB=loadJSON(STORE.DB,[]);
@@ -286,31 +291,29 @@ let sleepGraph=null, currentSleep="OFF";
 
 function ensureAudio(){
   if(ctx) return;
-  const AC = window.AudioContext || window.webkitAudioContext;
+  const AC=window.AudioContext||window.webkitAudioContext;
   if(!AC) throw new Error("AudioContext unsupported");
-  ctx = new AC({latencyHint:"interactive"});
-  outMaster = ctx.createGain(); outMaster.gain.value=0;
-  busSleep  = ctx.createGain(); busSleep.gain.value=0;
-  busNudge  = ctx.createGain(); busNudge.gain.value=0;
+  ctx=new AC({latencyHint:"interactive"});
+  outMaster=ctx.createGain(); outMaster.gain.value=0;
+  busSleep=ctx.createGain(); busSleep.gain.value=0;
+  busNudge=ctx.createGain(); busNudge.gain.value=0;
   busSleep.connect(outMaster);
   busNudge.connect(outMaster);
   outMaster.connect(ctx.destination);
   setPill(ui.pillAudio, ctx.state==="running"?"ok":"warn", "audio: "+ctx.state);
   ctx.onstatechange=()=>setPill(ui.pillAudio, ctx.state==="running"?"ok":"warn", "audio: "+ctx.state);
 }
-
 async function ensureMic(){
   if(mic) return;
-  const stream = await navigator.mediaDevices.getUserMedia({audio:true});
-  mic = ctx.createMediaStreamSource(stream);
-  analyser = ctx.createAnalyser();
+  const stream=await navigator.mediaDevices.getUserMedia({audio:true});
+  mic=ctx.createMediaStreamSource(stream);
+  analyser=ctx.createAnalyser();
   analyser.fftSize=2048;
   analyser.smoothingTimeConstant=0.65;
-  fftData = new Float32Array(analyser.frequencyBinCount);
+  fftData=new Float32Array(analyser.frequencyBinCount);
   mic.connect(analyser);
   setPill(ui.pillMic,"ok","mic: on");
 }
-
 function masterOn(on){
   const t=ctx.currentTime;
   outMaster.gain.cancelScheduledValues(t);
@@ -383,8 +386,7 @@ function softPad(){
 }
 function buildSleep(name){
   const out=ctx.createGain(); out.gain.value=1;
-  const main=ctx.createGain(); main.gain.value=1;
-  main.connect(out);
+  const main=ctx.createGain(); main.gain.value=1; main.connect(out);
 
   const swell=ctx.createOscillator(); swell.type="sine"; swell.frequency.value=0.09;
   const swellG=ctx.createGain(); swellG.gain.value=0.22;
@@ -422,14 +424,14 @@ function applySleep(name){
   if(name===currentSleep && sleepGraph) return;
   if(sleepGraph) stopGraph(sleepGraph);
   if(name==="OFF"){ currentSleep="OFF"; setSleepBus(0); return; }
-  sleepGraph = buildSleep(name);
+  sleepGraph=buildSleep(name);
   sleepGraph.node.connect(busSleep);
   sleepGraph.start();
-  currentSleep = name;
+  currentSleep=name;
 }
 
 /* ===================== Motion ===================== */
-let motion={enabled:false, permitted:false, tiltLR:0, rms:0, moved:false, turnEvent:false, _prevTilt:0};
+let motion={enabled:false, permitted:false, tiltLR:0, turnEvent:false, _prevTilt:0};
 function computeTiltLR(gx,gy,gz){
   const denom=Math.max(1e-6, Math.sqrt(gx*gx+gy*gy+gz*gz));
   return clamp(gx/denom,-1,1);
@@ -451,7 +453,7 @@ async function requestMotionPerm(){
     ui.useMotion.checked=true;
     if(typeof DeviceMotionEvent !== "undefined" && typeof DeviceMotionEvent.requestPermission === "function"){
       const res=await DeviceMotionEvent.requestPermission();
-      motion.permitted = (res==="granted");
+      motion.permitted=(res==="granted");
     } else motion.permitted=true;
 
     if(motion.permitted){
@@ -462,7 +464,7 @@ async function requestMotionPerm(){
     }
   }catch(e){
     setPill(ui.pillMotion,"warn","motion: error");
-    D("Motion perm error: "+(e?.message||e));
+    setErr("Motion perm error: "+(e?.message||e));
   }
 }
 
@@ -531,7 +533,7 @@ function computeY(f){
   return Math.round(clamp(y,0,1)*255);
 }
 
-/* ===================== State / Y* / Control ===================== */
+/* ===================== Buffers / Y* / Control ===================== */
 let running=false;
 let phase="IDLE", stage="CALM";
 let lastTick=0, t=0, dt=1/CFG.LOGIC_HZ;
@@ -561,6 +563,20 @@ function estimateStage(phiM,y){
   return "DIST";
 }
 let sleepLatencySec=null, onsetStable=0;
+let session=null;
+
+function newSession(t0){
+  session={
+    id:`sess_${Date.now()}`,
+    t0, t0Wall:Date.now(),
+    calibStart: nowMs(),
+    ambientYmean:null, dynThr:null,
+    inEvent:false, eventT0:0, eventStartY:0, below:null,
+    E_real:0, E_delta:0, uEnergy:0, uPeak:0,
+    motionTurns:0
+  };
+}
+
 function updateSleepLatency(phiM,t,dt){
   if(sleepLatencySec!=null) return;
   const thr=getTHR();
@@ -568,6 +584,7 @@ function updateSleepLatency(phiM,t,dt){
   onsetStable = asleepish ? (onsetStable+dt) : Math.max(0,onsetStable-0.5*dt);
   if(onsetStable>=180) sleepLatencySec=Math.round(t-session.t0);
 }
+
 function updatePhase(phiM,phiL){
   if(!running){ phase="IDLE"; return; }
   if(session && session.inEvent){ phase="EVENT"; return; }
@@ -605,125 +622,6 @@ function applySafety(uEff,cap,t,dt){
   lastU=u;
   return u;
 }
-
-/* ===================== Session ===================== */
-function newSession(t0){
-  session={
-    id:`sess_${Date.now()}`, t0, t0Wall:Date.now(),
-    calibStart: nowMs(), ambientYmean:null, dynThr:null,
-    inEvent:false, eventT0:0, eventStartY:0, below:null,
-    E_real:0, E_delta:0, uEnergy:0, uPeak:0,
-    motionEnabled:false, motionTurns:0
-  };
-}
-let session=null;
-
-/* ===================== Scope ===================== */
-const cCtx = ui.cvs.getContext("2d");
-let bY=new Array(CFG.SCOPE_N).fill(0);
-let bYs=new Array(CFG.SCOPE_N).fill(0);
-let bU=new Array(CFG.SCOPE_N).fill(0);
-function drawScope(Y,Ys,u,thr){
-  const w=ui.cvs.width=ui.cvs.offsetWidth;
-  const h=ui.cvs.height=ui.cvs.offsetHeight;
-  cCtx.clearRect(0,0,w,h);
-
-  bY.push(Y); bY.shift();
-  bYs.push(Ys); bYs.shift();
-  bU.push(u*255); bU.shift();
-
-  const yT=h-(thr/255)*h;
-  cCtx.strokeStyle="#333"; cCtx.setLineDash([5,5]);
-  cCtx.beginPath(); cCtx.moveTo(0,yT); cCtx.lineTo(w,yT); cCtx.stroke();
-  cCtx.setLineDash([]);
-
-  cCtx.strokeStyle="var(--snore)"; cCtx.lineWidth=1; cCtx.beginPath();
-  for(let i=0;i<CFG.SCOPE_N;i++){
-    const xx=i/(CFG.SCOPE_N-1)*w;
-    const yy=h-(bY[i]/255)*h;
-    if(i===0) cCtx.moveTo(xx,yy); else cCtx.lineTo(xx,yy);
-  }
-  cCtx.stroke();
-
-  cCtx.strokeStyle="var(--target)"; cCtx.lineWidth=2; cCtx.beginPath();
-  for(let i=0;i<CFG.SCOPE_N;i++){
-    const xx=i/(CFG.SCOPE_N-1)*w;
-    const yy=h-(bYs[i]/255)*h;
-    if(i===0) cCtx.moveTo(xx,yy); else cCtx.lineTo(xx,yy);
-  }
-  cCtx.stroke();
-
-  if(Math.max(...bU)>2){
-    cCtx.fillStyle="rgba(255,59,48,0.22)";
-    cCtx.beginPath(); cCtx.moveTo(0,h);
-    for(let i=0;i<CFG.SCOPE_N;i++){
-      const xx=i/(CFG.SCOPE_N-1)*w;
-      const yy=h-(bU[i]/255)*h;
-      cCtx.lineTo(xx,yy);
-    }
-    cCtx.lineTo(w,h); cCtx.closePath(); cCtx.fill();
-  }
-}
-
-/* ===================== Simulate ===================== */
-ui.btnSim.addEventListener("pointerdown",(e)=>{e.preventDefault(); simulate=true; ui.btnSim.classList.add("active");});
-ui.btnSim.addEventListener("pointerup",(e)=>{e.preventDefault(); simulate=false; ui.btnSim.classList.remove("active");});
-ui.btnSim.addEventListener("pointercancel",()=>{simulate=false; ui.btnSim.classList.remove("active");});
-document.addEventListener("pointerup",()=>{simulate=false; ui.btnSim.classList.remove("active");});
-
-/* ===================== SELF TEST ===================== */
-ui.btnSelfTest.addEventListener("click", async ()=>{
-  try{
-    alert("SELF TEST start");
-    const AC=window.AudioContext||window.webkitAudioContext;
-    if(!AC) throw new Error("No AudioContext");
-    const tctx=new AC();
-    await tctx.resume();
-    alert("AudioContext="+tctx.state);
-    const stream=await navigator.mediaDevices.getUserMedia({audio:true});
-    alert("Mic OK. tracks="+stream.getTracks().length);
-    stream.getTracks().forEach(t=>t.stop());
-    await tctx.close();
-    D("SELF TEST PASS");
-  }catch(e){
-    alert("SELF TEST FAIL: "+(e?.name||"")+" "+(e?.message||e));
-    D("SELF TEST FAIL: "+(e?.name||"")+" "+(e?.message||e));
-    setErr(e?.message||String(e));
-  }
-});
-
-/* ===================== Buttons ===================== */
-ui.btnMotionPerm.addEventListener("click", requestMotionPerm);
-ui.useMotion.addEventListener("change", ()=>{
-  motion.enabled = ui.useMotion.checked;
-  if(!motion.enabled) setPill(ui.pillMotion,"warn","motion: off");
-  else setPill(ui.pillMotion, motion.permitted?"ok":"warn", motion.permitted?"motion: on":"motion: need perm");
-});
-ui.btnExportReport.addEventListener("click", ()=>{
-  const payload={type:"REPORT", session, savedAt:Date.now()};
-  const blob=new Blob([JSON.stringify(payload,null,2)],{type:"application/json"});
-  const url=URL.createObjectURL(blob);
-  const a=document.createElement("a"); a.href=url; a.download=`SnoreField_Report_${Date.now()}.json`; a.click();
-  URL.revokeObjectURL(url);
-});
-ui.btnExportLocal.addEventListener("click", ()=>{
-  const blob=new Blob([JSON.stringify(DB,null,2)],{type:"application/json"});
-  const url=URL.createObjectURL(blob);
-  const a=document.createElement("a"); a.href=url; a.download=`SnoreField_LOCAL_${Date.now()}.json`; a.click();
-  URL.revokeObjectURL(url);
-});
-ui.btnSnapshot.addEventListener("click", ()=>{
-  if(!session){alert("No session"); return;}
-  DB.push({type:"SNAPSHOT",...session,savedAt:Date.now()});
-  saveJSON(STORE.DB,DB);
-  alert("Snapshot saved");
-});
-ui.btnClearLocal.addEventListener("click", ()=>{
-  DB=[]; saveJSON(STORE.DB,DB);
-  alert("Local cleared");
-});
-
-/* ===================== Start/Stop ===================== */
 function getMode(){
   const v=ui.modeSel.value;
   if(v!=="auto") return v;
@@ -744,7 +642,134 @@ function decideSleep(){
   return "OCEAN_SOFT";
 }
 
-let opt={token:"NUDGE_ALT",rho:0,level:"SOFT"};
+/* ===================== Scope (crisp + correct colors) ===================== */
+const cCtx = ui.cvs.getContext("2d");
+let bY=new Array(CFG.SCOPE_N).fill(0);
+let bYs=new Array(CFG.SCOPE_N).fill(0);
+let bU=new Array(CFG.SCOPE_N).fill(0);
+
+function resizeCanvas(){
+  const dpr = Math.max(1, window.devicePixelRatio || 1);
+  const w = ui.cvs.clientWidth;
+  const h = ui.cvs.clientHeight;
+  ui.cvs.width = Math.floor(w * dpr);
+  ui.cvs.height = Math.floor(h * dpr);
+  cCtx.setTransform(dpr,0,0,dpr,0,0); // draw in CSS pixels
+}
+window.addEventListener("resize", resizeCanvas);
+resizeCanvas();
+
+function drawScope(Y,Ys,u,thr){
+  const w = ui.cvs.clientWidth;
+  const h = ui.cvs.clientHeight;
+  cCtx.clearRect(0,0,w,h);
+
+  bY.push(Y); bY.shift();
+  bYs.push(Ys); bYs.shift();
+  bU.push(u*255); bU.shift();
+
+  // threshold line
+  const yT = h - (thr/255)*h;
+  cCtx.save();
+  cCtx.strokeStyle="rgba(255,255,255,0.18)";
+  cCtx.lineWidth=1;
+  cCtx.setLineDash([6,6]);
+  cCtx.beginPath();
+  cCtx.moveTo(0,yT);
+  cCtx.lineTo(w,yT);
+  cCtx.stroke();
+  cCtx.restore();
+
+  // u fill (red)
+  const maxU = Math.max(...bU);
+  if(maxU > 1){
+    cCtx.fillStyle="rgba(255,59,48,0.18)";
+    cCtx.beginPath();
+    cCtx.moveTo(0,h);
+    for(let i=0;i<bU.length;i++){
+      const xx = i/(bU.length-1)*w;
+      const yy = h - (bU[i]/255)*h;
+      cCtx.lineTo(xx,yy);
+    }
+    cCtx.lineTo(w,h);
+    cCtx.closePath();
+    cCtx.fill();
+  }
+
+  // Y line (cyan)
+  cCtx.strokeStyle="#00f2ff";
+  cCtx.lineWidth=1.5;
+  cCtx.beginPath();
+  for(let i=0;i<bY.length;i++){
+    const xx=i/(bY.length-1)*w;
+    const yy=h-(bY[i]/255)*h;
+    if(i===0) cCtx.moveTo(xx,yy); else cCtx.lineTo(xx,yy);
+  }
+  cCtx.stroke();
+
+  // Y* line (orange)
+  cCtx.strokeStyle="#ff9f0a";
+  cCtx.lineWidth=2.0;
+  cCtx.beginPath();
+  for(let i=0;i<bYs.length;i++){
+    const xx=i/(bYs.length-1)*w;
+    const yy=h-(bYs[i]/255)*h;
+    if(i===0) cCtx.moveTo(xx,yy); else cCtx.lineTo(xx,yy);
+  }
+  cCtx.stroke();
+}
+
+/* ===================== Buttons ===================== */
+ui.btnSim.addEventListener("pointerdown",(e)=>{e.preventDefault(); simulate=true; ui.btnSim.classList.add("active");});
+ui.btnSim.addEventListener("pointerup",(e)=>{e.preventDefault(); simulate=false; ui.btnSim.classList.remove("active");});
+ui.btnSim.addEventListener("pointercancel",()=>{simulate=false; ui.btnSim.classList.remove("active");});
+document.addEventListener("pointerup",()=>{simulate=false; ui.btnSim.classList.remove("active");});
+
+ui.btnSelfTest.addEventListener("click", async ()=>{
+  try{
+    alert("SELF TEST start");
+    const AC=window.AudioContext||window.webkitAudioContext;
+    if(!AC) throw new Error("No AudioContext");
+    const tctx=new AC();
+    await tctx.resume();
+    alert("AudioContext="+tctx.state);
+    const stream=await navigator.mediaDevices.getUserMedia({audio:true});
+    alert("Mic OK. tracks="+stream.getTracks().length);
+    stream.getTracks().forEach(t=>t.stop());
+    await tctx.close();
+    setErr("SELF TEST PASS");
+  }catch(e){
+    alert("SELF TEST FAIL: "+(e?.name||"")+" "+(e?.message||e));
+    setErr("SELF TEST FAIL: "+(e?.name||"")+" "+(e?.message||e));
+  }
+});
+
+ui.btnMotionPerm.addEventListener("click", requestMotionPerm);
+
+ui.btnExportReport.addEventListener("click", ()=>{
+  const payload={type:"REPORT", session, savedAt:Date.now()};
+  const blob=new Blob([JSON.stringify(payload,null,2)],{type:"application/json"});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement("a"); a.href=url; a.download=`SnoreField_Report_${Date.now()}.json`; a.click();
+  URL.revokeObjectURL(url);
+});
+ui.btnExportLocal.addEventListener("click", ()=>{
+  const blob=new Blob([JSON.stringify(DB,null,2)],{type:"application/json"});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement("a"); a.href=url; a.download=`SnoreField_LOCAL_${Date.now()}.json`; a.click();
+  URL.revokeObjectURL(url);
+});
+ui.btnSnapshot.addEventListener("click", ()=>{
+  if(!session){alert("No session"); return;}
+  DB.push({type:"SNAPSHOT",...session,savedAt:Date.now()});
+  saveJSON(STORE.DB,DB);
+  alert("Snapshot saved");
+});
+ui.btnClearLocal.addEventListener("click", ()=>{
+  DB=[]; saveJSON(STORE.DB,DB); alert("Local cleared");
+});
+
+/* ===================== Start/Stop loop ===================== */
 function loop(){
   if(!running) return;
 
@@ -837,7 +862,6 @@ function loop(){
     if(session.inEvent && u>0.03){
       const gap=clamp(CFG.NUDGE_MAX_GAP - u*(CFG.NUDGE_MAX_GAP-CFG.NUDGE_MIN_GAP), CFG.NUDGE_MIN_GAP, CFG.NUDGE_MAX_GAP);
       if(ctx.currentTime >= nudgeNext){
-        // fixed token for simplicity; you can re-enable RL later
         scheduleNudge("NUDGE_ALT", clamp(u,0,1));
         nudgeNext = ctx.currentTime + gap;
       }
@@ -852,6 +876,7 @@ function loop(){
     setSleepBus(Math.min(sleepBase(),0.25));
   }
 
+  // overlay
   ui.oPhase.textContent=phase;
   ui.oStage.textContent=stage;
   ui.oNudge.textContent="NUDGE_ALT";
@@ -888,14 +913,13 @@ async function startSystem(){
     pidI=0; lastU=0;
     bufS=[];bufM=[];bufL=[];budgetBuf=[];duBuf=[];
     sleepLatencySec=null; onsetStable=0;
-    strongTimes=[];
+
     newSession(nowMs()/1000);
 
     ui.btnActivate.textContent="STOP";
     loop();
   }catch(e){
-    D("START FAIL: "+(e?.name||"")+" "+(e?.message||e));
-    setErr(e?.message||String(e));
+    setErr("START FAIL: "+(e?.name||"")+" "+(e?.message||e));
     alert("START FAIL: "+(e?.message||e));
   }
 }
@@ -916,14 +940,13 @@ function stopSystem(){
     URL.revokeObjectURL(url);
   }
 }
-
 ui.btnActivate.addEventListener("click", ()=> running ? stopSystem() : startSystem());
 
 /* ===================== Init ===================== */
 setPill(ui.pillAudio,"warn","audio: suspended");
 setPill(ui.pillMic,"warn","mic: off");
 setPill(ui.pillMotion,"warn","motion: off");
-D("Loaded v7.8. CFG is defined. If anything breaks, the error will appear here.");
+setErr("Loaded v7.9. Scope is crisp, debug hidden by default.");
 </script>
 </body>
 </html>
